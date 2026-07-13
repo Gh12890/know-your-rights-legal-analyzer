@@ -486,7 +486,7 @@ def check_female_officer_involvement(f):
 
 
 def check_24_hour_production(f):
-    req = "Produced before magistrate within 2 hours [Art. 22(2)/S. 58 BNSS]"
+    req = "Produced before magistrate within 24 hours [Art. 22(2)/S. 58 BNSS]"
     a = parse_datetime_full(f.get("arrest_datetime_full"))
     p= parse_datetime_full(f.get("production_datetime_full"))
     if a is None:
@@ -925,7 +925,7 @@ Document text:
 
 
 if __name__ == "__main__":
-    document_text = clean_text(extract_text_from_pdf("Sample_Bank_Freeze_Notice_NoSection.pdf"))
+    document_text = clean_text(extract_text_from_pdf("Sample_Legal_Notice_Section138.pdf"))
     #print("DEBUG:", repr(document_text[:200]))
     result = analyze_document(document_text)
     print(json.dumps(result, indent=2))
