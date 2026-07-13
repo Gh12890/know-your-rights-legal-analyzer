@@ -3,7 +3,6 @@ from main import analyze_document,extract_text_from_pdf,clean_text, check_defaul
 
 st.title("Know Your Rights")
 st.caption("Indian Legal Notice & Procedural Compliance Analyzer")
-st.write("test")
 st.write("Upload a legal notice PDF for analysis (currently supports Banking & Cheque Bounce notices, Police&Criminal Processes, and Procedures under 106/107 BNSS)")
 
 uploaded_file= st.file_uploader("Choose a PDF", type="pdf")
