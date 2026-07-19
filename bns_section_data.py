@@ -11,6 +11,7 @@
 # IMPORTANT: sub-section precision matters. 117(2) and 117(3) are
 # different offences with very different consequences — do not
 # collapse sub-sections into their parent section number.
+# Verified against India Code and BPRD sources as of July 2026. Requires manual review if BNS/BNSS amendments occur.
 # =============================================================
 
 BNS_SECTION_DATA = {
