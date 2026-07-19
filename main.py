@@ -3,15 +3,18 @@ import os
 import json
 import typing
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 from anthropic import Anthropic
 from bns_section_data import BNS_SECTION_DATA, get_max_years_from_sections
 
+import streamlit as st
 
-load_dotenv()
-api_key = os.getenv("ANTHROPIC_API_KEY")
+try:
+    api_key = st.secrets["ANTHROPIC_API_KEY"]
+except (KeyError, FileNotFoundError):
+    from dotenv import load_dotenv
+    load_dotenv()
+    api_key = os.getenv("ANTHROPIC_API_KEY")
 client = Anthropic(api_key=api_key)
-
 
 def get_urgency_level(days_remaining):
     if days_remaining < 0:
@@ -929,4 +932,115 @@ if __name__ == "__main__":
     #print("DEBUG:", repr(document_text[:200]))
     result = analyze_document(document_text)
     print(json.dumps(result, indent=2))
+
+
+# Add to main.py, near the top with other imports:
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+import io
+
+
+def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf"):
+    """Render full_analysis into a formatted, letterhead-style PDF."""
+    doc = SimpleDocTemplate(
+        output_path, pagesize=A4,
+        topMargin=0.9*inch, bottomMargin=0.9*inch,
+        leftMargin=0.9*inch, rightMargin=0.9*inch
+    )
+    styles = getSampleStyleSheet()
+    header = ParagraphStyle('Header', parent=styles['Normal'], fontSize=14, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=4)
+    sub = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, textColor=colors.HexColor("#555555"), spaceAfter=2)
+    section_title = ParagraphStyle('SecTitle', parent=styles['Normal'], fontSize=12, fontName='Helvetica-Bold', spaceBefore=14, spaceAfter=6, textColor=colors.HexColor("#14213D"))
+    label = ParagraphStyle('Label', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold', spaceAfter=2)
+    body = ParagraphStyle('Body', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=6, leading=14)
+    finding_pass = ParagraphStyle('Pass', parent=body, textColor=colors.HexColor("#15803D"))
+    finding_fail = ParagraphStyle('Fail', parent=body, textColor=colors.HexColor("#B91C1C"))
+    finding_unclear = ParagraphStyle('Unclear', parent=body, textColor=colors.HexColor("#B45309"))
+    highlight = ParagraphStyle('Highlight', parent=styles['Normal'], fontSize=12, fontName='Helvetica-Bold', textColor=colors.HexColor("#7B2D26"), spaceBefore=8, spaceAfter=8)
+    small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor("#666666"))
+
+    story = []
+
+    # Letterhead
+    story.append(Paragraph("KNOW YOUR RIGHTS", header))
+    story.append(Paragraph("Legal Notice & Procedural Compliance Brief", sub))
+    story.append(Spacer(1, 6))
+    story.append(HRFlowable(width="100%", thickness=1.2, color=colors.HexColor("#14213D")))
+    story.append(Spacer(1, 12))
+
+    # Section 1: Document details
+    classification = full_analysis.get("classification", {})
+    story.append(Paragraph("1. Document Summary", section_title))
+    story.append(Paragraph(f"<b>Category:</b> {classification.get('document_type', 'N/A')}", body))
+    story.append(Paragraph(f"<b>Sub-type:</b> {classification.get('sub_type', 'N/A')}", body))
+    story.append(Paragraph(f"<b>Assessment:</b> {classification.get('reasoning', 'N/A')}", body))
+    story.append(Spacer(1, 6))
+
+    # Section 2: Default bail / urgency highlight (if present)
+    urgency = full_analysis.get("urgency", {})
+    if urgency.get("urgency_level") not in (None, "Cannot Determine"):
+        story.append(Paragraph(f"⚠ URGENCY: {urgency.get('urgency_level')}", highlight))
+        if urgency.get("days_remaining") is not None:
+            story.append(Paragraph(f"Days remaining: {urgency.get('days_remaining')}", body))
+
+    # Pull out default bail specifically for highlighting, if present in compliance checks
+    compliance = full_analysis.get("compliance", {})
+    for check in compliance.get("compliance_checks", []):
+        if "Default bail" in check.get("requirement", ""):
+            story.append(Paragraph(f"⚠ DEFAULT BAIL: {check.get('status')}", highlight))
+            story.append(Paragraph(check.get("explanation", ""), body))
+
+    story.append(Spacer(1, 6))
+
+    # Section 3: Compliance findings
+    story.append(Paragraph("2. Procedural Compliance Findings", section_title))
+    for check in compliance.get("compliance_checks", []):
+        status = check.get("status", "")
+        style = finding_pass if status == "Compliant" else finding_fail if status in ("Non-Compliant", "May be Non-Compliant") else finding_unclear if status == "Cannot Determine" else body
+        story.append(Paragraph(f"<b>{check.get('requirement', '')}</b>", label))
+        story.append(Paragraph(f"Status: <b>{status}</b>", style))
+        story.append(Paragraph(check.get("explanation", ""), body))
+        story.append(Spacer(1, 4))
+
+    story.append(Paragraph(f"<b>Overall Assessment:</b> {compliance.get('overall_assessment', '')}", body))
+    story.append(Spacer(1, 10))
+
+    # Section 4: Missing information
+    missing = full_analysis.get("missing_info", {})
+    story.append(Paragraph("3. Missing or Unclear Information", section_title))
+    for flag in missing.get("missing_or_unclear", []):
+        story.append(Paragraph(f"• {flag}", body))
+    story.append(Spacer(1, 10))
+
+    # Section 5: Action plan
+    if urgency.get("deadline_message") and isinstance(urgency["deadline_message"], dict):
+        story.append(Paragraph("4. Recommended Action Plan", section_title))
+        dm = urgency["deadline_message"]
+        for k, v in dm.items():
+            story.append(Paragraph(f"<b>{k.replace('_', ' ').title()}:</b> {v}", body))
+        story.append(Spacer(1, 10))
+
+    # Section 6: Document checklist
+    checklist = full_analysis.get("checklist", [])
+    story.append(Paragraph("5. Documents to Gather", section_title))
+    for item in checklist:
+        story.append(Paragraph(f"☐ {item}", body))
+
+    # Disclaimer
+    story.append(Spacer(1, 20))
+    story.append(HRFlowable(width="100%", thickness=0.6, color=colors.grey))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(
+        "This brief is generated by an automated analysis tool and does not constitute legal advice. "
+        "Findings marked 'May be Non-Compliant' are inferences drawn from the absence of information in the "
+        "source document, not confirmed violations. Consult a qualified advocate before taking any legal action.",
+        small
+    ))
+
+    doc.build(story)
+    return output_path
 
