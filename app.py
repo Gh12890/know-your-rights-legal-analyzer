@@ -1,5 +1,8 @@
 import streamlit as st
 from main import analyze_document,extract_text_from_pdf,clean_text, check_default_bail
+from main import generate_compliance_brief
+
+
 
 st.title("Know Your Rights")
 st.caption("Indian Legal Notice & Procedural Compliance Analyzer")
@@ -18,7 +21,9 @@ if uploaded_file is not None :
             
             
     if "result" in st.session_state:
+        
         result = st.session_state["result"]
+        
         
         
         st.subheader("Classification")
@@ -35,12 +40,30 @@ if uploaded_file is not None :
         
         st.subheader("Urgency & Action Plan")
         st.json(result["urgency"])
+        if st.button("Generate Compliance Brief"):
+            pdf_path = generate_compliance_brief(result, output_path="compliance_brief.pdf")
+            with open(pdf_path, "rb") as f:
+                st.session_state["brief_bytes"] = f.read()
+
+        if "brief_bytes" in st.session_state:
+            st.download_button(
+                label="Download Compliance Brief (PDF)",
+                data=st.session_state["brief_bytes"],
+                file_name="compliance_brief.pdf",
+                mime="application/pdf"
+    )
+               
+    
+        
         
         default_bail_check = next(
         (c for c in result ["compliance"].get("compliance_checks",[] )if "Default bail" in c["requirement"]),
          None
          
         )
+        
+       
+        
         if default_bail_check and default_bail_check["status"] in ("Cannot Determine", "May be Non-Compliant"):
             st.subheader("One More Question")
             st.write("This document alone could't fully resolve the default-bail deadline.")
@@ -54,7 +77,7 @@ if uploaded_file is not None :
                 )
                 st.write("Updated result:")
                 st.json(updated_check)
-                
+    
                 
                                            
             
