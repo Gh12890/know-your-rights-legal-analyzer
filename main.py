@@ -5,7 +5,7 @@ import typing
 from datetime import datetime, timedelta
 from anthropic import Anthropic
 from bns_section_data import BNS_SECTION_DATA, get_max_years_from_sections
-
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable,Table, TableStyle
 import streamlit as st
 
 try:
@@ -1008,6 +1008,60 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
 
     story.append(Paragraph(f"<b>Overall Assessment:</b> {compliance.get('overall_assessment', '')}", body))
     story.append(Spacer(1, 10))
+    
+    # ---- Consequences of Non-Compliance (Arnesh Kumar-specific) ----
+    arnesh_kumar_flagged = any(
+        "41A" in c.get("requirement", "") and c.get("status") in ("Non-Compliant", "May be Non-Compliant")
+        for c in compliance.get("compliance_checks", [])
+    )
+
+    if arnesh_kumar_flagged:
+        story.append(Paragraph("Consequences of Non-Compliance", section_title))
+        story.append(Paragraph(
+            "The Supreme Court has laid down specific consequences for non-compliance with arrest "
+            "procedure guidelines: <i>Arnesh Kumar v. State of Bihar</i>, (2014) 8 SCC 273, "
+            "Criminal Appeal No. 1277 of 2014.",
+            body
+        ))
+        story.append(Spacer(1, 4))
+
+        consequence_table = Table(
+            [
+                [Paragraph("<b>For Police Officers</b>", label), Paragraph("<b>For Judicial Magistrates</b>", label)],
+                [Paragraph(
+                    "• Liable for departmental action<br/>"
+                    "• Liable to be punished for contempt of court, "
+                    "before the High Court having territorial jurisdiction",
+                    body
+                ),
+                 Paragraph(
+                    "• Liable for departmental action by the appropriate "
+                    "High Court, if detention is authorized without "
+                    "recording reasons in writing",
+                    body
+                )],
+            ],
+            colWidths=[240, 240]
+        )
+        consequence_table.setStyle(TableStyle([
+            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#999999")),
+            ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor("#CCCCCC")),
+            ('BACKGROUND', (0,0), (0,-1), colors.HexColor("#FBE9E7")),
+            ('BACKGROUND', (1,0), (1,-1), colors.HexColor("#FEF9E7")),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ]))
+        story.append(consequence_table)
+        story.append(Spacer(1, 4))
+        story.append(Paragraph(
+            "<i>Note: These consequences arise specifically from the Arnesh Kumar guidelines on "
+            "arrest procedure. Other compliance findings above cite their own separate case law "
+            "and may carry different consequences.</i>",
+            small
+        ))
+        story.append(Spacer(1, 10))
 
     # Section 4: Missing information
     missing = full_analysis.get("missing_info", {})
