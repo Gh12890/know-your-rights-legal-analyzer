@@ -1025,6 +1025,9 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
         ))
         story.append(Spacer(1, 4))
 
+        page_width = A4[0] - (0.9*inch * 2)
+        col_width = page_width / 2
+
         consequence_table = Table(
             [
                 [Paragraph("<b>For Police Officers</b>", label), Paragraph("<b>For Judicial Magistrates</b>", label)],
@@ -1041,7 +1044,7 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
                     body
                 )],
             ],
-            colWidths=[240, 240]
+            colWidths=[col_width, col_width]
         )
         consequence_table.setStyle(TableStyle([
             ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#999999")),
