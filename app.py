@@ -49,7 +49,85 @@ def find_sections_by_crime_name(typed_name):
 def yn(v):
     return {True: True, False: False, "unclear": "unclear"}.get(v, "unclear")
 
+def render_compliance_ui(result):
+    """Replaces raw st.json() calls with a readable, structured display."""
 
+    classification = result.get("classification", {})
+    compliance = result.get("compliance", {})
+    missing = result.get("missing_info", {})
+    checklist = result.get("checklist", [])
+    urgency = result.get("urgency", {})
+
+    # ---- BLOCK 1: What this is ----
+    st.markdown("### 📄 What This Is")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.caption("Category")
+        st.markdown(f"**{classification.get('document_type', 'N/A')}**")
+    with col2:
+        st.caption("Sub-type")
+        st.markdown(f"**{classification.get('sub_type', 'N/A')}**")
+    st.caption(classification.get("reasoning", ""))
+    st.divider()
+
+    # ---- BLOCK 2: How serious ----
+    st.markdown("### ⏱️ How Serious Is This")
+    urgency_level = urgency.get("urgency_level", "Cannot Determine")
+    urgency_colors = {
+        "DEADLINE PASSED": "🔴", "CRITICAL": "🔴", "HIGH RISK": "🟠",
+        "FORMAL": "🟡", "ROUTINE": "🟢", "Cannot Determine": "⚪",
+    }
+    icon = urgency_colors.get(urgency_level, "⚪")
+    st.markdown(f"## {icon} {urgency_level}")
+    if urgency.get("days_remaining") is not None:
+        st.metric("Days remaining", urgency["days_remaining"])
+    dm = urgency.get("deadline_message")
+    if isinstance(dm, dict):
+        for k, v in dm.items():
+            st.write(f"**{k.replace('_', ' ').title()}:** {v}")
+    elif dm:
+        st.write(dm)
+    st.divider()
+
+    # ---- BLOCK 3: Compliance findings ----
+    st.markdown("### ⚖️ Was Correct Procedure Followed?")
+    status_style = {
+        "Compliant": ("✅", "green"),
+        "Non-Compliant": ("❌", "red"),
+        "May be Non-Compliant": ("⚠️", "orange"),
+        "Cannot Determine": ("❔", "gray"),
+        "Not Applicable": ("➖", "gray"),
+    }
+    for check in compliance.get("compliance_checks", []):
+        emoji, color = status_style.get(check.get("status"), ("❔", "gray"))
+        with st.container(border=True):
+            st.markdown(f"{emoji} **{check.get('requirement', '')}**")
+            st.markdown(f":{color}[{check.get('status', '')}]")
+            st.caption(check.get("explanation", ""))
+
+    overall = compliance.get("overall_assessment", "")
+    if overall:
+        st.info(overall)
+    st.divider()
+
+    # ---- BLOCK 4: What's missing ----
+    flags = missing.get("missing_or_unclear", [])
+    if flags:
+        st.markdown("### 🔍 What's Missing or Unclear")
+        for flag in flags:
+            st.markdown(f"- {flag}")
+        st.divider()
+
+    # ---- BLOCK 5: Document checklist ----
+    if checklist:
+        st.markdown("### 📋 Documents to Gather")
+        for item in checklist:
+            st.checkbox(item, key=f"chk_{hash(item)}")
+            
+    # ---- Raw data, collapsed, for debugging only ----
+    with st.expander("Show raw data"):
+        st.json(result)
+        
 # =============================================================
 # DOMAIN 1: ARREST-RELATED — questions (unchanged from before)
 # =============================================================
@@ -397,8 +475,7 @@ def show_interview_results(domain_key, config):
         "extracted_fields": fields
     }
 
-    st.subheader("Compliance Check")
-    st.json(compliance_result)
+    render_compliance_ui(full_analysis)
 
     default_bail_check = next(
         (c for c in compliance_result.get("compliance_checks", []) if "Default bail" in c["requirement"]),
@@ -478,21 +555,9 @@ def run_document_flow():
 
         if "result" in st.session_state:
             result = st.session_state["result"]
+            render_compliance_ui(result)
 
-            st.subheader("Classification")
-            st.json(result["classification"])
-
-            st.subheader("Missing Information")
-            st.json(result["missing_info"])
-
-            st.subheader("Document Checklist")
-            st.json(result["checklist"])
-
-            st.subheader("Compliance Check")
-            st.json(result["compliance"])
-
-            st.subheader("Urgency & Action Plan")
-            st.json(result["urgency"])
+           
 
             if st.button("Generate Compliance Brief"):
                 pdf_path = generate_compliance_brief(result, output_path="compliance_brief.pdf")
