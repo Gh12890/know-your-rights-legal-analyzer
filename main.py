@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from anthropic import Anthropic
 from bns_section_data import BNS_SECTION_DATA, get_max_years_from_sections
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable,Table, TableStyle
+from reportlab.platypus import Table as _Table
+from reportlab.lib import colors as _colors
 import streamlit as st
 
 try:
@@ -567,6 +569,41 @@ def run_arrest_compliance_checks(fields, user_chargesheet_date=None):
         overall = "All applicable procedural checks pass."
     return {"compliance_checks": checks, "overall_assessment": overall}
 
+def compute_severity(compliance_checks):
+    """Weighted severity score from compliance findings.
+    Non-Compliant = confirmed defect (2 pts), May be Non-Compliant = suspected/inferred (1 pt).
+    Cannot Determine is tracked separately, never folded into the score."""
+    score = 0
+    unresolved_count = 0
+
+    for check in compliance_checks:
+        status = check.get("status")
+        if status == "Non-Compliant":
+            score += 2
+        elif status == "May be Non-Compliant":
+            score += 1
+        elif status == "Cannot Determine":
+            unresolved_count += 1
+
+    if score == 0:
+        label, color, tier = "No Procedural Defects Found", "green",1
+    elif score <= 2:
+        label, color, tier = "Some Concerns", "amber",2
+    elif score <= 4:
+        label, color, tier = "Serious Concerns", "orange",3
+    else:
+        label, color, tier = "Critical — Rights Likely Violated", "red",4
+    tier_blocks = {1: "🟩", 2: "🟨", 3: "🟧", 4: "🟥"}
+    meter = "".join(tier_blocks[t] for t in range(1, tier + 1)) + "⬜" * (4 - tier)
+
+    return {
+        "severity_score": score,
+        "severity_label": label,
+        "severity_color": color,
+        "severity_meter": meter,
+        "unresolved_checks": unresolved_count,
+    }
+
 
 def check_freeze_section_and_scope(f):
     req = "Blanket freeze under 106/107 BNSS restrcited to disputed amount [High Court trend]"
@@ -921,6 +958,7 @@ Document text:
         "compliance": compliance_result,
         "checklist": get_document_checklist(classification_result.get("document_type", "")),
         "urgency": urgency_result,
+        "severity": compute_severity(compliance_result.get("compliance_checks", [])),
         "extracted_fields": extracted_fields
     }
 
@@ -979,6 +1017,58 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
     story.append(Paragraph(f"<b>Sub-type:</b> {classification.get('sub_type', 'N/A')}", body))
     story.append(Paragraph(f"<b>Assessment:</b> {classification.get('reasoning', 'N/A')}", body))
     story.append(Spacer(1, 6))
+    
+    severity = full_analysis.get("severity", {})
+    if severity:
+        story.append(Paragraph("Procedural Compliance Severity", section_title))
+
+        tier_colors_hex = {1: "#4CAF50", 2: "#FFC107", 3: "#FF7043", 4: "#D6336C"}
+        score = severity.get("severity_score", 0)
+        if score == 0:
+            tier = 1
+        elif score <= 2:
+            tier = 2
+        elif score <= 4:
+            tier = 3
+        else:
+            tier = 4
+
+        dot_size = 12
+        dot_table = _Table([[""]], colWidths=[dot_size], rowHeights=[dot_size])
+        dot_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,0), _colors.HexColor(tier_colors_hex[tier])),
+            ('BOX', (0,0), (0,0), 0.5, colors.HexColor("#999999")),
+        ]))
+
+        label_row = Table(
+            [[dot_table, Paragraph(f"<b>{severity.get('severity_label', 'Not Available')}</b>", body)]],
+            colWidths=[dot_size + 6, None]
+        )
+        label_row.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ]))
+        story.append(label_row)
+        story.append(Spacer(1, 6))
+
+        box_size = 18
+        cells = [[""] * 4]
+        meter_table = _Table(cells, colWidths=[box_size]*4, rowHeights=[box_size])
+        style_commands = []
+        for i in range(4):
+            fill = _colors.HexColor(tier_colors_hex[i + 1]) if (i + 1) <= tier else _colors.HexColor("#E0E0E0")
+            style_commands.append(('BACKGROUND', (i, 0), (i, 0), fill))
+        meter_table.setStyle(TableStyle(style_commands + [
+            ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor("#999999")),
+            ('INNERGRID', (0,0), (-1,-1), 1, colors.white),
+        ]))
+        story.append(meter_table)
+
+        unresolved = severity.get("unresolved_checks", 0)
+        if unresolved > 0:
+            story.append(Spacer(1, 4))
+            story.append(Paragraph(f"{unresolved} check(s) could not be verified from the information given.", small))
+        story.append(Spacer(1, 10))
 
     # Section 2: Default bail / urgency highlight (if present)
     urgency = full_analysis.get("urgency", {})

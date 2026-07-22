@@ -11,6 +11,7 @@ from main import (
     run_compliance_checks,
     get_document_checklist,
     BNS_SECTION_DATA,
+    compute_severity,
 )
 
 # =============================================================
@@ -70,24 +71,43 @@ def render_compliance_ui(result):
     st.caption(classification.get("reasoning", ""))
     st.divider()
 
-    # ---- BLOCK 2: How serious ----
-    st.markdown("### ⏱️ How Serious Is This")
-    urgency_level = urgency.get("urgency_level", "Cannot Determine")
-    urgency_colors = {
-        "DEADLINE PASSED": "🔴", "CRITICAL": "🔴", "HIGH RISK": "🟠",
-        "FORMAL": "🟡", "ROUTINE": "🟢", "Cannot Determine": "⚪",
-    }
-    icon = urgency_colors.get(urgency_level, "⚪")
-    st.markdown(f"## {icon} {urgency_level}")
-    if urgency.get("days_remaining") is not None:
-        st.metric("Days remaining", urgency["days_remaining"])
-    dm = urgency.get("deadline_message")
-    if isinstance(dm, dict):
-        for k, v in dm.items():
-            st.write(f"**{k.replace('_', ' ').title()}:** {v}")
-    elif dm:
-        st.write(dm)
+    # ---- BLOCK 2a: Urgency & Deadline — Section 138 (Banking & Cheque Bounce) ONLY ----
+    document_type = classification.get("document_type", "")
+    if document_type == "Banking & Cheque Bounce":
+        st.markdown("### ⏱️ Urgency & Deadline")
+        urgency_level = urgency.get("urgency_level", "Cannot Determine")
+        urgency_colors = {
+            "DEADLINE PASSED": "🔴", "CRITICAL": "🔴", "HIGH RISK": "🟠",
+            "FORMAL": "🟡", "ROUTINE": "🟢", "Cannot Determine": "⚪",
+        }
+        icon = urgency_colors.get(urgency_level, "⚪")
+        st.markdown(f"## {icon} {urgency_level}")
+        if urgency.get("days_remaining") is not None:
+            st.metric("Days remaining", urgency["days_remaining"])
+        dm = urgency.get("deadline_message")
+        if isinstance(dm, dict):
+            for k, v in dm.items():
+                st.write(f"**{k.replace('_', ' ').title()}:** {v}")
+        elif dm:
+            st.write(dm)
+        st.divider()
+
+    # ---- BLOCK 2b: Procedural Compliance Severity — ALL domains ----
+    severity = result.get("severity", {})
+    st.markdown("### 🛡️ Procedural Compliance Severity")
+    severity_icons = {"green": "🟢", "amber": "🟡", "orange": "🟠", "red": "🔴"}
+    icon = severity_icons.get(severity.get("severity_color"), "⚪")
+    st.markdown(f"## {icon} {severity.get('severity_label', 'Not Available')}")
+    st.markdown(f"# {severity.get('severity_meter', '')}")
+
+    unresolved = severity.get("unresolved_checks", 0)
+    if unresolved > 0:
+        st.caption(f"{unresolved} check(s) could not be verified from the information given.")
     st.divider()
+    
+    
+    
+    
 
     # ---- BLOCK 3: Compliance findings ----
     st.markdown("### ⚖️ Was Correct Procedure Followed?")
@@ -472,6 +492,7 @@ def show_interview_results(domain_key, config):
         "compliance": compliance_result,
         "checklist": get_document_checklist(config["checklist_category"]),
         "urgency": {"urgency_level": "Cannot Determine", "deadline_message": "N/A for interview mode", "days_remaining": None},
+        "severity": compute_severity(compliance_result.get("compliance_checks", [])),
         "extracted_fields": fields
     }
 
