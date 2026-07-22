@@ -1020,7 +1020,7 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
     
     severity = full_analysis.get("severity", {})
     if severity:
-        story.append(Paragraph("Procedural Compliance Severity", section_title))
+        story.append(Paragraph("Severity of Procedural Compliance Violations", section_title))
 
         tier_colors_hex = {1: "#4CAF50", 2: "#FFC107", 3: "#FF7043", 4: "#D6336C"}
         score = severity.get("severity_score", 0)
