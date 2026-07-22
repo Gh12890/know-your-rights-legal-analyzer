@@ -20,7 +20,7 @@ from main import (
 st.title("Know Your Rights")
 st.caption("Indian Legal Notice & Procedural Compliance Analyzer")
 st.write(
-    "Upload a legal notice PDF for analysis (currently supports Banking & Cheque Bounce "
+    "Upload a legal document for analysis (currently supports Banking & Cheque Bounce "
     "notices, Police & Criminal Processes, and Procedures under 106/107 BNSS)"
 )
 
