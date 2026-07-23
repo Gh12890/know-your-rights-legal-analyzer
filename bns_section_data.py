@@ -169,6 +169,7 @@ BNS_SECTION_DATA = {
     "149":     {"offence": "Collecting arms to wage war",                  "max_years": None, "life_or_death": True,  "cognizable": True,  "bailable": False},
     "152":     {"offence": "Act endangering sovereignty, unity, integrity (former sedition)", "max_years": None, "life_or_death": True, "cognizable": True, "bailable": False},
     "151":     {"offence": "Assaulting President/Governor to compel/restrain power", "max_years": 7, "life_or_death": False, "cognizable": True, "bailable": False},
+    "223":     {"offence": "Disobedience to order duly promulgated by public servant (violation of S.163 BNSS order)", "max_years": 1, "life_or_death": False, "cognizable": True, "bailable": True},
 
     # ---------- Table 11: Public Health, Safety, Decency, Religion ----------
     "271":     {"offence": "Negligent act likely to spread infection dangerous to life", "max_years": None, "life_or_death": False, "cognizable": True, "bailable": True},  # 6 months

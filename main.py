@@ -275,6 +275,9 @@ Document text:
 {document_text}"""
 
 ARREST_EXTRACTION_PROMPT = """Extract only what the arrest-related document explicitly states. Do NOT judge legality. If a field is not present, use null. Do not infer.
+IMPORTANT INSTRUCTION for arrest_mode: use "in_presence" ONLY if the document indicates the person was arrested at the place of occurrence while the offence was ongoing or immediately upon commission, with police physically present witnessing it. Use "post_facto" if the arrest happened later — a different date from the offence, or at the person's residence or another location, or based on investigation, CCTV, or identification after the event. Use "preventive" if the document indicates arrest was made to PREVENT an anticipated offence (S.170 BNSS / old 151 CrPC) rather than for an offence already committed. Use "unclear" only if none of this can be determined.
+
+IMPORTANT INSTRUCTION for arrest_power_limb: report a value ONLY where the document affirmatively states the underlying fact — e.g. that stolen property was recovered from the person at the time of arrest, that the person was already a proclaimed offender, that the arrest was for obstructing police or escaping custody, or that it was made on requisition from another police officer. Do NOT infer any of these from the offence charged. A theft charge alone is NOT "stolen_property" — that value requires property actually found in the person's possession. If none is affirmatively stated, use null.
 
 IMPORTANT DISTINCTION for grounds_of_arrest_in_writing_furnished_to_arrestee: this field means a SEPARATE written document was handed to the arrestee explaining the specific grounds for HIS arrest. It is NOT the same as an internal police checklist of justifications (e.g., checkboxes like "for proper investigation" or "to ensure presence in court") recorded in the memo for the police's own record. If the memo only shows internal justification checkboxes with no indication that a distinct grounds document was furnished to the arrestee, mark this field false, not true.
 
@@ -286,6 +289,8 @@ Return ONLY valid JSON in this format, no other text:
   "document_date": "DD-MM-YYYY or null",
   "offence_date": "DD-MM-YYYY or null",
   "sections_cited": ["list of sections mentioned"],
+  "arrest_mode": "in_presence" or "post_facto" or "preventive" or "unclear",
+  "arrest_power_limb": "stolen_property" or "proclaimed_offender" or "obstruction_escape" or "requisition" or "deserter" or "extradition" or "released_convict" or null,
   "punishment_years_upper_bound": number or null,
   "arrestee_gender": "male" or "female" or "not stated",
   "arrestee_age": number or null,
@@ -297,7 +302,8 @@ Return ONLY valid JSON in this format, no other text:
   "family_or_friend_informed": true or false or "unclear",
   "medical_exam_at_arrest_recorded": true or false or "unclear",
   "female_officer_present_for_female_arrestee": true or false or "unclear" or "not applicable",
-  "chargesheet_filed_date": "DD-MM-YYYY or null"
+  "chargesheet_filed_date": "DD-MM-YYYY or null",
+  
 }}
 
 Document text:
@@ -414,38 +420,145 @@ def parse_datetime_full(raw):
             continue
     return None 
 
+def resolve_arrest_mode(f):
+    """Deterministic backstop: a date gap between offence and arrest proves post-facto."""
+    mode = f.get("arrest_mode", "unclear")
+    o = parse_date(f.get("offence_date"))
+    a = parse_datetime_full(f.get("arrest_datetime_full"))
+    if o is not None and a is not None and (a.date() - o.date()).days >= 1:
+        return "post_facto"   # conclusive regardless of extraction
+    return mode
+
+# Limbs of S.35(1) BNSS that authorise arrest WITHOUT a prior S.35(3) notice.
+# Key -> (section reference, plain-language predicate)
+BYPASS_LIMBS = {
+    "in_presence":        ("S.35(1)(a)", "the offence was committed in the presence of a police officer"),
+    "over_seven_years":   ("S.35(1)(c)", "credible information of an offence punishable with MORE than seven years or death"),
+    "proclaimed_offender":("S.35(1)(d)", "the person had already been proclaimed an offender by a court or the State Government"),
+    "stolen_property":    ("S.35(1)(e)", "property reasonably suspected to be stolen was found in the person's possession"),
+    "obstruction_escape": ("S.35(1)(f)", "obstructing a police officer in execution of duty, or escaping / attempting to escape lawful custody"),
+    "deserter":           ("S.35(1)(g)", "reasonably suspected of being a deserter from the Armed Forces of the Union"),
+    "extradition":        ("S.35(1)(h)", "an act committed outside India for which the person is liable to be apprehended under extradition law"),
+    "released_convict":   ("S.35(1)(i)", "a released convict in breach of rules made under S.394(5) BNSS"),
+    "requisition":        ("S.35(1)(j)", "arrest on a requisition from another police officer specifying the person and the cause"),
+    "preventive":         ("S.170 BNSS", "preventive arrest to stop an anticipated cognizable offence (old S.151 CrPC)"),
+}
+
+
+def resolve_arrest_power_limb(f, upper_years):
+    """Identify which limb of S.35(1) BNSS authorised this arrest without notice.
+    Returns (limb_key, section_ref, description) or None if the arrest falls into
+    the S.35(1)(b) notice-first pathway.
+
+    DESIGN RULE: a bypass limb is returned ONLY where its predicate is affirmatively
+    established. 'unclear' or absent never yields a bypass — the burden of showing an
+    exception rests on the facts being present (Vihaan Kumar, 2025 INSC 162)."""
+
+    mode = resolve_arrest_mode(f)          # from the previous step
+    if mode == "in_presence":
+        return ("in_presence",) + BYPASS_LIMBS["in_presence"]
+    if mode == "preventive":
+        return ("preventive",) + BYPASS_LIMBS["preventive"]
+
+    if upper_years is not None and upper_years != "LIFE_OR_DEATH" and upper_years > 7:
+        return ("over_seven_years",) + BYPASS_LIMBS["over_seven_years"]
+
+    limb = f.get("arrest_power_limb")      # affirmative predicate captured separately
+    if limb in BYPASS_LIMBS and limb not in ("in_presence", "preventive", "over_seven_years"):
+        return (limb,) + BYPASS_LIMBS[limb]
+
+    return None
+
+
 def check_arnesh_kumar_notice(f):
-    req = "41A CrPC / Section 35 BNSS notice before arrest [Arnesh Kumar (2014) / Satender Kumar Antil (2026)]"
-    
+    req = "S.35(3) BNSS notice before arrest [Arnesh Kumar (2014) / Satender Kumar Antil, 2026 INSC 115]"
+
     looked_up = get_max_years_from_sections(f.get("sections_cited", []))
-    
+
     if looked_up == "LIFE_OR_DEATH":
-        return _result(req, "Not Applicable", "Offence carries life/death — outside Arnesh Kumar's under-7-years scope.")
-    
+        return _result(req, "Not Applicable",
+            "Offence carries life imprisonment or death — arrest falls under S.35(1)(c) BNSS, outside the "
+            "notice-first framework. Written grounds of arrest (Vihaan Kumar), D.K. Basu safeguards, and "
+            "24-hour production still apply in full and are checked separately.")
+
     upper = looked_up if looked_up is not None else f.get("punishment_years_upper_bound")
     source = "looked up from cited section" if looked_up is not None else "as stated in document"
-    
+
     if upper is None:
-        return _result(req, "Cannot Determine", "Section not recognized in lookup table and punishment range not stated in document.")
-    
-    if upper > 7:
-        return _result(req, "Not Applicable", f"Offence carries up to {upper} years ({source}) — outside Arnesh Kumar's under-7-years scope.")
-    
+        return _result(req, "Cannot Determine",
+            "Section not recognised in the lookup table and punishment range not stated; the seven-year "
+            "threshold that decides which limb of S.35(1) applies cannot be established.")
+
+    limb = resolve_arrest_power_limb(f, upper)
+
+    if limb is not None:
+        key, section_ref, description = limb
+
+        if key == "preventive":
+            return _result(req, "Not Applicable",
+                f"Arrest was preventive under {section_ref} — {description}. The S.35(3) notice framework "
+                f"does not govern this pathway. CRITICAL LIMIT: preventive detention under S.170 BNSS cannot "
+                f"exceed 24 hours unless further detention is separately authorised in law — see the "
+                f"production check below.")
+
+        if key == "over_seven_years":
+            return _result(req, "Not Applicable",
+                f"Offence carries up to {upper} years ({source}) — arrest falls under {section_ref}, above the "
+                f"seven-year notice threshold. Written grounds (Vihaan Kumar), D.K. Basu safeguards, and the "
+                f"case-by-case necessity test (Joginder Kumar) still apply and are checked separately.")
+
+        return _result(req, "Not Applicable",
+            f"Arrest is authorised under {section_ref} BNSS — {description}. No prior S.35(3) notice is "
+            f"required on this limb; the notice-first framework governs only investigation-based arrests "
+            f"under S.35(1)(b). "
+            f"IMPORTANT: this exception holds only if that fact is genuinely established on the record. A "
+            f"claimed predicate with nothing to support it is challengeable on the same reasoning by which "
+            f"Arnesh Kumar condemned mechanical reproduction of statutory grounds. Verify from the case record "
+            f"that the fact is actually documented.")
+
+    # No bypass limb established -> S.35(1)(b) pathway
     notice = f.get("41A_or_35_BNSS_notice_issued_before_arrest")
     if notice is True:
-        return _result(req, "Compliant", f"Prior 41A/35 BNSS notice recorded before arrest for an offence punishable up to {upper} years ({source}).")
+        return _result(req, "Compliant",
+            f"Prior S.35(3) notice recorded before arrest for an offence punishable up to {upper} years ({source}).")
     if notice is False:
-        return _result(req, "May be Non-Compliant", f"Offence punishable up to {upper} years ({source}). No mention of the mandatory 41A/35 BNSS notice in the document. The arrest may be illegal if this mandatory notice was not actually served. Police documents often omit this step without stating so directly.")
-    return _result(req, "Cannot Determine", "Prior notice status is unclear from the document.")
-
+        return _result(req, "May be Non-Compliant",
+            f"Offence punishable up to {upper} years ({source}); arrest was made after the event on the basis of "
+            f"investigation, and no other arrest power under S.35(1) has been established — placing it on the "
+            f"S.35(1)(b) pathway. No mention of the mandatory S.35(3) notice. Per Satender Kumar Antil "
+            f"(2026 INSC 115): notice is the rule and arrest the exception, even where the S.35(1)(b)(ii) "
+            f"necessity conditions are claimed; the officer must be 'circumspect and slow'. The arrest may be "
+            f"illegal if no notice was in fact served.")
+    return _result(req, "Cannot Determine",
+        "Arrest appears to fall on the S.35(1)(b) pathway, but whether a prior notice was served is unclear "
+        "from the information given.")
+    
+    
+    
+def check_223_cognizance_bar(f):
+    req = "Cognizance bar for S.223 BNS offences [S.215(1)(a) BNSS]"
+    cleaned = [re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(s).strip(), flags=re.IGNORECASE).strip()
+               for s in f.get("sections_cited", [])]
+    if "223" not in cleaned:
+        return _result(req, "Not Applicable", "No S.223 BNS (disobedience of promulgated order) offence cited.")
+    return _result(req, "Cannot Determine",
+        "S.215(1)(a) BNSS bars any court from taking cognizance of a S.223 BNS offence except on a WRITTEN "
+        "complaint by the public servant whose order was disobeyed (or a superior). If this case was initiated "
+        "only by a police FIR without that written complaint, this is a threshold defect capable of voiding the "
+        "entire prosecution before any arrest-procedure question arises. Verify from the case record who filed "
+        "the complaint — this specific procedural bar should be independently confirmed with counsel.")
 
 def check_written_grounds(f):
-    req= "Written grounds of arrest furnished to arrestee.[Prabir Purkayastha(2024)]"
+    req= "Written grounds of arrest furnished to arrestee [Prabir Purkayastha (2024) / Vihaan Kumar, 2025 INSC 162]"
     v= f.get("grounds_of_arrest_in_writing_furnished_to_arrestee")
     if v is True :
         return _result(req, "Compliant", "Written grounds of arrest were furnished to the arrestee.")
     if v is False:
-        return _result(req, "May be Non-Compliant", "The document does not mention of written grounds of arrest recorded being furnished. Supreme Court holds arrest vitiated without this.")
+        return _result(req, "May be Non-Compliant",
+    "The document does not mention of written grounds of arrest recorded being furnished. "
+    "Per Vihaan Kumar (2025 INSC 162): failure to furnish written grounds violates Article 22(1), "
+    "renders the arrest itself illegal, and is a ground for bail even where statutory bail restrictions "
+    "exist — the burden is on the state to prove grounds were furnished.")
     return _result(req, "Cannot Determine", "Whether written grounds were furnished cannot be determined from the document.")
 
 def check_dk_basu_memo(f):
@@ -552,6 +665,7 @@ def check_default_bail(f, user_chargesheet_date=None):
 def run_arrest_compliance_checks(fields, user_chargesheet_date=None):
     checks = [
         check_arnesh_kumar_notice(fields),
+        check_223_cognizance_bar(fields),
         check_written_grounds(fields),
         check_dk_basu_memo(fields),
         check_night_arrest_of_woman(fields),

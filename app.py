@@ -152,6 +152,25 @@ ARREST_QUESTIONS = [
      "type": "choice", "options": ["Man", "Woman"]},
     {"key": "arrest_datetime", "text": "When did the police take the person?",
      "type": "datetime"},
+    {"key": "arrest_mode", "text": "How was the person arrested?",
+     "type": "choice",
+     "options": [
+         "At the scene, while it was happening — police were present there",
+         "Later — at home or elsewhere, after hours or days had passed",
+         "Before anything happened — police said it was to prevent an offence",
+         "Not sure",
+     ]},
+    {"key": "arrest_power_limb",
+     "text": "Did any of these apply at the time of the arrest?",
+     "type": "choice",
+     "options": [
+         "None of these",
+         "Stolen goods were found on the person during the arrest",
+         "A court had already declared the person an absconder",
+         "Arrested for obstructing police, or after escaping from custody",
+         "Police said another police station had asked for the arrest",
+         "Not sure",
+     ]},
     {"key": "notice_before", "text": "Before taking them, did police give any paper asking them to come to the station?",
      "type": "yesno"},
     {"key": "grounds_given", "text": "At the time of arrest, did police give a paper explaining exactly why?",
@@ -173,17 +192,38 @@ ARREST_QUESTIONS = [
 ]
 
 def arrest_filter(questions, answers):
+    qs = questions
     if answers.get("arrestee_gender") != "Woman":
-        return [q for q in questions if q["key"] != "female_officer"]
-    return questions
+        qs = [q for q in qs if q["key"] != "female_officer"]
+    mode_answer = answers.get("arrest_mode", "")
+    if mode_answer.startswith("At the scene") or mode_answer.startswith("Before anything"):
+        qs = [q for q in qs if q["key"] not in ("notice_before", "arrest_power_limb")]
+    return qs
+
 
 def build_arrest_fields(answers):
+    mode_map = {
+        "At the scene, while it was happening — police were present there": "in_presence",
+        "Later — at home or elsewhere, after hours or days had passed": "post_facto",
+        "Before anything happened — police said it was to prevent an offence": "preventive",
+        "Not sure": "unclear",
+    }
+    limb_map = {
+        "Stolen goods were found on the person during the arrest": "stolen_property",
+        "A court had already declared the person an absconder": "proclaimed_offender",
+        "Arrested for obstructing police, or after escaping from custody": "obstruction_escape",
+        "Police said another police station had asked for the arrest": "requisition",
+        "None of these": None,
+        "Not sure": None,
+    }
     return {
         "arrestee_gender": "female" if answers.get("arrestee_gender") == "Woman" else "male",
         "arrest_datetime_full": answers.get("arrest_datetime"),
         "production_datetime_full": answers.get("production_datetime"),
         "sections_cited": answers.get("section_known", []),
         "punishment_years_upper_bound": None,
+        "arrest_mode": mode_map.get(answers.get("arrest_mode"), "unclear"),
+        "arrest_power_limb": limb_map.get(answers.get("arrest_power_limb")),
         "41A_or_35_BNSS_notice_issued_before_arrest": yn(answers.get("notice_before")),
         "grounds_of_arrest_in_writing_furnished_to_arrestee": yn(answers.get("grounds_given")),
         "witness_attested_memo": yn(answers.get("witness_present")),
