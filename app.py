@@ -50,7 +50,7 @@ def find_sections_by_crime_name(typed_name):
 def yn(v):
     return {True: True, False: False, "unclear": "unclear"}.get(v, "unclear")
 
-def render_compliance_ui(result):
+def render_compliance_ui_main(result):
     """Replaces raw st.json() calls with a readable, structured display."""
 
     classification = result.get("classification", {})
@@ -71,7 +71,7 @@ def render_compliance_ui(result):
     st.caption(classification.get("reasoning", ""))
     st.divider()
 
-    # ---- BLOCK 2a: Urgency & Deadline — Section 138 (Banking & Cheque Bounce) ONLY ----
+    # ---- BLOCK 2a: Urgency & Deadline — Section 138 ONLY ----
     document_type = classification.get("document_type", "")
     if document_type == "Banking & Cheque Bounce":
         st.markdown("### ⏱️ Urgency & Deadline")
@@ -94,20 +94,15 @@ def render_compliance_ui(result):
 
     # ---- BLOCK 2b: Procedural Compliance Severity — ALL domains ----
     severity = result.get("severity", {})
-    st.markdown("### 🛡️ Severity of Procedural Compliance Violations")
+    st.markdown("### 🛡️ Procedural Compliance Severity")
     severity_icons = {"green": "🟢", "amber": "🟡", "orange": "🟠", "red": "🔴"}
     icon = severity_icons.get(severity.get("severity_color"), "⚪")
     st.markdown(f"## {icon} {severity.get('severity_label', 'Not Available')}")
     st.markdown(f"# {severity.get('severity_meter', '')}")
-
     unresolved = severity.get("unresolved_checks", 0)
     if unresolved > 0:
         st.caption(f"{unresolved} check(s) could not be verified from the information given.")
     st.divider()
-    
-    
-    
-    
 
     # ---- BLOCK 3: Compliance findings ----
     st.markdown("### ⚖️ Was Correct Procedure Followed?")
@@ -124,7 +119,6 @@ def render_compliance_ui(result):
             st.markdown(f"{emoji} **{check.get('requirement', '')}**")
             st.markdown(f":{color}[{check.get('status', '')}]")
             st.caption(check.get("explanation", ""))
-
     overall = compliance.get("overall_assessment", "")
     if overall:
         st.info(overall)
@@ -138,13 +132,15 @@ def render_compliance_ui(result):
             st.markdown(f"- {flag}")
         st.divider()
 
-    # ---- BLOCK 5: Document checklist ----
+
+def render_checklist_and_raw(result):
+    """Block 5: documents to gather, plus the raw-data expander."""
+    checklist = result.get("checklist", [])
     if checklist:
         st.markdown("### 📋 Documents to Gather")
         for item in checklist:
             st.checkbox(item, key=f"chk_{hash(item)}")
-            
-    # ---- Raw data, collapsed, for debugging only ----
+    #Raw data, collapsed, for de bugging only 
     with st.expander("Show raw data"):
         st.json(result)
         
@@ -496,7 +492,7 @@ def show_interview_results(domain_key, config):
         "extracted_fields": fields
     }
 
-    render_compliance_ui(full_analysis)
+    render_compliance_ui_main(full_analysis)
 
     default_bail_check = next(
         (c for c in compliance_result.get("compliance_checks", []) if "Default bail" in c["requirement"]),
@@ -532,6 +528,7 @@ def show_interview_results(domain_key, config):
         st.session_state[f"answers__{domain_key}"] = {}
         st.session_state.pop(f"brief_bytes__{domain_key}", None)
         st.rerun()
+    render_checklist_and_raw(full_analysis)
 
 
 # =============================================================
@@ -576,7 +573,7 @@ def run_document_flow():
 
         if "result" in st.session_state:
             result = st.session_state["result"]
-            render_compliance_ui(result)
+            render_compliance_ui_main(result)
 
            
 
@@ -592,6 +589,11 @@ def run_document_flow():
                     file_name="compliance_brief.pdf",
                     mime="application/pdf"
                 )
+                
+            if st.button("Start over", key="restart_document_flow"):
+                st.session_state.pop("result", None)
+                st.session_state.pop("brief_bytes", None)
+                st.rerun()
 
             default_bail_check = next(
                 (c for c in result["compliance"].get("compliance_checks", []) if "Default bail" in c["requirement"]),
@@ -609,6 +611,7 @@ def run_document_flow():
                     )
                     st.write("Updated result:")
                     st.json(updated_check)
+            render_checklist_and_raw(result)
 
 
 # =============================================================
