@@ -94,7 +94,7 @@ def render_compliance_ui_main(result):
 
     # ---- BLOCK 2b: Procedural Compliance Severity — ALL domains ----
     severity = result.get("severity", {})
-    st.markdown("### 🛡️ Procedural Compliance Severity")
+    st.markdown("### 🛡️ Severity of Procedural Compliance Violations")
     severity_icons = {"green": "🟢", "amber": "🟡", "orange": "🟠", "red": "🔴"}
     icon = severity_icons.get(severity.get("severity_color"), "⚪")
     st.markdown(f"## {icon} {severity.get('severity_label', 'Not Available')}")

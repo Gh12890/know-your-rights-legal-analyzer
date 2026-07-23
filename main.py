@@ -665,7 +665,6 @@ def check_default_bail(f, user_chargesheet_date=None):
 def run_arrest_compliance_checks(fields, user_chargesheet_date=None):
     checks = [
         check_arnesh_kumar_notice(fields),
-        check_223_cognizance_bar(fields),
         check_written_grounds(fields),
         check_dk_basu_memo(fields),
         check_night_arrest_of_woman(fields),
@@ -673,6 +672,17 @@ def run_arrest_compliance_checks(fields, user_chargesheet_date=None):
         check_24_hour_production(fields),
         check_default_bail(fields, None),
     ]
+    
+     # Only include the 223 cognizance-bar check when 223 BNS is actually cited —
+    # unlike the other Not Applicable results, this rule has no bearing at all
+    # on non-223 cases, so it's excluded entirely rather than shown as N/A noise.
+    cleaned_sections = [
+        re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(s).strip(), flags=re.IGNORECASE).strip()
+        for s in fields.get("sections_cited", [])
+    ]
+    if "223" in cleaned_sections:
+        checks.append(check_223_cognizance_bar(fields))
+        
     non_compliant = [c for c in checks if c["status"] in ("Non-Compliant", "May be Non-Compliant")]
     undetermined = [c for c in checks if c["status"] == "Cannot Determine"]
     if non_compliant:
