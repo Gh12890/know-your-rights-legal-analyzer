@@ -43,9 +43,30 @@ ALIASES = {
 def find_sections_by_crime_name(typed_name):
     if not typed_name or not typed_name.strip():
         return []
+
     query = typed_name.strip().lower()
+
+    # First, check if this looks like a section number rather than a crime name.
+    # Strip common prefixes/suffixes a user might naturally include.
+    section_candidate = re.sub(
+        r'^(section|sec|s\.?)\s*', '', query, flags=re.IGNORECASE
+    ).strip()
+    section_candidate = re.sub(
+        r'\s*(bns|bnss|ipc|crpc)\s*$', '', section_candidate, flags=re.IGNORECASE
+    ).strip()
+
+    # A bare section number/sub-section looks like "302" or "318(4)" — digits,
+    # optionally followed by a parenthesised sub-section.
+    if re.fullmatch(r'\d+(\([a-z0-9]+\))?', section_candidate):
+        if section_candidate in BNS_SECTION_DATA:
+            return [section_candidate]
+        return []   # looked like a section number but isn't in our verified table
+
+    # Otherwise, fall back to the existing crime-name keyword search.
     query = ALIASES.get(query, query)
     return [sec for sec, data in BNS_SECTION_DATA.items() if query in data["offence"].lower()]
+
+
 
 def yn(v):
     return {True: True, False: False, "unclear": "unclear"}.get(v, "unclear")
@@ -116,7 +137,7 @@ def render_compliance_ui_main(result):
     for check in compliance.get("compliance_checks", []):
         emoji, color = status_style.get(check.get("status"), ("❔", "gray"))
         with st.container(border=True):
-            st.markdown(f"{emoji} **{check.get('requirement', '')}**")
+            st.markdown(f"{emoji} **{check.get('requirement', '').strip()}**")
             st.markdown(f":{color}[{check.get('status', '')}]")
             st.caption(check.get("explanation", ""))
     overall = compliance.get("overall_assessment", "")
@@ -185,11 +206,13 @@ ARREST_QUESTIONS = [
      "type": "yesno"},
     {"key": "production_datetime", "text": "Has the person been taken in front of a judge yet? If yes, when?",
      "type": "datetime_optional"},
-    {"key": "section_known", "text": "Do you know the name of the crime the police mentioned? (e.g. cheating, theft, dowry)",
+    {"key": "section_known",
+     "text": "Do you know the name of the crime or section of BNS that the police mentioned? (e.g. cheating/theft/dowry/section 302 BNS etc.)",
      "type": "crime_name_search"},
     {"key": "chargesheet_filed", "text": "Has a formal charge-sheet been filed? If yes, when?",
      "type": "datetime_optional"},
 ]
+
 
 def arrest_filter(questions, answers):
     qs = questions
