@@ -178,6 +178,7 @@ BNS_SECTION_DATA = {
     "276":     {"offence": "Adulteration of drugs",                       "max_years": 1,    "life_or_death": False, "cognizable": False, "bailable": False},
     "281":     {"offence": "Rash driving on public way",                  "max_years": None, "life_or_death": False, "cognizable": True,  "bailable": True},  # 6 months
     "283":     {"offence": "Exhibition of false light/mark/buoy endangering navigation", "max_years": 7, "life_or_death": False, "cognizable": True, "bailable": True},
+    "285":     {"offence": "Danger or obstruction in public way or line of navigation", "max_years": 0, "life_or_death": False, "cognizable": True, "bailable": True},
     "292":     {"offence": "Public nuisance (not otherwise provided)",     "max_years": None, "life_or_death": False, "cognizable": False, "bailable": True},  # fine only
     "294(2)":  {"offence": "Sale of obscene books/objects",                "max_years": 5,    "life_or_death": False, "cognizable": True,  "bailable": True},  # 2yr first, 5yr subsequent
     "295":     {"offence": "Sale of obscene objects to a child",           "max_years": 7,    "life_or_death": False, "cognizable": True,  "bailable": True},  # 3yr first, 7yr subsequent

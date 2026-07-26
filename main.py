@@ -501,6 +501,7 @@ def check_arnesh_kumar_notice(f):
                 f"Offence carries up to {upper} years ({source}) — arrest falls under {section_ref}, above "
                 f"the seven-year notice threshold. Written grounds, D.K. Basu safeguards, and the case-by-case "
                 f"necessity test still apply and are checked separately.")
+        
         return _result(req, "Not Applicable",
             f"Arrest is authorised under {section_ref} BNSS — {description}. No prior S.35(3) notice is "
             f"required on this limb. IMPORTANT: this exception holds only if that fact is genuinely "
@@ -524,6 +525,15 @@ def check_arnesh_kumar_notice(f):
         return _result(req, "Cannot Determine",
             "Section not recognized in lookup table and punishment range not stated in document; the "
             "threshold that decides which limb of S.35(1) applies cannot be established.")
+    
+    # NEW: fine-only offences (no imprisonment at all) raise a different, more
+    # fundamental question than notice-timing — flag it distinctly rather than
+    # folding it into the ordinary sub-7-year notice branch below.
+    if upper == 0:
+        return _result(req, "Cannot Determine",
+            f"Offence carries a fine only, with no imprisonment at all ({source}). Arrest for a purely "
+            f"fine-only offence is unusual and raises its own threshold question, separate from whether a "
+            f"S.35(3) notice was served. Verify independently why an arrest occurred at all for this offence.")
 
     notice = f.get("41A_or_35_BNSS_notice_issued_before_arrest")
     if notice is True:
