@@ -144,6 +144,15 @@ def render_compliance_ui_main(result):
     if overall:
         st.info(overall)
     st.divider()
+    
+    # ---- BLOCK 3b: Bail Pathway — informational, NOT a compliance verdict ----
+    bail_pathway = result.get("bail_pathway")
+    if bail_pathway:
+        st.markdown("### 🔑 If Bail Is Needed")
+        st.info(bail_pathway.get("message", ""))
+        st.divider()
+        
+        
 
     # ---- BLOCK 4: What's missing ----
     flags = missing.get("missing_or_unclear", [])
@@ -529,7 +538,7 @@ def run_interview(domain_key):
         st.session_state[step_key] += 1
         st.rerun()
 
-
+from main import compute_bail_pathway_info
 def show_interview_results(domain_key, config):
     if st.button("◀ Back to last question", key=f"back_results_{domain_key}"):
         st.session_state[f"step__{domain_key}"] = len(config["questions"])
@@ -552,6 +561,7 @@ def show_interview_results(domain_key, config):
         "checklist": get_document_checklist(config["checklist_category"]),
         "urgency": {"urgency_level": "Cannot Determine", "deadline_message": "N/A for interview mode", "days_remaining": None},
         "severity": compute_severity(compliance_result.get("compliance_checks", [])),
+        "bail_pathway": compute_bail_pathway_info(fields.get("sections_cited", [])) if domain_key == "Arrest-related process" else None,
         "extracted_fields": fields
     }
 

@@ -478,61 +478,96 @@ def check_arnesh_kumar_notice(f):
     if looked_up == "LIFE_OR_DEATH":
         return _result(req, "Not Applicable",
             "Offence carries life imprisonment or death — arrest falls under S.35(1)(c) BNSS, outside the "
-            "notice-first framework. Written grounds of arrest (Vihaan Kumar), D.K. Basu safeguards, and "
-            "24-hour production still apply in full and are checked separately.")
+            "notice-first framework. Written grounds of arrest, D.K. Basu safeguards, and 24-hour production "
+            "still apply in full and are checked separately.")
 
     upper = looked_up if looked_up is not None else f.get("punishment_years_upper_bound")
     source = "looked up from cited section" if looked_up is not None else "as stated in document"
 
-    if upper is None:
-        return _result(req, "Cannot Determine",
-            "Section not recognised in the lookup table and punishment range not stated; the seven-year "
-            "threshold that decides which limb of S.35(1) applies cannot be established.")
-
+    # Resolve arrest mode / bypass limb BEFORE deciding the punishment range is unusable.
+    # In-presence and preventive arrests, and the affirmative S.35(1) limbs, do not depend
+    # on knowing punishment years at all — checking them first prevents an unresolved
+    # punishment number from silently skipping this logic altogether.
     limb = resolve_arrest_power_limb(f, upper)
-
     if limb is not None:
         key, section_ref, description = limb
-
         if key == "preventive":
             return _result(req, "Not Applicable",
                 f"Arrest was preventive under {section_ref} — {description}. The S.35(3) notice framework "
                 f"does not govern this pathway. CRITICAL LIMIT: preventive detention under S.170 BNSS cannot "
-                f"exceed 24 hours unless further detention is separately authorised in law — see the "
-                f"production check below.")
-
+                f"exceed 24 hours unless further detention is separately authorised in law.")
         if key == "over_seven_years":
             return _result(req, "Not Applicable",
-                f"Offence carries up to {upper} years ({source}) — arrest falls under {section_ref}, above the "
-                f"seven-year notice threshold. Written grounds (Vihaan Kumar), D.K. Basu safeguards, and the "
-                f"case-by-case necessity test (Joginder Kumar) still apply and are checked separately.")
-
+                f"Offence carries up to {upper} years ({source}) — arrest falls under {section_ref}, above "
+                f"the seven-year notice threshold. Written grounds, D.K. Basu safeguards, and the case-by-case "
+                f"necessity test still apply and are checked separately.")
         return _result(req, "Not Applicable",
             f"Arrest is authorised under {section_ref} BNSS — {description}. No prior S.35(3) notice is "
-            f"required on this limb; the notice-first framework governs only investigation-based arrests "
-            f"under S.35(1)(b). "
-            f"IMPORTANT: this exception holds only if that fact is genuinely established on the record. A "
-            f"claimed predicate with nothing to support it is challengeable on the same reasoning by which "
-            f"Arnesh Kumar condemned mechanical reproduction of statutory grounds. Verify from the case record "
-            f"that the fact is actually documented.")
+            f"required on this limb. IMPORTANT: this exception holds only if that fact is genuinely "
+            f"established on the record — verify from the case record that it is actually documented.")
 
-    # No bypass limb established -> S.35(1)(b) pathway
+    if upper is None:
+        cleaned = [re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(s).strip(), flags=re.IGNORECASE).strip()
+                   for s in f.get("sections_cited", [])]
+        recognized_but_variable = any(
+            sec in BNS_SECTION_DATA and BNS_SECTION_DATA[sec]["max_years"] is None
+            and not BNS_SECTION_DATA[sec]["life_or_death"]
+            for sec in cleaned
+        )
+        if recognized_but_variable:
+            return _result(req, "Cannot Determine",
+                "This section is recognised, but it is an attempt/abetment/conspiracy-type provision whose "
+                "punishment depends on the underlying substantive offence, and cannot be automatically "
+                "resolved. Determine independently whether that underlying offence carries more than 7 "
+                "years: if yes, S.35(1)(c) applies and no notice is required; if 7 years or under, S.35(1)(b) "
+                "applies and the notice-first framework (Arnesh Kumar / Satender Kumar Antil) governs.")
+        return _result(req, "Cannot Determine",
+            "Section not recognized in lookup table and punishment range not stated in document; the "
+            "threshold that decides which limb of S.35(1) applies cannot be established.")
+
     notice = f.get("41A_or_35_BNSS_notice_issued_before_arrest")
     if notice is True:
         return _result(req, "Compliant",
             f"Prior S.35(3) notice recorded before arrest for an offence punishable up to {upper} years ({source}).")
     if notice is False:
         return _result(req, "May be Non-Compliant",
-            f"Offence punishable up to {upper} years ({source}); arrest was made after the event on the basis of "
-            f"investigation, and no other arrest power under S.35(1) has been established — placing it on the "
-            f"S.35(1)(b) pathway. No mention of the mandatory S.35(3) notice. Per Satender Kumar Antil "
-            f"(2026 INSC 115): notice is the rule and arrest the exception, even where the S.35(1)(b)(ii) "
-            f"necessity conditions are claimed; the officer must be 'circumspect and slow'. The arrest may be "
-            f"illegal if no notice was in fact served.")
+            f"Offence punishable up to {upper} years ({source}); arrest was made after the event on the basis "
+            f"of investigation, and no other arrest power under S.35(1) has been established. No mention of "
+            f"the mandatory S.35(3) notice. Per Satender Kumar Antil (2026 INSC 115): notice is the rule and "
+            f"arrest the exception. The arrest may be illegal if no notice was in fact served.")
     return _result(req, "Cannot Determine",
         "Arrest appears to fall on the S.35(1)(b) pathway, but whether a prior notice was served is unclear "
         "from the information given.")
     
+def check_cognizable_arrest_basis(f):
+    req = "Threshold basis for arrest without warrant [cognizability of the offence]"
+
+    cleaned = [re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(s).strip(), flags=re.IGNORECASE).strip()
+               for s in f.get("sections_cited", [])]
+
+    if not cleaned:
+        return _result(req, "Cannot Determine",
+            "No recognised section cited; whether the offence is cognizable (permitting arrest without "
+            "warrant) cannot be established.")
+
+    known_entries = [BNS_SECTION_DATA[sec] for sec in cleaned if sec in BNS_SECTION_DATA]
+    if not known_entries:
+        return _result(req, "Cannot Determine",
+            "Cited section(s) not recognised in the lookup table; cognizability status cannot be established.")
+
+    if all(entry["cognizable"] for entry in known_entries):
+        return _result(req, "Compliant",
+            "The cited offence(s) are cognizable — police ordinarily have power to arrest without a warrant. "
+            "This does not by itself confirm the specific arrest power exercised was lawful; see the notice "
+            "and other checks below for that.")
+
+    return _result(req, "Non-Compliant",
+        "The cited offence(s) are recorded as NON-COGNIZABLE in the statutory reference table. Ordinarily, "
+        "police have no general power to arrest without a warrant for a non-cognizable offence — such an "
+        "arrest is a threshold defect independent of whether a S.35(3) notice was served. A small number of "
+        "specific statutes carve out exceptions permitting warrantless arrest even for particular "
+        "non-cognizable matters; verify from the case record whether such a specific exception applies here "
+        "before treating this as conclusive.")
     
     
 def check_223_cognizance_bar(f):
@@ -562,7 +597,7 @@ def check_written_grounds(f):
     return _result(req, "Cannot Determine", "Whether written grounds were furnished cannot be determined from the document.")
 
 def check_dk_basu_memo(f):
-    req = "Arrest memo attested by witness, family informed , medical exam [D.K. Basu (1997)] "
+    req ="Arrest memo attested by witness, family informed, medical exam [DK Basu (1997)]"
     checks = [
         ("witness attested", f.get("witness_attested_memo")),
         ("family informed", f.get("family_or_friend_informed")),
@@ -665,14 +700,15 @@ def check_default_bail(f, user_chargesheet_date=None):
 def run_arrest_compliance_checks(fields, user_chargesheet_date=None):
     checks = [
         check_arnesh_kumar_notice(fields),
+        check_cognizable_arrest_basis(fields),
         check_written_grounds(fields),
         check_dk_basu_memo(fields),
         check_night_arrest_of_woman(fields),
         check_female_officer_involvement(fields),
         check_24_hour_production(fields),
-        check_default_bail(fields, None),
+        check_default_bail(fields, user_chargesheet_date),
     ]
-    
+ 
      # Only include the 223 cognizance-bar check when 223 BNS is actually cited —
     # unlike the other Not Applicable results, this rule has no bearing at all
     # on non-223 cases, so it's excluded entirely rather than shown as N/A noise.
@@ -726,6 +762,48 @@ def compute_severity(compliance_checks):
         "severity_color": color,
         "severity_meter": meter,
         "unresolved_checks": unresolved_count,
+    }
+
+def compute_bail_pathway_info(sections_cited):
+    """Informational only — NOT a compliance verdict, and must never be folded
+    into compliance_checks or the severity score. Tells the family what kind
+    of bail process applies: police-station bail (bailable) vs. court-only
+    bail (non-bailable)."""
+    cleaned = [re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(s).strip(), flags=re.IGNORECASE).strip()
+               for s in (sections_cited or [])]
+    known_entries = [(sec, BNS_SECTION_DATA[sec]) for sec in cleaned if sec in BNS_SECTION_DATA]
+
+    if not known_entries:
+        return {
+            "pathway": "unknown",
+            "message": "No recognised section was available, so whether bail can be granted at the "
+                       "police station or only by a court cannot be determined from this information."
+        }
+
+    if all(data["bailable"] for _, data in known_entries):
+        return {
+            "pathway": "police_station",
+            "message": "The cited offence(s) are BAILABLE. Under S.478 BNSS, bail is a matter of right and "
+                       "the officer in charge of the police station can grant it directly — the family does "
+                       "not need to wait for a court to open. If bail is refused at the station despite this, "
+                       "that refusal is itself worth raising with a magistrate or superior officer."
+        }
+
+    if all(not data["bailable"] for _, data in known_entries):
+        return {
+            "pathway": "court_only",
+            "message": "The cited offence(s) are NON-BAILABLE. Bail is discretionary and can only be granted "
+                       "by a court, not by the police station directly. The family should approach a "
+                       "magistrate — through a lawyer if possible — as soon as possible; there is no "
+                       "automatic right to release here."
+        }
+
+    return {
+        "pathway": "mixed",
+        "message": "Some cited offence(s) are bailable and others are not. Where offences are mixed, courts "
+                   "generally treat the case under the non-bailable offence's stricter process — a court, "
+                   "not the police station, should be approached for bail. Verify this with a lawyer given "
+                   "the mixed charges."
     }
 
 
@@ -935,10 +1013,11 @@ def run_police_pipeline(document_text):
     route = POLICE_ROUTES.get(subtype)
     if route is None:
         return {
-            "police_subtype": subtype,
-            "extracted_fields": {},
-            "compliance": {"compliance_checks": [], "overall_assessment": "No sub-type-specific check available."}
-        }
+        "police_subtype" : subtype,
+        "extracted_fields": extracted,
+        "compliance": runner(extracted),
+        "bail_pathway": compute_bail_pathway_info(extracted.get("sections_cited", [])) if subtype == "Arrest-related" else None,
+    }
     extraction_prompt, runner = route
     r= client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -999,6 +1078,7 @@ Document text:
         classification_result["police_subtype"] = police_result["police_subtype"]
         extracted_fields = police_result["extracted_fields"]
         classification_result["extracted_fields"] = extracted_fields
+        bail_pathway_result = police_result.get("bail_pathway")
     elif top_category == "Banking & Cheque Bounce":
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
