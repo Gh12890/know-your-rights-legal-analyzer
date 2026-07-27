@@ -508,27 +508,55 @@ def run_interview(domain_key):
                 answer = "SKIPPED"
 
     elif q["type"] == "crime_name_search":
-        st.write("Type the name of the crime, in your own words:")
-        typed = st.text_input("Crime name", key="crime_typed", placeholder="e.g. cheating, theft, dowry, murder")
+        accum_key = f"confirmed_sections_{domain_key}"
+        st.session_state.setdefault(accum_key, [])
+
+        if st.session_state[accum_key]:
+            st.write("**Sections/crimes confirmed so far:**")
+            for sec in st.session_state[accum_key]:
+                if sec in BNS_SECTION_DATA:
+                    st.write(f"- {BNS_SECTION_DATA[sec]['offence']} (Section {sec})")
+                else:
+                    st.write(f"- Section {sec} (not in our verified reference table)")
+
+        st.write("Type the name of a crime, or a section number, in your own words:")
+        typed = st.text_input("Crime name or section", key=f"crime_typed_{domain_key}",
+                               placeholder="e.g. cheating, theft, dowry, section 302")
+
         if st.button("Search", use_container_width=True, key=f"search_{domain_key}_{q['key']}") and typed.strip():
             st.session_state["crime_matches"] = find_sections_by_crime_name(typed)
+
         matches = st.session_state.get("crime_matches")
         if matches is not None:
             if len(matches) == 0:
                 st.info("We couldn't match that to a known offence. That's fine — we'll say so honestly rather than guess.")
-                if st.button("Continue without a match", use_container_width=True, key=f"cont_{domain_key}_{q['key']}"):
-                    answer = []
             elif len(matches) == 1:
                 sec = matches[0]
                 st.success(f"Matched: {BNS_SECTION_DATA[sec]['offence']} (Section {sec})")
-                if st.button("Confirm and continue", use_container_width=True, key=f"conf_{domain_key}_{q['key']}"):
-                    answer = matches
+                if st.button("Add this section", use_container_width=True, key=f"conf_{domain_key}_{q['key']}"):
+                    if sec not in st.session_state[accum_key]:
+                        st.session_state[accum_key].append(sec)
+                    st.session_state["crime_matches"] = None
+                    st.rerun()
             else:
                 st.write("A few offences matched — please pick the one that fits best:")
                 for sec in matches:
                     label = f"{BNS_SECTION_DATA[sec]['offence']} (Section {sec})"
                     if st.button(label, use_container_width=True, key=f"match_{domain_key}_{sec}"):
-                        answer = [sec]
+                        if sec not in st.session_state[accum_key]:
+                            st.session_state[accum_key].append(sec)
+                        st.session_state["crime_matches"] = None
+                        st.rerun()
+
+        st.divider()
+        col1, col2 = st.columns(2)
+        if col1.button("Add another section/crime", use_container_width=True, key=f"addmore_{domain_key}_{q['key']}"):
+            st.session_state["crime_matches"] = None
+            st.rerun()
+        if col2.button("Done — no more sections", use_container_width=True, key=f"done_{domain_key}_{q['key']}"):
+            answer = list(st.session_state[accum_key])
+            st.session_state.pop(accum_key, None)
+
         st.caption("If we don't recognize the exact offence, we'll say so honestly rather than guess.")
 
     if answer is not None:

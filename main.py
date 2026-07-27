@@ -333,8 +333,9 @@ def get_max_years_from_sections(sections_cited):
     if not sections_cited:
         return None
     candidates = []
+    has_variable = False
     for sec in sections_cited:
-        clean = re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(sec).strip(), flags=re.IGNORECASE).strip()
+        clean = str(sec).strip()
         data = BNS_SECTION_DATA.get(clean)
         if data is None:
             continue
@@ -342,6 +343,10 @@ def get_max_years_from_sections(sections_cited):
             return "LIFE_OR_DEATH"
         if data["max_years"] is not None:
             candidates.append(data["max_years"])
+        else:
+            has_variable = True
+    if has_variable:
+        return "CONTAINS_VARIABLE"
     return max(candidates) if candidates else None
 
 FREEZE_EXTRACTION_PROMPT =""" Extract only what the bank/account freezing document explicitly states. DO NOT judge legality. Use null if not present.
@@ -480,6 +485,14 @@ def check_arnesh_kumar_notice(f):
             "Offence carries life imprisonment or death — arrest falls under S.35(1)(c) BNSS, outside the "
             "notice-first framework. Written grounds of arrest, D.K. Basu safeguards, and 24-hour production "
             "still apply in full and are checked separately.")
+
+    if looked_up == "CONTAINS_VARIABLE":
+        return _result(req, "Cannot Determine",
+            "One or more cited sections (e.g. an attempt/abetment/conspiracy provision) has a punishment "
+            "that depends on the underlying substantive offence and cannot be resolved automatically. "
+            "Because this could carry a higher ceiling than the other sections cited, the combined "
+            "punishment range — and therefore whether the notice-first framework applies — cannot be "
+            "safely determined. Verify independently.")
 
     upper = looked_up if looked_up is not None else f.get("punishment_years_upper_bound")
     source = "looked up from cited section" if looked_up is not None else "as stated in document"
@@ -667,13 +680,30 @@ def check_default_bail(f, user_chargesheet_date=None):
     a = parse_datetime_full(f.get("arrest_datetime_full"))
     if a is None:
         return _result(req, "Cannot Determine", "Arrest date/time not stated; default-bail clock cannot be computed.")
-
     looked_up = get_max_years_from_sections(f.get("sections_cited", []))
     if looked_up == "LIFE_OR_DEATH":
         threshold_days = 90
         upper_desc = "life/death"
+    elif looked_up == "CONTAINS_VARIABLE":
+        p = parse_datetime_full(f.get("production_datetime_full"))
+        if p is not None:
+            remand_start = p
+            remand_basis = "actual production-before-magistrate date stated in document"
+        else:
+            remand_start = a + timedelta(days=1)
+            remand_basis = "ASSUMED as one day after arrest (production date not stated) — verify against the actual remand order"
+        deadline_60 = remand_start + timedelta(days=60)
+        deadline_90 = remand_start + timedelta(days=90)
+        return _result(req, "Cannot Determine",
+            f"One or more cited sections has a punishment that depends on the underlying offence, so whether "
+            f"the 60-day or 90-day window applies cannot be confirmed. Both possible deadlines, based on "
+            f"{remand_basis}: if the 60-day window applies, default bail becomes available on "
+            f"{deadline_60.strftime('%d-%m-%Y')}; if the 90-day window applies (offences carrying 10+ years, "
+            f"life, or death), it becomes available on {deadline_90.strftime('%d-%m-%Y')}. Confirm which "
+            f"threshold applies once the underlying offence attempted under any variable section is known.")
     else:
         upper = looked_up if looked_up is not None else f.get("punishment_years_upper_bound")
+        ...
         if upper is None:
             return _result(req, "Cannot Determine", "Section not recognized in lookup table and punishment range not stated; 60-day vs 90-day threshold unknown.")
         threshold_days = 90 if upper >= 10 else 60
