@@ -1343,6 +1343,14 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
     story.append(Paragraph(f"<b>Overall Assessment:</b> {compliance.get('overall_assessment', '')}", body))
     story.append(Spacer(1, 10))
     
+     # ---- If Bail Is Needed — informational, NOT a compliance verdict ----
+    bail_pathway = full_analysis.get("bail_pathway")
+    if bail_pathway:
+        story.append(Paragraph("If Bail Is Needed", section_title))
+        story.append(Paragraph(bail_pathway.get("message", ""), body))
+        story.append(Spacer(1, 10))
+    
+
     # ---- Consequences of Non-Compliance (Arnesh Kumar-specific) ----
     arnesh_kumar_flagged = any(
         "41A" in c.get("requirement", "") and c.get("status") in ("Non-Compliant", "May be Non-Compliant")
