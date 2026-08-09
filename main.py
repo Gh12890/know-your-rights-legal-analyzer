@@ -293,7 +293,7 @@ Return ONLY valid JSON in this format, no other text:
   "arrest_mode": "in_presence" or "post_facto" or "preventive" or "unclear",
   "arrest_power_limb": "stolen_property" or "proclaimed_offender" or "obstruction_escape" or "requisition" or "deserter" or "extradition" or "released_convict" or null,
   "punishment_years_upper_bound": number or null,
-  "arrestee_gender": "male" or "female" or "not stated",
+  "arrestee_gender": "male" or "female" or "third_gender" or "not stated",
   "arrestee_age": number or null,
   "arrest_datetime_full": "DD-MM-YYYY HH:MM or null",
   "production_datetime_full": "DD-MM-YYYY HH:MM or null",
@@ -655,27 +655,53 @@ def check_dk_basu_memo(f):
 def check_night_arrest_of_woman(f):
     req = "Woman not arrested between sunset and sunrise [S.46(4) CrPC/ Sheela Barse]"
     gender = f.get("arrestee_gender")
+    if gender == "third_gender":
+        dt = parse_datetime_full(f.get("arrest_datetime_full"))
+        if dt is None:
+            return _result(req, "Cannot Determine", "Arrest time not stated; this safeguard's application to third-gender arrestees cannot be checked.")
+        hour = dt.hour
+        note = "This specific safeguard was framed for women arrestees; its extension to third-gender arrestees follows the spirit of NALSA v. Union of India (2014) but is not yet settled by a specific ruling on this exact point."
+        if 6 <= hour < 18:
+            return _result(req, "Compliant", f"Arrest at {dt.strftime('%H:%M')} is within daylight hours. {note}")
+        return _result(req, "Cannot Determine", f"Arrest at {dt.strftime('%H:%M')} was outside daylight hours. {note} Verify independently.")
     if gender != "female":
         return _result(req, "Not Applicable", "Arrestee is not female.")
     dt = parse_datetime_full(f.get("arrest_datetime_full"))
     if dt is None:
         return _result(req, "Cannot Determine", "Arrest time not stated in full; night-arrest rule cannot be checked.")
-    hour = dt.hour 
+    hour = dt.hour
     if 6 <= hour < 18:
         return _result(req, "Compliant", f"Arrest at {dt.strftime('%H:%M')} is within daylight hours.")
-    return _result(req, "Non-Compliant", f"Female arrestee taken at { dt.strftime('%H:%M')} (outside 06:00-18:00). Prior magistrate permission mandatory.")
+    return _result(req, "Non-Compliant", f"Female arrestee taken at {dt.strftime('%H:%M')} (outside 06:00-18:00). Prior magistrate permission mandatory.")
 
 def check_female_officer_involvement(f):
-    req= "Female officer involved in custody/interrogation of female arrestee[Sheela Barse (1983)]"
-    if f.get("arrestee_gender") != "female":
+    req = "Female officer involved in custody/interrogation of female arrestee [Sheela Barse (1983)]"
+    gender = f.get("arrestee_gender")
+
+    if gender == "third_gender":
+        v = f.get("female_officer_present_for_female_arrestee")
+        note = ("This safeguard was framed for female arrestees; its extension to third-gender arrestees "
+                "follows the spirit of NALSA v. Union of India (2014) but is not settled by a specific ruling "
+                "on this exact point. Best practice guidance in several states calls for an officer of the "
+                "arrestee's choice or a third-gender-sensitised officer to be involved.")
+        if v is True:
+            return _result(req, "Compliant", f"Appropriate officer involvement recorded for this arrestee. {note}")
+        if v is False:
+            return _result(req, "Cannot Determine", f"No such officer involvement recorded. {note} Verify independently.")
+        return _result(req, "Cannot Determine", f"Officer involvement status is unclear from the document. {note}")
+
+    if gender != "female":
         return _result(req, "Not Applicable", "Arrestee is not female.")
-    v= f.get("female_officer_present_for_female_arrestee")
+
+    v = f.get("female_officer_present_for_female_arrestee")
     if v is True:
         return _result(req, "Compliant", "Female officer involvement recorded for this female arrestee.")
     if v is False:
-        return _result(req, "May be Non-Compliant", "No female officer involvment recorded. Sheela Barse judgement requires a female officer for custody,interrogation , and search of a female arrestee. Silence on this point in an otherwise detailed memo suggests it may not have been observed.")
-    return _result(req, "Cannot Determine", "Female Officer involvement status is unclear from the document.")
-
+        return _result(req, "May be Non-Compliant",
+            "No female officer involvement recorded. Sheela Barse judgement requires a female officer for "
+            "custody, interrogation, and search of a female arrestee. Silence on this point in an otherwise "
+            "detailed memo suggests it may not have been observed.")
+    return _result(req, "Cannot Determine", "Female officer involvement status is unclear from the document.")
 
 
 def check_24_hour_production(f):

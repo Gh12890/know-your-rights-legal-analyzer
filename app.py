@@ -178,8 +178,8 @@ def render_checklist_and_raw(result):
 # DOMAIN 1: ARREST-RELATED — questions (unchanged from before)
 # =============================================================
 ARREST_QUESTIONS = [
-    {"key": "arrestee_gender", "text": "Is the person who was arrested a man or a woman?",
-     "type": "choice", "options": ["Man", "Woman"]},
+    {"key": "arrestee_gender", "text": "Is the person who was arrested a man, a woman, or third gender?",
+     "type": "choice", "options": ["Man", "Woman", "Third gender"]},
     {"key": "arrest_datetime", "text": "When did the police take the person?",
      "type": "datetime"},
     {"key": "arrest_mode", "text": "How was the person arrested?",
@@ -225,8 +225,8 @@ ARREST_QUESTIONS = [
 
 def arrest_filter(questions, answers):
     qs = questions
-    if answers.get("arrestee_gender") != "Woman":
-        qs = [q for q in qs if q["key"] != "female_officer"]
+    if answers.get("arrestee_gender") not in ("Woman", "Third gender"):
+        return [q for q in questions if q["key"] != "female_officer"]
     mode_answer = answers.get("arrest_mode", "")
     if mode_answer.startswith("At the scene") or mode_answer.startswith("Before anything"):
         qs = [q for q in qs if q["key"] not in ("notice_before", "arrest_power_limb")]
@@ -248,8 +248,10 @@ def build_arrest_fields(answers):
         "None of these": None,
         "Not sure": None,
     }
+    gender_map = {"Man": "male", "Woman": "female", "Third gender": "third_gender"}
+    resolved_gender = gender_map.get(answers.get("arrestee_gender"), "male")
     return {
-        "arrestee_gender": "female" if answers.get("arrestee_gender") == "Woman" else "male",
+        "arrestee_gender": resolved_gender,
         "arrest_datetime_full": answers.get("arrest_datetime"),
         "production_datetime_full": answers.get("production_datetime"),
         "sections_cited": answers.get("section_known", []),
