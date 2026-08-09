@@ -267,6 +267,7 @@ POLICE_SUBTYPE_PROMPT= """Classify this Indian police/criminal process document 
 - "Search & Seizure "- NDPS search memo, seizure memo of goods/devices/property, panchnama 
 - "FIR Registration Dispute"- written rejection of FIR, delay-in-registration complaint, closure intimation, NC entry only 
 - "Summons to Vulnerable Person"- 179 BNSS/old 160 CrPC summons to a woman, minor or elderly person
+- "FIR / Complaint - No Arrest Yet"- a properly registered FIR or written complaint where NO arrest, freeze, search, or summons has occurred yet — just the offence report itself
 - "Other"- police document that fits none of the above 
 
 Respond with only valid JSON:{{"police_subtype": "one of the above"}}
@@ -406,6 +407,22 @@ Return ONLY valid JSON:
     "female_officer_involved": true or false or "unclear" or "not applicable",
     "guardian_notified_for_minor": true or false or "unclear" or "not applicable"
     
+}}
+
+Document text:
+{document_text}"""
+
+FIR_NO_ARREST_EXTRACTION_PROMPT = """Extract only what this FIR or complaint document explicitly states. Do NOT judge legality. Use null if not present.
+
+Sections_cited must contain ONLY the bare section number/sub-section (e.g. '305', '351(2)'), never including 'BNS', 'IPC', 'CrPC', or similar labels.
+
+Return ONLY valid JSON in this format, no other text:
+{{
+  "fir_number": "string or null",
+  "sections_cited": ["list of bare section numbers"],
+  "occurrence_date": "DD-MM-YYYY or null",
+  "reporting_date": "DD-MM-YYYY or null",
+  "arrest_mentioned": true or false
 }}
 
 Document text:
@@ -1028,13 +1045,47 @@ def run_vulnerable_compliance_checks(fields):
         overall= "Summons procedure appears compliant on face of document."
     return {"compliance_checks": checks, "overall_assessment":overall}
 
+def check_fir_no_arrest_status(f):
+    req = "Offence classification and threshold status [pre-arrest FIR/complaint]"
+    cleaned = [re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(s).strip(), flags=re.IGNORECASE).strip()
+               for s in f.get("sections_cited", [])]
+    known = [(sec, BNS_SECTION_DATA[sec]) for sec in cleaned if sec in BNS_SECTION_DATA]
+
+    if not known:
+        return _result(req, "Cannot Determine",
+            "No recognised section could be matched. Offence classification cannot be established from "
+            "this document.")
+
+    names = ", ".join(f"{sec} ({data['offence']})" for sec, data in known)
+    cognizable_status = "cognizable" if all(d["cognizable"] for _, d in known) else \
+                         "non-cognizable" if all(not d["cognizable"] for _, d in known) else "mixed cognizability"
+    bailable_status = "bailable" if all(d["bailable"] for _, d in known) else \
+                       "non-bailable" if all(not d["bailable"] for _, d in known) else "mixed bailability"
+
+    return _result(req, "Not Applicable",
+        f"No arrest has occurred yet, so arrest-procedure checks (notice, grounds, production, default bail) "
+        f"do not apply. Offence(s) cited: {names} — {cognizable_status}, {bailable_status}. If police act on "
+        f"this FIR, whether an arrest requires prior notice will depend on the punishment ceiling and the "
+        f"manner of arrest at that time; this can be re-checked once that happens.")
+
+
+def run_fir_no_arrest_checks(fields):
+    checks = [check_fir_no_arrest_status(fields)]
+    return {
+        "compliance_checks": checks,
+        "overall_assessment": "No arrest-procedure defects to assess — no arrest has occurred yet. "
+                              "Re-check this case if an arrest is made."
+    }
+    
+    
 #-------Router :subtype-> (extraction prompt, runner)-------------------------
 POLICE_ROUTES ={
      "Arrest-related" : (ARREST_EXTRACTION_PROMPT, run_arrest_compliance_checks),
      "Bank/Account Freezing": ( FREEZE_EXTRACTION_PROMPT, run_freeze_compliance_checks),
      "Search & Seizure" : ( SEARCH_EXTRACTION_PROMPT, run_search_compliance_checks),
      "FIR Registration Dispute": (FIR_DISPUTE_EXTRACTION_PROMPT, run_fir_compliance_checks),
-     "Summons to Vulnerable Person": (VULNERABLE_EXTRACTION_PROMPT, run_vulnerable_compliance_checks)
+     "Summons to Vulnerable Person": (VULNERABLE_EXTRACTION_PROMPT, run_vulnerable_compliance_checks),
+     "FIR / Complaint - No Arrest Yet": (FIR_NO_ARREST_EXTRACTION_PROMPT, run_fir_no_arrest_checks),
 }
  
 def run_police_pipeline(document_text):
@@ -1053,29 +1104,28 @@ def run_police_pipeline(document_text):
     route = POLICE_ROUTES.get(subtype)
     if route is None:
         return {
-        "police_subtype" : subtype,
-        "extracted_fields": extracted,
-        "compliance": runner(extracted),
-        "bail_pathway": compute_bail_pathway_info(extracted.get("sections_cited", [])) if subtype == "Arrest-related" else None,
-    }
+            "police_subtype": subtype,
+            "extracted_fields": {},
+            "compliance": {"compliance_checks": [], "overall_assessment": "No sub-type-specific check available."},
+            "bail_pathway": None,
+        }
     extraction_prompt, runner = route
-    r= client.messages.create(
+    r = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=400,
         temperature=0,
-        messages =[{"role": "user", "content": extraction_prompt.format(document_text=document_text)}]
-        
+        messages=[{"role": "user", "content": extraction_prompt.format(document_text=document_text)}]
     )
     try:
         extracted = parse_json_response(r.content[0].text)
     except json.JSONDecodeError:
-        extracted= {"error": "Failed to parse extractio", "raw": r.content[0].text}
+        extracted = {"error": "Failed to parse extraction", "raw": r.content[0].text}
     return {
-        "police_subtype" : subtype,
+        "police_subtype": subtype,
         "extracted_fields": extracted,
-        "compliance": runner(extracted)
+        "compliance": runner(extracted),
+        "bail_pathway": compute_bail_pathway_info(extracted.get("sections_cited", [])) if subtype == "Arrest-related" else None,
     }
-     
     
   
 
