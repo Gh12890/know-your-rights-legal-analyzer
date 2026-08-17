@@ -17,6 +17,27 @@ from main import (
 # =============================================================
 # PAGE SETUP
 # =============================================================
+
+# =============================================================
+# GOOGLE ANALYTICS
+# =============================================================
+GA_MEASUREMENT_ID = "G-H8M4V4P2M9"
+
+st.markdown(
+    f"""
+    <script async src="https://www.googletagmanager.com/gtag/js?id={GA_MEASUREMENT_ID}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){{dataLayer.push(arguments);}}
+        gtag('js', new Date());
+        gtag('config', '{GA_MEASUREMENT_ID}');
+    </script>
+    """,
+    unsafe_allow_html=True,
+)
+# =============================================================
+# PAGE SETUP
+# =============================================================
 st.title("Know Your Rights")
 st.caption("Indian Legal Notice & Procedural Compliance Analyzer")
 st.write(
