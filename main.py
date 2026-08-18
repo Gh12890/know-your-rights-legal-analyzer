@@ -847,6 +847,27 @@ def compute_severity(compliance_checks):
         "unresolved_checks": unresolved_count,
     }
 
+def generate_quick_reference(full_analysis):
+    """One-glance courtroom view: every actionable defect, worst first, plus default bail status."""
+    compliance = full_analysis.get("compliance", {})
+    checks = compliance.get("compliance_checks", [])
+    severity = full_analysis.get("severity", {})
+
+    priority = {"Non-Compliant": 0, "May be Non-Compliant": 1}
+    actionable = [c for c in checks if c.get("status") in priority]
+    actionable.sort(key=lambda c: priority[c["status"]])
+
+    default_bail_check = next(
+        (c for c in checks if "Default bail" in c.get("requirement", "")), None
+    )
+
+    return {
+        "severity_label": severity.get("severity_label", "Not Available"),
+        "severity_meter": severity.get("severity_meter", ""),
+        "actionable_issues": actionable,
+        "default_bail": default_bail_check,
+    }
+
 def compute_bail_pathway_info(sections_cited):
     """Informational only — NOT a compliance verdict, and must never be folded
     into compliance_checks or the severity score. Tells the family what kind

@@ -12,6 +12,8 @@ from main import (
     get_document_checklist,
     BNS_SECTION_DATA,
     compute_severity,
+    generate_quick_reference,
+
 )
 
 # =============================================================
@@ -194,6 +196,29 @@ def render_checklist_and_raw(result):
     #Raw data, collapsed, for de bugging only 
     with st.expander("Show raw data"):
         st.json(result)
+        
+def render_quick_reference(full_analysis):
+    qr = generate_quick_reference(full_analysis)
+    st.markdown("## ⚡ Courtroom Quick View")
+    st.markdown(f"### {qr['severity_meter']} {qr['severity_label']}")
+
+    if qr["actionable_issues"]:
+        st.markdown(f"**{len(qr['actionable_issues'])} issue(s) worth raising:**")
+        for issue in qr["actionable_issues"]:
+            if issue["status"] == "Non-Compliant":
+                st.error(f"**RAISE NOW:** {issue['requirement']}")
+            else:
+                st.warning(f"**MAY BE WORTH RAISING:** {issue['requirement']}")
+            st.caption(issue["explanation"])
+    else:
+        st.success("No confirmed or suspected defects to raise.")
+
+    if qr["default_bail"]:
+        db = qr["default_bail"]
+        if db["status"] == "Compliant" and "becomes available on" in db["explanation"]:
+            st.info(f"**DEFAULT BAIL:** {db['explanation']}")
+        elif db["status"] in ("Non-Compliant", "May be Non-Compliant"):
+            st.warning(f"**DEFAULT BAIL — ACT NOW:** {db['explanation']}")
         
 # =============================================================
 # DOMAIN 1: ARREST-RELATED — questions (unchanged from before)
@@ -618,6 +643,8 @@ def show_interview_results(domain_key, config):
 
     render_compliance_ui_main(full_analysis)
 
+    if st.button("⚡ Courtroom Quick View", key=f"quickref_{domain_key}"):
+        render_quick_reference(full_analysis)
     default_bail_check = next(
         (c for c in compliance_result.get("compliance_checks", []) if "Default bail" in c["requirement"]),
         None
@@ -690,14 +717,31 @@ def run_document_flow():
         with open("temp_uploaded.pdf", "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        if st.button("Analyze"):
-            with st.spinner("Analyzing..."):
-                document_text = clean_text(extract_text_from_pdf("temp_uploaded.pdf"))
-                st.session_state["result"] = analyze_document(document_text)
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("Analyze", use_container_width=True):
+                with st.spinner("Analyzing..."):
+                    document_text = clean_text(extract_text_from_pdf("temp_uploaded.pdf"))
+                    st.session_state["result"] = analyze_document(document_text)
+
+        with col2:
+            quick_view_clicked = st.button(
+                "⚡ Courtroom Quick View",
+                key="quickref_upload",
+                use_container_width=True,
+                disabled="result" not in st.session_state
+            )
 
         if "result" in st.session_state:
             result = st.session_state["result"]
+
+            if quick_view_clicked:
+                render_quick_reference(result)
+
             render_compliance_ui_main(result)
+         
+        
 
            
 
