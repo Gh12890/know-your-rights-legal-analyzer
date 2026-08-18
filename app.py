@@ -800,6 +800,7 @@ def run_batch_triage_flow():
                 analysis = analyze_document(document_text)
                 results.append({"filename": uf.name, "analysis": analysis})
         st.session_state["batch_results"] = results
+        st.session_state.pop("batch_zip_bytes", None)  # clear stale ZIP from any prior batch
 
     if "batch_results" in st.session_state:
         sorted_results = sorted(
@@ -808,6 +809,40 @@ def run_batch_triage_flow():
             reverse=True
         )
 
+        # ---- Idea 1: summary counts, before anything else ----
+        counts = {"red": 0, "orange": 0, "amber": 0, "green": 0}
+        for r in sorted_results:
+            color = r["analysis"].get("severity", {}).get("severity_color", "green")
+            counts[color] = counts.get(color, 0) + 1
+        st.markdown(
+            f"### 🔴 {counts['red']} urgent · 🟠 {counts['orange']} concerns · "
+            f"🟡 {counts['amber']} minor · 🟢 {counts['green']} clear"
+        )
+
+        # ---- Idea 3: generate every brief in one action ----
+        if st.button("📑 Generate All Compliance Briefs", key="batch_gen_all"):
+            import zipfile
+            zip_path = "batch_briefs.zip"
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                for r in sorted_results:
+                    safe_name = re.sub(r'[^A-Za-z0-9_\-]', '_', r["filename"].replace(".pdf", ""))
+                    brief_path = generate_compliance_brief(
+                        r["analysis"], output_path=f"brief_{safe_name}.pdf"
+                    )
+                    zf.write(brief_path, arcname=f"Brief_{safe_name}.pdf")
+            with open(zip_path, "rb") as f:
+                st.session_state["batch_zip_bytes"] = f.read()
+
+        if "batch_zip_bytes" in st.session_state:
+            st.download_button(
+                "Download all briefs (ZIP)",
+                data=st.session_state["batch_zip_bytes"],
+                file_name="compliance_briefs.zip",
+                mime="application/zip",
+                key="batch_zip_download"
+            )
+
+        st.divider()
         st.markdown("### Triage Summary — worst first")
         icon = {"red": "🔴", "orange": "🟠", "amber": "🟡", "green": "🟢"}
 
@@ -815,15 +850,24 @@ def run_batch_triage_flow():
             sev = r["analysis"].get("severity", {})
             label = sev.get("severity_label", "Not Available")
             dot = icon.get(sev.get("severity_color"), "⚪")
-            with st.expander(f"{dot} {r['filename']} — {label}"):
+            is_urgent = sev.get("severity_color") == "red"
+
+            # ---- Idea 4: case-like label instead of raw filename ----
+            classification = r["analysis"].get("classification", {})
+            sub_type = classification.get("sub_type") or r["filename"]
+
+            # ---- Idea 2: auto-expand anything urgent ----
+            with st.expander(f"{dot} {sub_type} — {label}", expanded=is_urgent):
+                st.caption(f"Source file: {r['filename']}")
                 render_quick_reference(r["analysis"])
                 st.divider()
                 render_compliance_ui_main(r["analysis"])
 
+        st.divider()
         if st.button("Clear batch and start over", key="batch_clear"):
             st.session_state.pop("batch_results", None)
+            st.session_state.pop("batch_zip_bytes", None)
             st.rerun()
-
 
 # =============================================================
 # ROUTER
