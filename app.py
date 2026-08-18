@@ -49,7 +49,8 @@ st.write(
 
 mode = st.radio(
     "What would you like to do?",
-    ["I have a document to upload", "I don't have any paper — ask me questions instead"]
+    ["I have a document to upload", "I don't have any paper — ask me questions instead",
+     "I have several documents to triage"]
 )
 
 st.divider()
@@ -780,6 +781,48 @@ def run_document_flow():
                     st.write("Updated result:")
                     st.json(updated_check)
             render_checklist_and_raw(result)
+            
+def run_batch_triage_flow():
+    st.subheader("📋 Batch Triage — Cause List Mode")
+    st.write("Upload several documents to see which need urgent attention first.")
+    uploaded_files = st.file_uploader(
+        "Choose PDFs", type="pdf", accept_multiple_files=True, key="batch_uploader"
+    )
+
+    if uploaded_files and st.button("Analyze All", key="batch_analyze_all"):
+        results = []
+        with st.spinner(f"Analyzing {len(uploaded_files)} document(s)..."):
+            for i, uf in enumerate(uploaded_files):
+                temp_path = f"temp_batch_{i}_{uf.name}"
+                with open(temp_path, "wb") as f:
+                    f.write(uf.getbuffer())
+                document_text = clean_text(extract_text_from_pdf(temp_path))
+                analysis = analyze_document(document_text)
+                results.append({"filename": uf.name, "analysis": analysis})
+        st.session_state["batch_results"] = results
+
+    if "batch_results" in st.session_state:
+        sorted_results = sorted(
+            st.session_state["batch_results"],
+            key=lambda r: r["analysis"].get("severity", {}).get("severity_score", 0),
+            reverse=True
+        )
+
+        st.markdown("### Triage Summary — worst first")
+        icon = {"red": "🔴", "orange": "🟠", "amber": "🟡", "green": "🟢"}
+
+        for r in sorted_results:
+            sev = r["analysis"].get("severity", {})
+            label = sev.get("severity_label", "Not Available")
+            dot = icon.get(sev.get("severity_color"), "⚪")
+            with st.expander(f"{dot} {r['filename']} — {label}"):
+                render_quick_reference(r["analysis"])
+                st.divider()
+                render_compliance_ui_main(r["analysis"])
+
+        if st.button("Clear batch and start over", key="batch_clear"):
+            st.session_state.pop("batch_results", None)
+            st.rerun()
 
 
 # =============================================================
@@ -787,5 +830,7 @@ def run_document_flow():
 # =============================================================
 if mode == "I have a document to upload":
     run_document_flow()
-else:
+elif mode == "I don't have any paper — ask me questions instead":
     run_no_document_flow()
+else:
+    run_batch_triage_flow()
