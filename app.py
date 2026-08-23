@@ -9,10 +9,14 @@ from main import (
     run_arrest_compliance_checks,
     run_freeze_compliance_checks,
     run_compliance_checks,
+    run_fir_no_arrest_checks,
     get_document_checklist,
     BNS_SECTION_DATA,
     compute_severity,
+    compute_bail_pathway_info,
     generate_quick_reference,
+    datetime,
+    parse_date,
 
 )
 
@@ -425,6 +429,43 @@ def build_cheque_fields(answers):
         "interest_bundled_in_principal_sentence": answers.get("interest_bundled") is True,
         "cheque_purpose": purpose_map.get(answers.get("cheque_purpose"), "unclear"),
     }
+# =============================================================
+# DOMAIN 4: FIR / COMPLAINT — NO ARREST YET
+# =============================================================   
+FIR_NO_ARREST_QUESTIONS = [
+    {"key": "section_known", "text": "Do you know the name of the crime or section of BNS named in the FIR? (e.g. cheating/theft/dowry/section 302 etc.)",
+     "type": "crime_name_search"},
+    {"key": "reporting_date", "text": "When was the FIR registered, if you know?",
+     "type": "datetime_optional"},
+    {"key": "free_copy_given", "text": "Did you (as the person who filed the complaint) receive a free copy of the FIR immediately?",
+     "type": "yesno"},
+    {"key": "checked_online", "text": "Have you actually checked whether the FIR is available on the police/State website?",
+     "type": "choice",
+     "options": ["Yes, I found it online", "Yes, I checked and could NOT find it", "No, I haven't checked yet"]},
+]
+
+def fir_no_arrest_filter(questions, answers):
+    return questions
+
+def build_fir_no_arrest_fields(answers):
+    reporting_dt = parse_date(answers.get("reporting_date")) if answers.get("reporting_date") else None
+    days_since = (datetime.now() - reporting_dt).days if reporting_dt else None
+
+    online_map = {
+        "Yes, I found it online": True,
+        "Yes, I checked and could NOT find it": False,
+        "No, I haven't checked yet": None,
+    }
+
+    return {
+        "sections_cited": answers.get("section_known", []),
+        "occurrence_date": None,
+        "reporting_date": answers.get("reporting_date"),
+        "arrest_mentioned": False,
+        "free_copy_given_to_informant": yn(answers.get("free_copy_given")),
+        "_user_checked_online": online_map.get(answers.get("checked_online")),
+        "_days_since_registration": days_since,
+    }
 
 
 # =============================================================
@@ -454,6 +495,16 @@ INTERVIEW_CONFIGS = {
         "compliance_runner": run_compliance_checks,
         "checklist_category": "Banking & Cheque Bounce",
         "sub_type_label": "Section 138 NI Act — reported via guided interview (no document)",
+    },
+     "FIR / Complaint (No Arrest Yet)": {
+        "questions": FIR_NO_ARREST_QUESTIONS,
+        "filter_fn": fir_no_arrest_filter,
+        "build_fields": build_fir_no_arrest_fields,
+        "compliance_runner": lambda fields: run_fir_no_arrest_checks(
+            fields, fields.get("_user_checked_online"), fields.get("_days_since_registration")
+        ),
+        "checklist_category": "Police & Criminal Process",
+        "sub_type_label": "FIR/Complaint — reported via guided interview (no arrest, no document)",
     },
 }
 NOT_YET_AVAILABLE = ["Other"]

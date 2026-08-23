@@ -15,6 +15,7 @@ try:
 except (KeyError, FileNotFoundError):
     from dotenv import load_dotenv
     load_dotenv()
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
     api_key = os.getenv("ANTHROPIC_API_KEY")
 client = Anthropic(api_key=api_key)
 
@@ -261,7 +262,8 @@ Document text:
 
 # Police & CRIMINAL PROCESS- sub-type routing and checks#
 
-POLICE_SUBTYPE_PROMPT= """Classify this Indian police/criminal process document into exactly one type.
+
+POLICE_SUBTYPE_PROMPT = """Classify this Indian police/criminal process document into exactly one type.
 - "Arrest-related"- arrest memo, 41A/35 BNSS notice to appear, grounds of arrest, remand related document.
 - "Bank/Account Freezing"- freeze/attachment order or intimation under 106/107 BNSS or old 102 CrPc
 - "Search & Seizure "- NDPS search memo, seizure memo of goods/devices/property, panchnama 
@@ -422,7 +424,8 @@ Return ONLY valid JSON in this format, no other text:
   "sections_cited": ["list of bare section numbers"],
   "occurrence_date": "DD-MM-YYYY or null",
   "reporting_date": "DD-MM-YYYY or null",
-  "arrest_mentioned": true or false
+  "arrest_mentioned": true or false,
+  "free_copy_given_to_informant": true or false or "unclear"
 }}
 
 Document text:
@@ -1114,15 +1117,67 @@ def check_fir_no_arrest_status(f):
         f"do not apply. Offence(s) cited: {names} — {cognizable_status}, {bailable_status}. If police act on "
         f"this FIR, whether an arrest requires prior notice will depend on the punishment ceiling and the "
         f"manner of arrest at that time; this can be re-checked once that happens.")
+    
+def check_fir_free_copy_provided(f):
+    req = "Free copy of FIR given forthwith to informant/victim [S.173(2) BNSS]"
+    v = f.get("free_copy_given_to_informant")
+    if v is True:
+        return _result(req, "Compliant", "A free copy of the FIR was recorded as given to the informant/victim.")
+    if v is False:
+        return _result(req, "Non-Compliant",
+            "No free copy of the FIR was given to the informant/victim. Under S.173(2) BNSS, this is "
+            "mandatory and must be given forthwith, at no cost. This copy is the informant's only "
+            "independent record of exactly what was registered — including the sections cited — and its "
+            "absence makes it impossible to verify the complaint was recorded accurately.")
+    return _result(req, "Cannot Determine", "Whether a free copy was given to the informant/victim is unclear.")
 
 
-def run_fir_no_arrest_checks(fields):
-    checks = [check_fir_no_arrest_status(fields)]
-    return {
-        "compliance_checks": checks,
-        "overall_assessment": "No arrest-procedure defects to assess — no arrest has occurred yet. "
-                              "Re-check this case if an arrest is made."
-    }
+SENSITIVE_EXEMPT_SECTIONS = {"64", "64(1)", "64(2)", "65", "65(1)", "65(2)", "66", "67",
+                              "68", "69", "70", "70(1)", "70(2)", "71", "113",
+                              "113(2)(a)", "113(2)(b)"}
+
+def check_fir_online_upload(f, user_checked_online=None, days_since_registration=None):
+    req = "FIR uploaded online within 24-72 hours [Youth Bar Association of India v. UOI, (2016)]"
+    cleaned = [re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(s).strip(), flags=re.IGNORECASE).strip()
+               for s in f.get("sections_cited", [])]
+
+    if any(sec in SENSITIVE_EXEMPT_SECTIONS for sec in cleaned):
+        return _result(req, "Not Applicable",
+            "The cited offence falls in a category the Supreme Court treats as presumptively sensitive "
+            "(sexual offence / terrorism), exempt from the online-upload mandate. NOTE: courts may also "
+            "exempt other matters on privacy grounds not captured by section number alone — this "
+            "exemption list is illustrative, not exhaustive, per the judgment itself.")
+
+    if user_checked_online is None:
+        return _result(req, "Cannot Determine",
+            "Whether the FIR was uploaded to the police/State website cannot be confirmed without checking "
+            "the relevant portal directly — this is a fact only you or your lawyer can verify by looking.")
+
+    if user_checked_online is True:
+        return _result(req, "Compliant", "FIR confirmed available online, as required.")
+
+    if days_since_registration is not None and days_since_registration > 3:
+        return _result(req, "May be Non-Compliant",
+            f"FIR reported as not found online, {days_since_registration} days after registration — "
+            f"beyond even the maximum 72-hour connectivity extension. "
+            f"IMPORTANT: this alone is NOT grounds for anticipatory bail (same judgment, para (g)) — "
+            f"raise it as a procedural point, not as a bail argument on its own.")
+
+    return _result(req, "Cannot Determine",
+        "FIR reported as not yet found online, but within the permitted window — check again shortly.")
+    
+def run_fir_no_arrest_checks(fields, user_checked_online=None, days_since_registration=None):
+    checks = [
+        check_fir_no_arrest_status(fields),
+        check_fir_free_copy_provided(fields),
+        check_fir_online_upload(fields, user_checked_online, days_since_registration),
+    ]
+    non_compliant = [c for c in checks if c["status"] in ("Non-Compliant", "May be Non-Compliant")]
+    if non_compliant:
+        overall = f"{len(non_compliant)} procedural defect(s) found or suspected."
+    else:
+        overall = "No arrest-procedure defects to assess — no arrest has occurred yet. Re-check this case if an arrest is made."
+    return {"compliance_checks": checks, "overall_assessment": overall}
     
     
 #-------Router :subtype-> (extraction prompt, runner)-------------------------
