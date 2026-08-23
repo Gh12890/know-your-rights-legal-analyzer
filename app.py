@@ -433,19 +433,37 @@ def build_cheque_fields(answers):
 # DOMAIN 4: FIR / COMPLAINT — NO ARREST YET
 # =============================================================   
 FIR_NO_ARREST_QUESTIONS = [
+    {"key": "user_role", "text": "Are you the person who filed this complaint, or are you named as the accused/suspect in it?",
+     "type": "choice", "options": ["I filed the complaint (I am the informant)", "I am named as the accused/suspect"]},
     {"key": "section_known", "text": "Do you know the name of the crime or section of BNS named in the FIR? (e.g. cheating/theft/dowry/section 302 etc.)",
      "type": "crime_name_search"},
     {"key": "reporting_date", "text": "When was the FIR registered, if you know?",
      "type": "datetime_optional"},
     {"key": "free_copy_given", "text": "Did you (as the person who filed the complaint) receive a free copy of the FIR immediately?",
      "type": "yesno"},
+    {"key": "accused_applied_for_copy", "text": "Have you (or your lawyer) applied for a copy of the FIR — either to the police station or to the court?",
+     "type": "yesno"},
+    {"key": "accused_copy_provided", "text": "After applying, were you given a copy of the FIR?",
+     "type": "yesno"},
     {"key": "checked_online", "text": "Have you actually checked whether the FIR is available on the police/State website?",
      "type": "choice",
      "options": ["Yes, I found it online", "Yes, I checked and could NOT find it", "No, I haven't checked yet"]},
 ]
 
+
+
 def fir_no_arrest_filter(questions, answers):
+    role = answers.get("user_role")
+    if role == "I am named as the accused/suspect":
+        qs = [q for q in questions if q["key"] != "free_copy_given"]
+        if answers.get("accused_applied_for_copy") is not True:
+            qs = [q for q in qs if q["key"] != "accused_copy_provided"]
+        return qs
+    elif role == "I filed the complaint (I am the informant)":
+        return [q for q in questions if q["key"] not in ("accused_applied_for_copy", "accused_copy_provided")]
     return questions
+
+
 
 def build_fir_no_arrest_fields(answers):
     reporting_dt = parse_date(answers.get("reporting_date")) if answers.get("reporting_date") else None
@@ -457,12 +475,22 @@ def build_fir_no_arrest_fields(answers):
         "No, I haven't checked yet": None,
     }
 
+    role = answers.get("user_role")
+    perspective_map = {
+        "I filed the complaint (I am the informant)": "informant",
+        "I am named as the accused/suspect": "accused",
+    }
+    perspective = perspective_map.get(role, "unclear")
+
     return {
         "sections_cited": answers.get("section_known", []),
         "occurrence_date": None,
         "reporting_date": answers.get("reporting_date"),
         "arrest_mentioned": False,
+        "fir_document_perspective": perspective,
         "free_copy_given_to_informant": yn(answers.get("free_copy_given")),
+        "accused_applied_for_fir_copy": yn(answers.get("accused_applied_for_copy")),
+        "accused_fir_copy_provided": yn(answers.get("accused_copy_provided")),
         "_user_checked_online": online_map.get(answers.get("checked_online")),
         "_days_since_registration": days_since,
     }
@@ -540,6 +568,7 @@ def run_interview(domain_key):
         return
 
     q = questions[step - 1]
+    st.write(f"🔧 DEBUG: step={step}, question_key={q['key']}, total_questions={len(questions)}")
     st.progress(step / len(questions))
 
     if st.button("◀ Back", key=f"back_{domain_key}_{step}"):

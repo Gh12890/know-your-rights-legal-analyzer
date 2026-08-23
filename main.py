@@ -418,6 +418,8 @@ FIR_NO_ARREST_EXTRACTION_PROMPT = """Extract only what this FIR or complaint doc
 
 Sections_cited must contain ONLY the bare section number/sub-section (e.g. '305', '351(2)'), never including 'BNS', 'IPC', 'CrPC', or similar labels.
 
+For fir_document_perspective: determine whether the document represents the INFORMANT's perspective (the person who filed/reported the complaint) or the ACCUSED's perspective (someone named as a suspect, or their counsel, seeking access to the FIR). Use "informant" or "accused". If genuinely unclear from the document, use "unclear" — do not guess.
+
 Return ONLY valid JSON in this format, no other text:
 {{
   "fir_number": "string or null",
@@ -425,7 +427,10 @@ Return ONLY valid JSON in this format, no other text:
   "occurrence_date": "DD-MM-YYYY or null",
   "reporting_date": "DD-MM-YYYY or null",
   "arrest_mentioned": true or false,
-  "free_copy_given_to_informant": true or false or "unclear"
+  "fir_document_perspective": "informant" or "accused" or "unclear",
+  "free_copy_given_to_informant": true or false or "unclear",
+  "accused_applied_for_fir_copy": true or false or "unclear",
+  "accused_fir_copy_provided": true or false or "unclear"
 }}
 
 Document text:
@@ -1120,6 +1125,8 @@ def check_fir_no_arrest_status(f):
     
 def check_fir_free_copy_provided(f):
     req = "Free copy of FIR given forthwith to informant/victim [S.173(2) BNSS]"
+    if f.get("fir_document_perspective") == "accused":
+        return _result(req, "Not Applicable", "This document is from the accused's perspective — the automatic S.173(2) BNSS right applies to the informant/victim, not the accused. See the separate accused's-copy-right check below.")
     v = f.get("free_copy_given_to_informant")
     if v is True:
         return _result(req, "Compliant", "A free copy of the FIR was recorded as given to the informant/victim.")
@@ -1130,6 +1137,30 @@ def check_fir_free_copy_provided(f):
             "independent record of exactly what was registered — including the sections cited — and its "
             "absence makes it impossible to verify the complaint was recorded accurately.")
     return _result(req, "Cannot Determine", "Whether a free copy was given to the informant/victim is unclear.")
+
+def check_accused_fir_copy_provided(f):
+    req = "Accused's right to an early copy of FIR, before chargesheet stage [Youth Bar Association of India v. UOI, (2016) 9 SCC 473, guidelines (a)-(c)]"
+    if f.get("fir_document_perspective") != "accused":
+        return _result(req, "Not Applicable", "This check applies only when the person is named as the accused, not the informant.")
+    applied = f.get("accused_applied_for_fir_copy")
+    if applied is not True:
+        return _result(req, "Cannot Determine",
+            "Per Youth Bar Association guidelines (b)-(c), this early-access right is triggered by an "
+            "application — either to the police officer (before the FIR is forwarded to court) or to the "
+            "Magistrate (after it is forwarded). No application is indicated yet, so this right has not "
+            "been actively invoked. NOTE: this is a distinct, earlier route from Section 230 BNSS (formerly "
+            "Section 207 CrPC), which only supplies documents automatically at the later chargesheet stage.")
+    provided = f.get("accused_fir_copy_provided")
+    if provided is True:
+        return _result(req, "Compliant", "A copy of the FIR was provided pursuant to the accused's application, consistent with Youth Bar Association guidelines (b)-(c).")
+    if provided is False:
+        return _result(req, "Non-Compliant",
+            "The accused applied for a copy of the FIR but it was not provided. Per Youth Bar Association "
+            "guideline (b), an application to the police officer should be met with a copy within 24 hours; "
+            "per guideline (c), an application to the court once the FIR has been forwarded should be met "
+            "within two working days. This is separate from, and earlier than, the Section 230 BNSS "
+            "(formerly Section 207 CrPC) chargesheet-stage disclosure obligation.")
+    return _result(req, "Cannot Determine", "Whether the copy was provided after application is unclear.")
 
 
 SENSITIVE_EXEMPT_SECTIONS = {"64", "64(1)", "64(2)", "65", "65(1)", "65(2)", "66", "67",
@@ -1170,6 +1201,7 @@ def run_fir_no_arrest_checks(fields, user_checked_online=None, days_since_regist
     checks = [
         check_fir_no_arrest_status(fields),
         check_fir_free_copy_provided(fields),
+        check_accused_fir_copy_provided(fields),
         check_fir_online_upload(fields, user_checked_online, days_since_registration),
     ]
     non_compliant = [c for c in checks if c["status"] in ("Non-Compliant", "May be Non-Compliant")]
