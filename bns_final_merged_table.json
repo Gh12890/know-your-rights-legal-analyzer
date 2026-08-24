@@ -1,0 +1,4676 @@
+{
+  "253(c)": {
+    "offence": "Whenever any person convicted of or charged with an offence",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "113(2)(a)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "62": {
+    "offence": "2",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "59(a)": {
+    "offence": "Whoever",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "121(2)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "326(b)": {
+    "offence": "Whoever commits mischief  by",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "108": {
+    "offence": "If any person commits suicide",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "111(6)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "121(1)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "194(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "189(7)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "49": {
+    "offence": "Whoever abets any offence shall",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "93": {
+    "offence": "Whoever being the father or mother of a child under the age of twelve years",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "189(8)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "309(4)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "309(4)\nRobbery.\nRigorous imprisonment\nCognizable.\nNon-bailable.\nMagistrate of the first\nfor 10 years and fine.\nclass.",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "If robbery committed on\nRigorous imprisonment\nCognizable.\nNon-bailable.\nMagistrate of the first\nhighway between sunset\nfor 14 years.\nclass.\nand sunris",
+        "condition": "If robbery committed on\nRigorous imprisonment\nCognizable.\nNon-bailable.\nMagistra"
+      }
+    ]
+  },
+  "331(7)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "133": {
+    "offence": "Whoever assaults or uses criminal force to any person",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "198": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "249(c)": {
+    "offence": "Whenever an offence has been committed",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "142": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "236": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "354": {
+    "offence": "4",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "273": {
+    "offence": "3",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "308(3)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "312": {
+    "offence": "If",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "106(1)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": true,
+        "raw_text_preview": "106(1)\nCausing death by\nImprisonment for 5 years\nCognizable.\nBailable.\nMagistrate of the first\nnegligence.\nand fine.\nclass.",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": true,
+        "raw_text_preview": "Causing death by negligence Imprisonment for 2 years\nCognizable.\nBailable.\nMagistrate of the first\nby registered medical\nand fine\nclass.\npractitioner.",
+        "condition": "Causing death by negligence Imprisonment for 2 years\nCognizable.\nBailable.\nMagis"
+      }
+    ]
+  },
+  "239": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "308(5)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "205": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "193(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "226": {
+    "offence": "6",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "316(5)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "281": {
+    "offence": "Whoever drives any vehicle",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "349": {
+    "offence": "Whoever sells",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "82(2)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "355": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "189(3)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "144(2)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "318(3)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "324(5)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "191(2)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "186": {
+    "offence": "6",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "346": {
+    "offence": "Whoever removes",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "314": {
+    "offence": "4",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "298": {
+    "offence": "Whoever destroys",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "143(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "334(2)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "140(1)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "135": {
+    "offence": "Whoever assaults or uses criminal force to any person",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "106(2)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "310(5)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "244": {
+    "offence": "Whoever fraudulently accepts",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "280": {
+    "offence": "0",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "117(2)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "235": {
+    "offence": "5",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "263(c)": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "326(a)": {
+    "offence": "Whoever commits mischief  by",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "125(b)": {
+    "offence": "5",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "327(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "111(7)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "353(1)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "261": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "247": {
+    "offence": "7",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "238(c)": {
+    "offence": "Whoever",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "64(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "127(4)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "125": {
+    "offence": "5",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "201": {
+    "offence": "Whoever",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "272": {
+    "offence": "Whoever malignantly does any act which is",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "89": {
+    "offence": "Whoever commits the offence under section 88 without the consent of the woman",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "159": {
+    "offence": "Whoever abets the committing of mutiny by an officer",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "66": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "82(1)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "223(a)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "230(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "58": {
+    "offence": "8",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "338": {
+    "offence": "Whoever forges a document which purports to be a valuable security or a will",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": false,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": false,
+        "bailable": false,
+        "raw_text_preview": "338\nForgery of a valuable\nImprisonment for life,\nNon-cognizable.\nNon-bailable.\nMagistrate of the first\nsecurity, will, or authority\nor imprisonment fo",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "When the valuable security Imprisonment for life,\nCognizable.\nNon-bailable.\nMagistrate of the first\nis a promissory note of the or imprisonment for\ncl",
+        "condition": "When the valuable security Imprisonment for life,\nCognizable.\nNon-bailable.\nMagi"
+      }
+    ]
+  },
+  "152": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "51": {
+    "offence": "When an act is abetted and a different act is done",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "177": {
+    "offence": "7",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "87": {
+    "offence": "Whoever kidnaps or abducts any woman with intent that she may be compelled",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "141": {
+    "offence": "1",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "189(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "242": {
+    "offence": "Whoever falsely personates another",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "154": {
+    "offence": "Whoever commits depredation",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "276": {
+    "offence": "6",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "252": {
+    "offence": "2",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "326(g)": {
+    "offence": "Whoever commits mischief  by",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "85": {
+    "offence": "Whoever",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "119(1)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "210(a)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "125(a)": {
+    "offence": "5",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "160": {
+    "offence": "Whoever abets the committing of mutiny by an officer",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "253(a)": {
+    "offence": "Whenever any person convicted of or charged with an offence",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "263(b)": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "119(2)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "225": {
+    "offence": "5",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "259(a)": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "190": {
+    "offence": "0",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "223(b)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "55": {
+    "offence": "5",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": "contingent",
+        "bailable": "contingent",
+        "raw_text_preview": "55\nAbetment of an offence,\nImprisonment for 7 years According as offence\nNon-bailable.\nCourt by which offence\npunishable with death or\nand fine.\nabett",
+        "condition": "general"
+      },
+      {
+        "cognizable": "contingent",
+        "bailable": "contingent",
+        "raw_text_preview": "If an act which causes harm Imprisonment for 14 years According as offence\nNon-bailable.\nCourt by which offence\nto be done in consequence\nand fine.\nab",
+        "condition": "If an act which causes harm Imprisonment for 14 years According as offence\nNon-b"
+      }
+    ]
+  },
+  "80(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "222(a)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "211(b)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "175": {
+    "offence": "5",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "250(a)": {
+    "offence": "Whoever accepts or attempts to obtain",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "140(3)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "295": {
+    "offence": "Whoever sells",
+    "max_years": "see_subsections",
+    "life_or_death": "see_subsections",
+    "punishment_shape": "tiered_by_conviction",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "249(a)": {
+    "offence": "Whenever an offence has been committed",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "326(e)": {
+    "offence": "Whoever commits mischief  by",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "297(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "316(2)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "353(3)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "249(b)": {
+    "offence": "Whenever an offence has been committed",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "310(2)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "328": {
+    "offence": "Whoever intentionally runs any vessel aground or ashore",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "164": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "301": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "165": {
+    "offence": "The master or person in charge of a merchant vessel",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "111(2)(b)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "200": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "92": {
+    "offence": "Whoever does any act under such circumstances",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "99": {
+    "offence": "Whoever buys",
+    "max_years": 14,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "213": {
+    "offence": "Whoever refuses to bind himself by an oath or affirmation to state the truth",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "329(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "218": {
+    "offence": "8",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "143(7)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "331(4)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "331(4)\nLurking house-trespass or\nImprisonment for 5 years\nCognizable.\nNon-bailable.\nAny Magistrate.\nhouse-breaking by night\nand fine.\nin order to the ",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "If the offence be theft.\nImprisonment for\nCognizable.\nNon-bailable.\nMagistrate of the first\n14 years.\nclass.",
+        "condition": "If the offence be theft.\nImprisonment for\nCognizable.\nNon-bailable.\nMagistrate o"
+      }
+    ]
+  },
+  "320": {
+    "offence": "Whoever dishonestly or fraudulently removes",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "300": {
+    "offence": "0",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "356(2)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": false,
+        "bailable": true,
+        "raw_text_preview": "356(2)\nDefamation against the\nPresident or the Vice-\nPresident or the Governor\nof a State or Administrator\nof a Union territory or a\nMinister in respe",
+        "condition": "general"
+      },
+      {
+        "cognizable": null,
+        "bailable": null,
+        "raw_text_preview": "Defamation in any other\ncase.",
+        "condition": "Defamation in any other\ncase."
+      }
+    ]
+  },
+  "259(b)": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "113(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "84": {
+    "offence": "4",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "308(6)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "139(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "317(3)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "54": {
+    "offence": "Whenever any person",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "115(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "275": {
+    "offence": "Whoever sells",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "203": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "296": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "146": {
+    "offence": "Whoever unlawfully compels any person to labour against the will of that person",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "176": {
+    "offence": "6",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "61(2)(a)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "254": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "246": {
+    "offence": "Whoever fraudulently or dishonestly",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "188": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "59(b)": {
+    "offence": "Whoever",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "331(3)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "331(3)\nLurking house-trespass or\nImprisonment for 3 years\nCognizable.\nNon-bailable.\nAny Magistrate.\nhouse-breaking in order to\nand fine.\nthe commissio",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "If the offence be theft.\nImprisonment for 10 years.\nCognizable.\nNon-bailable.\nMagistrate of the first\nclass.",
+        "condition": "If the offence be theft.\nImprisonment for 10 years.\nCognizable.\nNon-bailable.\nMa"
+      }
+    ]
+  },
+  "74": {
+    "offence": "Whoever assaults or uses criminal force to any woman",
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "326(c)": {
+    "offence": "Whoever commits mischief  by",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "180": {
+    "offence": "Whoever has in his possession any forged or counterfeit coin",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "111(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "127(7)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "282": {
+    "offence": "2",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "233": {
+    "offence": "3",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "336(2)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "342(2)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "149": {
+    "offence": "Whoever collects men",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "331(5)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "266": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "78(2)": {
+    "offence": null,
+    "max_years": "see_subsections",
+    "life_or_death": "see_subsections",
+    "punishment_shape": "tiered_by_conviction",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": true,
+        "raw_text_preview": "78(2)\nStalking.\nImprisonment up to\nCognizable.\nBailable.\nAny Magistrate.\n3 years and fine.",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "Second or subsequent\nImprisonment up to\nCognizable.\nNon-bailable.\nAny Magistrate.\nconviction.\n5 years and fine.",
+        "condition": "Second or subsequent\nImprisonment up to\nCognizable.\nNon-bailable.\nAny Magistrate"
+      }
+    ]
+  },
+  "257": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "163": {
+    "offence": "Whoever abets the desertion of any officer",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "70(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "58(b)": {
+    "offence": "8",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "183": {
+    "offence": "Whoever",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "308(4)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "90(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "137(2)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "88": {
+    "offence": "Whoever voluntarily causes a woman with child to miscarry",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": false,
+        "bailable": true,
+        "raw_text_preview": "88\nCausing miscarriage.\nImprisonment for 3 years,\nNon-cognizable.\nBailable.\nMagistrate of the first\nor fine, or both.\nclass.",
+        "condition": "general"
+      },
+      {
+        "cognizable": false,
+        "bailable": true,
+        "raw_text_preview": "If the woman be quick\nImprisonment for 7 years\nNon-cognizable.\nBailable.\nMagistrate of the first\nwith child.\nand fine.\nclass.",
+        "condition": "If the woman be quick\nImprisonment for 7 years\nNon-cognizable.\nBailable.\nMagistr"
+      }
+    ]
+  },
+  "341(4)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "117(4)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "109(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "death_or_life_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "189(6)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "316(4)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "139(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "57": {
+    "offence": "7",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "297(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "158": {
+    "offence": "8",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "143(4)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "122(2)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "90(1)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "173": {
+    "offence": "3",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "113(5)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "ceiling_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "347(2)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "192": {
+    "offence": "Whoever malignantly",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": true,
+        "raw_text_preview": "192\nWantonly giving\nImprisonment for 1 year,\nCognizable.\nBailable.\nAny Magistrate.\nprovocation with\nor fine, or both.\nintent to cause riot, if\nrioting",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": true,
+        "raw_text_preview": "If not committed.\nImprisonment for 6 months,\nCognizable.\nBailable.\nAny Magistrate.\nor fine, or both.",
+        "condition": "If not committed.\nImprisonment for 6 months,\nCognizable.\nBailable.\nAny Magistrat"
+      }
+    ]
+  },
+  "348": {
+    "offence": "Whoever makes or has in his possession any die",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "232(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "148": {
+    "offence": "8",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "279": {
+    "offence": "Whoever voluntarily corrupts or fouls the water of any public spring or reservoir",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "143(6)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "294(2)": {
+    "offence": null,
+    "max_years": "see_subsections",
+    "life_or_death": "see_subsections",
+    "punishment_shape": "tiered_by_conviction",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "191(3)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "350(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "127(8)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "302": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "197(2)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "309(5)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "291": {
+    "offence": "1",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "120(1)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "151": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "327(1)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "182(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "118(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "243": {
+    "offence": "Whoever fraudulently removes",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "56": {
+    "offence": "Whoever abets an offence punishable with imprisonment shall",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": "contingent",
+        "bailable": "contingent",
+        "raw_text_preview": "56\nAbetment of an offence,\nImprisonment extending\nAccording as offence\nAccording as offence\nCourt by which offence\npunishable with imprisonment, to on",
+        "condition": "general"
+      },
+      {
+        "cognizable": "contingent",
+        "bailable": "contingent",
+        "raw_text_preview": "If the abettor or the person Imprisonment extending\nAccording as offence\nAccording as offence\nCourt by which offence\nabetted be a public servant\nto on",
+        "condition": "If the abettor or the person Imprisonment extending\nAccording as offence\nAccordi"
+      }
+    ]
+  },
+  "145": {
+    "offence": "Whoever habitually imports",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "326(d)": {
+    "offence": "Whoever commits mischief  by",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "260(a)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "292": {
+    "offence": "2",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "350(1)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "341(3)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "310(4)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "344": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "220": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "263(a)": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "251(b)": {
+    "offence": "Whoever gives or causes",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "65(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "95": {
+    "offence": "Whoever hires",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "95\nHiring, employing or\nImprisonment for not less\nCognizable.\nNon-bailable.\nMagistrate of the\nengaging a child to commit than 3 years but which may\nfi",
+        "condition": "general"
+      },
+      {
+        "cognizable": "contingent",
+        "bailable": "contingent",
+        "raw_text_preview": "If offence be committed.\nSame as for the offence\nCognizable.\nNon-bailable.\nCourt by which offence\ncommitted.\ncommitted is triable.",
+        "condition": "If offence be committed.\nSame as for the offence\nCognizable.\nNon-bailable.\nCourt"
+      }
+    ]
+  },
+  "96": {
+    "offence": "Whoever",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "94": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "319(2)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "181": {
+    "offence": "Whoever makes or mends",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "211(c)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "232(1)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "264": {
+    "offence": "Whoever",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": null,
+    "bailable": null,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": null,
+        "bailable": null,
+        "raw_text_preview": "264\nOmission to apprehend, or\nsufferance of escape on part\nof  public servant, in cases\nnot otherwise provided for:—",
+        "condition": "general"
+      },
+      {
+        "cognizable": false,
+        "bailable": true,
+        "raw_text_preview": "(a) in case of intentional \nImprisonment for 3 years,    Non-cognizable.\nBailable.\nMagistrate of the first\nomission or sufferance;\nor fine, or both.\nc",
+        "condition": "(a) in case of intentional \nImprisonment for 3 years,    Non-cognizable.\nBailabl"
+      },
+      {
+        "cognizable": false,
+        "bailable": true,
+        "raw_text_preview": "(b) in case of negligent\nSimple imprisonment for\nNon-cognizable.\nBailable.\nAny Magistrate.\nomission or sufferance.\n2 years, or fine, or both.",
+        "condition": "(b) in case of negligent\nSimple imprisonment for\nNon-cognizable.\nBailable.\nAny M"
+      }
+    ]
+  },
+  "323": {
+    "offence": "3",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "60(b)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "318(4)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "136": {
+    "offence": "6",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "79": {
+    "offence": "Whoever",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "127(3)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "140(4)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "195(1)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "211(a)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "324(4)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "147": {
+    "offence": "Whoever wages war against the Government of India",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "death_or_life_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "353(2)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "324(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "250(b)": {
+    "offence": "Whoever accepts or attempts to obtain",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "209": {
+    "offence": "9",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "209\nNon-appearance in response\nImprisonment for 3 years,\nCognizable.\nNon-bailable.\nMagistrate of the first\nto a proclamation under\nor fine, or both,\nc",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "In a case where declaration Imprisonment for 7 years\nCognizable.\nNon-bailable.\nMagistrate of the first\nhas been made under\nand fine.\nclass.\nsub-sectio",
+        "condition": "In a case where declaration Imprisonment for 7 years\nCognizable.\nNon-bailable.\nM"
+      }
+    ]
+  },
+  "331(1)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "222(b)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "134": {
+    "offence": "Whoever assaults or uses criminal force to any person",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "333": {
+    "offence": "Whoever commits house-trespass",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "97": {
+    "offence": "7",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "120(2)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "341(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "321": {
+    "offence": "1",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "207(a)": {
+    "offence": "Whoever in any manner intentionally prevents the serving on himself",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "174": {
+    "offence": "4",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "326(f)": {
+    "offence": "Whoever commits mischief  by",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "329(4)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "248(b)": {
+    "offence": "Whoever",
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "308(2)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "219": {
+    "offence": "9",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "70(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "284": {
+    "offence": "Whoever knowingly or negligently conveys",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "184": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "231": {
+    "offence": "Whoever gives or fabricates false evidence intending thereby to cause",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "289": {
+    "offence": "Whoever does",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "339": {
+    "offence": "Whoever has in his possession any document or electronic record",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": true,
+        "raw_text_preview": "339\nHaving possession of a\nImprisonment for\nCognizable.\nBailable.\nMagistrate of the first\ndocument, knowing it to be 7 years and fine.\nclass.\nforged, ",
+        "condition": "general"
+      },
+      {
+        "cognizable": false,
+        "bailable": true,
+        "raw_text_preview": "If the document is one of\nImprisonment for life,\nNon-cognizable.\nBailable.\nMagistrate of the first\nthe description mentioned\nor imprisonment for\nclass",
+        "condition": "If the document is one of\nImprisonment for life,\nNon-cognizable.\nBailable.\nMagis"
+      }
+    ]
+  },
+  "250(c)": {
+    "offence": "Whoever accepts or attempts to obtain",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "109(1)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "109(1)\nAttempt to murder.\nImprisonment for 10 years\nCognizable.\nNon-bailable.\nCourt of Session.\nand fine.",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "If such act causes hurt to\nImprisonment for life, or\nCognizable.\nNon-bailable.\nCourt of Session.\nany person.\nas above.",
+        "condition": "If such act causes hurt to\nImprisonment for life, or\nCognizable.\nNon-bailable.\nC"
+      }
+    ]
+  },
+  "208(b)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "331(8)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "310(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "death_or_life_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "110": {
+    "offence": "0",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "110\nAttempt to commit culpable Imprisonment for 3 years,\nCognizable.\nNon-bailable.\nCourt of Session.\nhomicide.\nor fine, or both.",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "If such act causes hurt to\nImprisonment for 7 years,\nCognizable.\nNon-bailable.\nCourt of Session.\nany person.\nor fine, or both.",
+        "condition": "If such act causes hurt to\nImprisonment for 7 years,\nCognizable.\nNon-bailable.\nC"
+      }
+    ]
+  },
+  "111(2)(a)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "340(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "304(2)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "216": {
+    "offence": "Whoever",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "325": {
+    "offence": "Whoever commits mischief by killing",
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "117(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "332(c)": {
+    "offence": "2",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": true,
+        "raw_text_preview": "332(c)\nHouse-trespass in order to\nImprisonment for 2 years\nCognizable.\nBailable.\nAny Magistrate.\nthe commission of an\nand fine.\noffence punishable wit",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "If the offence is theft.\nImprisonment for 7 years.\nCognizable.\nNon-bailable.\nAny Magistrate.",
+        "condition": "If the offence is theft.\nImprisonment for 7 years.\nCognizable.\nNon-bailable.\nAny"
+      }
+    ]
+  },
+  "334(1)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "303(2)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "303(2)\nTheft.\nCognizable.\nNon-bailable.\nAny Magistrate.\nRigorous imprisonment \nfor not be less than\n1 year but which may \nextend to 5 years and fine.",
+        "condition": "general"
+      },
+      {
+        "cognizable": false,
+        "bailable": true,
+        "raw_text_preview": "Where value of property\nUpon return of the value\nNon-cognizable.\nBailable.\nAny Magistrate.\nis less than 5,000 rupees.\nof property or restoration\nof th",
+        "condition": "Where value of property\nUpon return of the value\nNon-cognizable.\nBailable.\nAny M"
+      }
+    ]
+  },
+  "336(3)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "224": {
+    "offence": "Whoever holds out any threat of injury to any public servant",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "124(2)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "127(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "157": {
+    "offence": "Whoever",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "234": {
+    "offence": "Whoever issues or signs any certificate required by law to be given or signed",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "122(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "113(4)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "155": {
+    "offence": "5",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "156": {
+    "offence": "Whoever",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "185": {
+    "offence": "Whoever",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "285": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "140(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "208(a)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "351(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "64(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "67": {
+    "offence": "Whoever has sexual intercourse with his own wife",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "132": {
+    "offence": "2",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "204": {
+    "offence": "Whoever pretends to hold any particular office as a public servant",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "260(b)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "324(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "59(c)": {
+    "offence": "Whoever",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "267": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "287": {
+    "offence": "Whoever does",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "153": {
+    "offence": "3",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "113(6)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "126(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "75(2)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "269": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "271": {
+    "offence": "Whoever unlawfully or negligently does any act which is",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "202": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "331(6)": {
+    "offence": null,
+    "max_years": 14,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "238(a)": {
+    "offence": "Whoever",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "345(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "274": {
+    "offence": "Whoever adulterates any article of food or drink",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "111(5)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "83": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "179": {
+    "offence": "Whoever imports or exports",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "238(b)": {
+    "offence": "Whoever",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "123": {
+    "offence": "3",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "311": {
+    "offence": "If",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "73": {
+    "offence": "3",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "343": {
+    "offence": "Whoever fraudulently or dishonestly",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": false,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "193(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "253(b)": {
+    "offence": "Whenever any person convicted of or charged with an offence",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "76": {
+    "offence": "6",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "76\nAssault or use of criminal\nImprisonment for not less\nCognizable.\nNon-bailable.\nCourt of Session.\nforce to woman with intent than 3 years but which\n",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "Second or subsequent\nImprisonment for not less\nCognizable.\nNon-bailable.\nCourt of Session.\nconviction.\nthan 3 years but which may\nextend to 7 years an",
+        "condition": "Second or subsequent\nImprisonment for not less\nCognizable.\nNon-bailable.\nCourt o"
+      }
+    ]
+  },
+  "210(b)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "104": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "death_or_life_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "75(3)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "193(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "212(b)": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "278": {
+    "offence": "Whoever knowingly sells",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "150": {
+    "offence": "Whoever by any act",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "197(1)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "215": {
+    "offence": "Whoever refuses to sign any statement made by him",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "310(6)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "230(1)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "52": {
+    "offence": "2",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "61(2)(b)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "245": {
+    "offence": "5",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "324(6)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "206(a)": {
+    "offence": "Whoever absconds in order to avoid being served with a summons",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "217": {
+    "offence": "7",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "337": {
+    "offence": "Whoever forges a document or an electronic record",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "131": {
+    "offence": "1",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "251(c)": {
+    "offence": "Whoever gives or causes",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "50": {
+    "offence": "Whoever abets the commission of an offence shall",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "143(5)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "162": {
+    "offence": "Whoever abets an assault by an officer",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "105": {
+    "offence": "Whoever commits culpable homicide not amounting to murder",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "105\nCulpable homicide not\nImprisonment for life, or\nCognizable.\nNon-bailable.\nCourt of Session.\namounting to murder, if act Imprisonment for not less\n",
+        "condition": "general"
+      },
+      {
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "If act be done with\nImprisonment for 10 years\nCognizable.\nNon-bailable.\nCourt of Session.\nknowledge that it is\nand with fine.\nlikely to cause death, b",
+        "condition": "If act be done with\nImprisonment for 10 years\nCognizable.\nNon-bailable.\nCourt of"
+      }
+    ]
+  },
+  "258": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "207(b)": {
+    "offence": "Whoever in any manner intentionally prevents the serving on himself",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "305": {
+    "offence": "5",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "166": {
+    "offence": "Whoever abets what he knows to be an act of insubordination by an officer",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "352": {
+    "offence": "Whoever intentionally insults in any manner",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "241": {
+    "offence": "1",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "161": {
+    "offence": "Whoever abets an assault by an officer",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "313": {
+    "offence": "3",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "262": {
+    "offence": "2",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "112": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "306": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "81": {
+    "offence": "1",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "255": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "315": {
+    "offence": "Whoever dishonestly misappropriates or converts to his own use any property",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "cognizable": false,
+        "bailable": true,
+        "raw_text_preview": "315\nDishonest misappropriation Imprisonment for\nNon-cognizable.\nBailable.\nMagistrate of the first\nof property possessed by\n3 years and fine.\nclass.\nde",
+        "condition": "general"
+      },
+      {
+        "cognizable": false,
+        "bailable": true,
+        "raw_text_preview": "If by clerk or person\nImprisonment for 7 years.\nNon-cognizable.\nBailable.\nMagistrate of the first\nemployed by deceased.\nclass.",
+        "condition": "If by clerk or person\nImprisonment for 7 years.\nNon-cognizable.\nBailable.\nMagist"
+      }
+    ]
+  },
+  "277": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "322": {
+    "offence": "Whoever dishonestly or fraudulently signs",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "196(1)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "178": {
+    "offence": "Whoever counterfeits",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "290": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "229(1)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "351(2)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "199": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "336(4)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "317(2)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "98": {
+    "offence": "Whoever sells",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "103(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "death_or_life_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "206(b)": {
+    "offence": "Whoever absconds in order to avoid being served with a summons",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "331(2)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "144(1)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "256": {
+    "offence": "Whoever",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "127(6)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "259(c)": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "299": {
+    "offence": "Whoever",
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "189(9)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "189(5)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "317(4)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "293": {
+    "offence": "Whoever repeats or continues a public nuisance",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "214": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "65(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "308(7)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "189(4)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "342(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "341(2)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "288": {
+    "offence": "Whoever does",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "283": {
+    "offence": "Whoever exhibits any false light",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "351(4)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "113(2)(b)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "103(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "death_or_life_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "317(5)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "168": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "263(d)": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "53": {
+    "offence": "3",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "91": {
+    "offence": "1",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "347(1)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "118(1)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "309(6)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "251(a)": {
+    "offence": "Whoever gives or causes",
+    "max_years": "contingent",
+    "life_or_death": "contingent",
+    "punishment_shape": "contingent",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "68": {
+    "offence": "Whoever",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "265": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "286": {
+    "offence": "Whoever does",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "268": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "60(a)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": "contingent",
+    "bailable": "contingent",
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "263(e)": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "229(2)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "316(3)": {
+    "offence": null,
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "124(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "143(2)": {
+    "offence": null,
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "240": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "113(7)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "ceiling_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "182(1)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "72(1)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "127(5)": {
+    "offence": null,
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "195(2)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "332(a)": {
+    "offence": "2",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "318(2)": {
+    "offence": null,
+    "max_years": 3,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "196(2)": {
+    "offence": null,
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "332(b)": {
+    "offence": "2",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "221": {
+    "offence": "1",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "187": {
+    "offence": "Whoever",
+    "max_years": 7,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "111(4)": {
+    "offence": null,
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "range_to_life",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "107": {
+    "offence": "If any child",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "death_or_life_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "260(c)": {
+    "offence": "Whoever",
+    "max_years": null,
+    "life_or_death": true,
+    "punishment_shape": "life_or_term",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "248(a)": {
+    "offence": "Whoever",
+    "max_years": 5,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "237": {
+    "offence": "Whoever corruptly uses or attempts to use as true any such declaration",
+    "max_years": null,
+    "life_or_death": null,
+    "punishment_shape": "needs_manual_review",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": true
+  },
+  "212(a)": {
+    "offence": "Whoever",
+    "max_years": 2,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "307": {
+    "offence": "Whoever commits theft",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "69": {
+    "offence": "Whoever",
+    "max_years": 10,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  }
+}
