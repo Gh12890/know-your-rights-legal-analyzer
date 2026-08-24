@@ -112,14 +112,14 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "61(2)(a)": {
-    "offence": null,
+    "offence": "Whoever is a party to a criminal conspiracy",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "61(2)(b)": {
-    "offence": null,
+    "offence": "Whoever is a party to a criminal conspiracy",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
@@ -133,28 +133,28 @@
     "punishment_note": "Punishment is a fraction of the underlying offence's term — not a fixed value."
   },
   "64(1)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "64(2)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "65(1)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "65(2)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
@@ -245,7 +245,7 @@
     "punishment_note": null
   },
   "78(2)": {
-    "offence": null,
+    "offence": "Whoever commits the offence of stalking",
     "max_years": "see_subsections",
     "life_or_death": "see_subsections",
     "punishment_shape": "tiered_by_conviction",
@@ -259,7 +259,7 @@
     "punishment_note": null
   },
   "80(2)": {
-    "offence": null,
+    "offence": "Whoever commits dowry death",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
@@ -273,7 +273,7 @@
     "punishment_note": null
   },
   "82(1)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -329,7 +329,7 @@
     "punishment_note": "Alternative fixed term of 10 years also available in the text."
   },
   "90(1)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -406,7 +406,7 @@
     "punishment_note": null
   },
   "103(1)": {
-    "offence": null,
+    "offence": "Whoever commits murder",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "death_or_life_only",
@@ -462,7 +462,7 @@
     "punishment_note": null
   },
   "109(1)": {
-    "offence": null,
+    "offence": "Whoever does any act with such intention or knowledge",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -483,35 +483,35 @@
     "punishment_note": null
   },
   "111(2)(a)": {
-    "offence": null,
+    "offence": "Whoever commits organised crime shall",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "111(2)(b)": {
-    "offence": null,
+    "offence": "Whoever commits organised crime shall",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "111(3)": {
-    "offence": null,
+    "offence": "Whoever abets",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "111(4)": {
-    "offence": null,
+    "offence": "Any person who is a member of an organised crime syndicate",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "111(5)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
@@ -525,7 +525,7 @@
     "punishment_note": null
   },
   "111(7)": {
-    "offence": null,
+    "offence": "If any person on behalf of a member of an organised crime syndicate is",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
@@ -539,21 +539,21 @@
     "punishment_note": null
   },
   "113(2)(a)": {
-    "offence": null,
+    "offence": "Whoever commits a terrorist act shall",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "113(2)(b)": {
-    "offence": null,
+    "offence": "Whoever commits a terrorist act shall",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "113(3)": {
-    "offence": null,
+    "offence": "Whoever conspires or attempts to commit",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
@@ -567,14 +567,14 @@
     "punishment_note": null
   },
   "113(5)": {
-    "offence": null,
+    "offence": "Any person who is a member of an organisation which is involved in terrorist act",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "ceiling_to_life",
     "punishment_note": "Ceiling of life imprisonment, no stated minimum term."
   },
   "113(6)": {
-    "offence": null,
+    "offence": "Whoever voluntarily harbours or conceals",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
@@ -588,14 +588,14 @@
     "punishment_note": "Ceiling of life imprisonment, no stated minimum term."
   },
   "115(2)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "117(2)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -609,28 +609,28 @@
     "punishment_note": null
   },
   "117(4)": {
-    "offence": null,
+    "offence": "When a group of five or more persons acting in concert",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "118(1)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "118(2)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "life_or_term",
     "punishment_note": "Alternative fixed term of 10 years also available in the text."
   },
   "119(1)": {
-    "offence": null,
+    "offence": "Whoever voluntarily causes hurt for the purpose of extorting from the sufferer",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -672,14 +672,14 @@
     "punishment_note": null
   },
   "122(1)": {
-    "offence": null,
+    "offence": "Whoever voluntarily causes hurt on grave and sudden provocation",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "122(2)": {
-    "offence": null,
+    "offence": "Whoever voluntarily causes grievous hurt on grave and sudden provocation",
     "max_years": 5,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -693,7 +693,7 @@
     "punishment_note": null
   },
   "124(1)": {
-    "offence": null,
+    "offence": "Whoever causes permanent or partial damage or deformity to",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
@@ -728,35 +728,35 @@
     "punishment_note": null
   },
   "126(2)": {
-    "offence": null,
+    "offence": "Whoever wrongfully restrains any person",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "127(2)": {
-    "offence": null,
+    "offence": "Whoever wrongfully confines any person",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "127(3)": {
-    "offence": null,
+    "offence": "Whoever wrongfully confines any person for three days",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "127(4)": {
-    "offence": null,
+    "offence": "Whoever wrongfully confines any person for ten days or more",
     "max_years": 5,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "127(5)": {
-    "offence": null,
+    "offence": "Whoever keeps any person in wrongful confinement",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -833,7 +833,7 @@
     "punishment_note": null
   },
   "139(1)": {
-    "offence": null,
+    "offence": "Whoever kidnaps any child  or",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
@@ -868,7 +868,7 @@
     "punishment_note": null
   },
   "140(4)": {
-    "offence": null,
+    "offence": "Whoever kidnaps or abducts any person in order that such person may be subjected",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -889,28 +889,28 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "143(2)": {
-    "offence": null,
+    "offence": "Whoever commits the offence of trafficking",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "range",
     "punishment_note": null
   },
   "143(3)": {
-    "offence": null,
+    "offence": "Where the offence involves the trafficking of more than one person",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "143(4)": {
-    "offence": null,
+    "offence": "Where the offence involves the trafficking of a child",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
     "punishment_note": null
   },
   "143(5)": {
-    "offence": null,
+    "offence": "Where the offence involves the trafficking of more than one child",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "range_to_life",
@@ -931,14 +931,14 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "144(1)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "range",
     "punishment_note": null
   },
   "144(2)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "range",
@@ -1106,14 +1106,14 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "173": {
-    "offence": "3",
+    "offence": "Whoever commits the offence of bribery",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "174": {
-    "offence": "4",
+    "offence": "Whoever commits the offence of undue influence or personation at an election",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
@@ -1169,14 +1169,14 @@
     "punishment_note": "Alternative fixed term of 10 years also available in the text."
   },
   "182(1)": {
-    "offence": null,
+    "offence": "Whoever makes",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "182(2)": {
-    "offence": null,
+    "offence": "If any person",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
@@ -1204,7 +1204,7 @@
     "punishment_note": null
   },
   "186": {
-    "offence": "6",
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
@@ -1225,21 +1225,21 @@
     "punishment_note": null
   },
   "189(2)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "189(3)": {
-    "offence": null,
+    "offence": "Whoever joins or continues in an unlawful assembly",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "189(4)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -1253,28 +1253,28 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "189(6)": {
-    "offence": null,
+    "offence": "Whoever hires or engages",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "189(7)": {
-    "offence": null,
+    "offence": "Whoever harbours",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "189(8)": {
-    "offence": null,
+    "offence": "Whoever is engaged",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "189(9)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -1288,14 +1288,14 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "191(2)": {
-    "offence": null,
+    "offence": "Whoever is guilty of rioting",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "191(3)": {
-    "offence": null,
+    "offence": "Whoever is guilty of rioting",
     "max_years": 5,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -1309,7 +1309,7 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "193(1)": {
-    "offence": null,
+    "offence": "Whenever any unlawful assembly or riot takes place",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
@@ -1330,7 +1330,7 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "194(2)": {
-    "offence": null,
+    "offence": "Whoever commits an affray",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
@@ -1351,7 +1351,7 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "196(1)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -1365,7 +1365,7 @@
     "punishment_note": null
   },
   "197(1)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -1659,7 +1659,7 @@
     "punishment_note": null
   },
   "230(1)": {
-    "offence": null,
+    "offence": "Whoever gives or fabricates false evidence",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -1680,7 +1680,7 @@
     "punishment_note": null
   },
   "232(1)": {
-    "offence": null,
+    "offence": "Whoever threatens another with any injury to his person",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2247,7 +2247,7 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "294(2)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": "see_subsections",
     "life_or_death": "see_subsections",
     "punishment_shape": "tiered_by_conviction",
@@ -2275,7 +2275,7 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "297(2)": {
-    "offence": null,
+    "offence": "Whoever publishes any proposal to pay any sum",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
@@ -2317,21 +2317,21 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "303(2)": {
-    "offence": null,
+    "offence": "Whoever commits theft",
     "max_years": 5,
     "life_or_death": false,
     "punishment_shape": "range",
     "punishment_note": null
   },
   "304(2)": {
-    "offence": null,
+    "offence": "Whoever commits snatching",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "305": {
-    "offence": "5",
+    "offence": "Whoever commits theft",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2352,21 +2352,21 @@
     "punishment_note": null
   },
   "308(2)": {
-    "offence": null,
+    "offence": "Whoever commits extortion",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "308(3)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "308(4)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2380,7 +2380,7 @@
     "punishment_note": null
   },
   "308(6)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "life_or_term",
@@ -2394,42 +2394,42 @@
     "punishment_note": "Alternative fixed term of 10 years also available in the text."
   },
   "309(4)": {
-    "offence": null,
+    "offence": "Whoever commits robbery",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "309(5)": {
-    "offence": null,
+    "offence": "Whoever attempts to commit robbery",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "309(6)": {
-    "offence": null,
+    "offence": "If any person",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "310(2)": {
-    "offence": null,
+    "offence": "Whoever commits dacoity",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "310(3)": {
-    "offence": null,
+    "offence": "If any one of five or more persons",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "death_or_life_only",
     "punishment_note": "Death or life imprisonment, no separate fixed-term ceiling stated."
   },
   "310(4)": {
-    "offence": null,
+    "offence": "Whoever makes any preparation for committing dacoity",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2485,42 +2485,42 @@
     "punishment_note": null
   },
   "316(2)": {
-    "offence": null,
+    "offence": "Whoever commits criminal breach of trust",
     "max_years": 5,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "316(3)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "316(4)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "316(5)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "life_or_term",
     "punishment_note": "Alternative fixed term of 10 years also available in the text."
   },
   "317(2)": {
-    "offence": null,
+    "offence": "Whoever dishonestly receives or retains any stolen property",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "317(3)": {
-    "offence": null,
+    "offence": "Whoever dishonestly receives or retains any stolen property",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2541,7 +2541,7 @@
     "punishment_note": null
   },
   "318(2)": {
-    "offence": null,
+    "offence": "Whoever cheats",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2562,7 +2562,7 @@
     "punishment_note": null
   },
   "319(2)": {
-    "offence": null,
+    "offence": "Whoever cheats by personation",
     "max_years": 5,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2597,7 +2597,7 @@
     "punishment_note": null
   },
   "324(2)": {
-    "offence": null,
+    "offence": "Whoever commits mischief",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
@@ -2625,7 +2625,7 @@
     "punishment_note": null
   },
   "324(6)": {
-    "offence": null,
+    "offence": "Whoever commits mischief",
     "max_years": 5,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2688,14 +2688,14 @@
     "punishment_note": "Alternative fixed term of 10 years also available in the text."
   },
   "327(1)": {
-    "offence": null,
+    "offence": "Whoever commits mischief to any rail",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "327(2)": {
-    "offence": null,
+    "offence": "Whoever commits",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "life_or_term",
@@ -2709,21 +2709,21 @@
     "punishment_note": null
   },
   "329(3)": {
-    "offence": null,
+    "offence": "Whoever commits criminal trespass",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "329(4)": {
-    "offence": null,
+    "offence": "Whoever commits house-trespass",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "331(1)": {
-    "offence": null,
+    "offence": "Whoever commits lurking house-trespass or house-breaking",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2737,7 +2737,7 @@
     "punishment_note": null
   },
   "331(3)": {
-    "offence": null,
+    "offence": "Whoever commits lurking house-trespass or house-breaking",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2751,7 +2751,7 @@
     "punishment_note": null
   },
   "331(5)": {
-    "offence": null,
+    "offence": "Whoever commits lurking house-trespass",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2765,14 +2765,14 @@
     "punishment_note": null
   },
   "331(7)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 10,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "331(8)": {
-    "offence": null,
+    "offence": "If",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "life_or_term",
@@ -2807,35 +2807,35 @@
     "punishment_note": null
   },
   "334(1)": {
-    "offence": null,
+    "offence": "Whoever dishonestly or with intent to commit mischief",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "334(2)": {
-    "offence": null,
+    "offence": "Whoever",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "336(2)": {
-    "offence": null,
+    "offence": "Whoever commits forgery",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "336(3)": {
-    "offence": null,
+    "offence": "Whoever commits forgery",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "336(4)": {
-    "offence": null,
+    "offence": "Whoever commits forgery",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2870,42 +2870,42 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "341(1)": {
-    "offence": null,
+    "offence": "Whoever makes or counterfeits any seal",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "life_or_term",
     "punishment_note": "Alternative fixed term of 7 years also available in the text."
   },
   "341(2)": {
-    "offence": null,
+    "offence": "Whoever makes or counterfeits any seal",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "341(3)": {
-    "offence": null,
+    "offence": "Whoever possesses any seal",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "341(4)": {
-    "offence": null,
+    "offence": "Whoever fraudulently or dishonestly uses as genuine any seal",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "342(1)": {
-    "offence": null,
+    "offence": "Whoever counterfeits upon",
     "max_years": null,
     "life_or_death": true,
     "punishment_shape": "life_or_term",
     "punishment_note": "Alternative fixed term of 7 years also available in the text."
   },
   "342(2)": {
-    "offence": null,
+    "offence": "Whoever counterfeits upon",
     "max_years": 7,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2926,7 +2926,7 @@
     "punishment_note": null
   },
   "345(3)": {
-    "offence": null,
+    "offence": "Whoever uses any false property mark shall",
     "max_years": null,
     "life_or_death": null,
     "punishment_shape": "needs_manual_review",
@@ -2947,7 +2947,7 @@
     "punishment_note": null
   },
   "347(2)": {
-    "offence": null,
+    "offence": "Whoever counterfeits any property mark used by a public servant",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2968,7 +2968,7 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "350(1)": {
-    "offence": null,
+    "offence": "Whoever makes any false mark upon any case",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -2982,7 +2982,7 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "351(2)": {
-    "offence": null,
+    "offence": "Whoever commits the offence of criminal intimidation",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -3010,14 +3010,14 @@
     "punishment_note": null
   },
   "353(1)": {
-    "offence": null,
+    "offence": "Whoever makes",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
     "punishment_note": null
   },
   "353(2)": {
-    "offence": null,
+    "offence": "Whoever makes",
     "max_years": 3,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",
@@ -3045,7 +3045,7 @@
     "punishment_note": "Automated parser could not confidently determine punishment shape from this text — verify manually before use."
   },
   "356(2)": {
-    "offence": null,
+    "offence": "Whoever defames another",
     "max_years": 2,
     "life_or_death": false,
     "punishment_shape": "ceiling_only",

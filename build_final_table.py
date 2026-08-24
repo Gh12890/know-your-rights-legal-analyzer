@@ -16,7 +16,7 @@ def get_classification_general(sched_value):
 final_table = {}
 conflicts = []
 
-all_keys = set(punishment_table.keys()) | set(classification_table.keys())
+all_keys = sorted(set(punishment_table.keys()) | set(classification_table.keys()))
 
 for key in all_keys:
     punishment = punishment_table.get(key)
