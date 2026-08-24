@@ -4,7 +4,7 @@ import json
 import typing
 from datetime import datetime, timedelta
 from anthropic import Anthropic
-from bns_section_data import BNS_SECTION_DATA, get_max_years_from_sections
+from bns_section_data_v2 import BNS_SECTION_DATA
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable,Table, TableStyle
 from reportlab.platypus import Table as _Table
 from reportlab.lib import colors as _colors
@@ -312,6 +312,7 @@ Return ONLY valid JSON in this format, no other text:
 Document text:
 {document_text}"""
 
+
 def build_grounded_section_context(sections_cited):
     """Look up each cited section in the verified dictionary and produce a short, factual context string the model can reply on instead of guessing."""
     if not sections_cited:
@@ -321,10 +322,32 @@ def build_grounded_section_context(sections_cited):
         clean = re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$','', str(sec).strip(), flags=re.IGNORECASE).strip()
         data = BNS_SECTION_DATA.get(clean)
         if data:
-            lines.append(f"-Section {clean}: {data['offence']} (max punishment: {'Life/Death' if data['life_or_death'] else str(data['max_years']) + ' years'})")
+            # Punishment and classification are INDEPENDENT facts — a section
+            # can have a fixed punishment but contingent cognizable/bailable
+            # status (confirmed real case: Section 57), or vice versa. Report
+            # each honestly rather than collapsing both into one message.
+            if data['life_or_death'] == "contingent":
+                punishment_desc = "punishment depends on the underlying/related offence — not fixed"
+            elif data['life_or_death']:
+                punishment_desc = "max punishment: Life/Death"
+            elif data['max_years'] is not None:
+                punishment_desc = f"max punishment: {data['max_years']} years"
+            else:
+                punishment_desc = "punishment not resolved — needs manual review"
+
+            if data['cognizable'] == "contingent":
+                classification_desc = "cognizable/bailable status depends on the underlying/related offence"
+            else:
+                classification_desc = None  # will show separately if needed, not blocking the offence line
+
+            offence_label = data['offence'] if data['offence'] else "(description not extracted — needs manual review)"
+            line = f"-Section {clean}: {offence_label} ({punishment_desc})"
+            if classification_desc:
+                line += f" [{classification_desc}]"
+            lines.append(line)
         else:
             lines.append(f"- Section {clean}: not in our verified reference table — do not assume or guess what this section covers.")
-    return "\n".join(lines)  
+    return "\n".join(lines)
 
 
 
@@ -333,14 +356,24 @@ def build_grounded_section_context(sections_cited):
 import re
 
 def get_max_years_from_sections(sections_cited):
+    """Sentinel values: 'LIFE_OR_DEATH', 'CONTAINS_VARIABLE' (punishment
+    depends on an underlying offence with no fixed value stated), and
+    'CONTAINS_CONTINGENT' (checked via life_or_death == "contingent"
+    specifically, NOT needs_review — a section's punishment can be a clean
+    fixed number even when its cognizable/bailable status, a separate
+    field, is contingent — confirmed real case: Section 57)."""
     if not sections_cited:
         return None
     candidates = []
     has_variable = False
+    has_contingent = False
     for sec in sections_cited:
         clean = str(sec).strip()
         data = BNS_SECTION_DATA.get(clean)
         if data is None:
+            continue
+        if data.get("life_or_death") == "contingent":
+            has_contingent = True
             continue
         if data["life_or_death"]:
             return "LIFE_OR_DEATH"
@@ -348,6 +381,8 @@ def get_max_years_from_sections(sections_cited):
             candidates.append(data["max_years"])
         else:
             has_variable = True
+    if has_contingent:
+        return "CONTAINS_CONTINGENT"
     if has_variable:
         return "CONTAINS_VARIABLE"
     return max(candidates) if candidates else None
@@ -511,6 +546,7 @@ def check_arnesh_kumar_notice(f):
             "notice-first framework. Written grounds of arrest, D.K. Basu safeguards, and 24-hour production "
             "still apply in full and are checked separately.")
 
+   
     if looked_up == "CONTAINS_VARIABLE":
         return _result(req, "Cannot Determine",
             "One or more cited sections (e.g. an attempt/abetment/conspiracy provision) has a punishment "
@@ -518,6 +554,14 @@ def check_arnesh_kumar_notice(f):
             "Because this could carry a higher ceiling than the other sections cited, the combined "
             "punishment range — and therefore whether the notice-first framework applies — cannot be "
             "safely determined. Verify independently.")
+
+    if looked_up == "CONTAINS_CONTINGENT":
+        return _result(req, "Cannot Determine",
+            "One or more cited sections has a classification or punishment that is explicitly contingent "
+            "on another factor (e.g. an abettor's punishment following the offence abetted, or a "
+            "conspiracy's punishment following the substantive offence) and is not a fixed value in our "
+            "reference table. Whether the notice-first framework applies cannot be safely determined. "
+            "Verify independently.")
 
     upper = looked_up if looked_up is not None else f.get("punishment_years_upper_bound")
     source = "looked up from cited section" if looked_up is not None else "as stated in document"
@@ -553,6 +597,10 @@ def check_arnesh_kumar_notice(f):
             and not BNS_SECTION_DATA[sec]["life_or_death"]
             for sec in cleaned
         )
+        recognized_but_contingent = any(
+            sec in BNS_SECTION_DATA and BNS_SECTION_DATA[sec].get("max_years") == "contingent"
+            for sec in cleaned
+        )
         if recognized_but_variable:
             return _result(req, "Cannot Determine",
                 "This section is recognised, but it is an attempt/abetment/conspiracy-type provision whose "
@@ -560,6 +608,12 @@ def check_arnesh_kumar_notice(f):
                 "resolved. Determine independently whether that underlying offence carries more than 7 "
                 "years: if yes, S.35(1)(c) applies and no notice is required; if 7 years or under, S.35(1)(b) "
                 "applies and the notice-first framework (Arnesh Kumar / Satender Kumar Antil) governs.")
+        if recognized_but_contingent:
+            return _result(req, "Cannot Determine",
+                "This section is recognised, but its punishment is explicitly contingent on another factor "
+                "(e.g. an abettor's punishment following the offence abetted) and is not a fixed value. "
+                "Whether the notice-first framework applies cannot be automatically resolved. Verify "
+                "independently.")
         return _result(req, "Cannot Determine",
             "Section not recognized in lookup table and punishment range not stated in document; the "
             "threshold that decides which limb of S.35(1) applies cannot be established.")
@@ -603,19 +657,33 @@ def check_cognizable_arrest_basis(f):
         return _result(req, "Cannot Determine",
             "Cited section(s) not recognised in the lookup table; cognizability status cannot be established.")
 
+    # Only flag as contingent based on the COGNIZABLE field specifically —
+    # not a blanket needs_review, which can be true for unrelated reasons
+    # (e.g. a missing offence description) that don't affect cognizability.
+    if any(entry.get("cognizable") == "contingent" for entry in known_entries):
+        return _result(req, "Cannot Determine",
+            "Cognizability of the cited section(s) depends on circumstances not captured here (e.g. the "
+            "underlying/related offence) — cannot be automatically established. Verify from the case record.")
+
     if all(entry["cognizable"] for entry in known_entries):
         return _result(req, "Compliant",
             "The cited offence(s) are cognizable — police ordinarily have power to arrest without a warrant. "
             "This does not by itself confirm the specific arrest power exercised was lawful; see the notice "
             "and other checks below for that.")
 
-    return _result(req, "Non-Compliant",
-        "The cited offence(s) are recorded as NON-COGNIZABLE in the statutory reference table. Ordinarily, "
-        "police have no general power to arrest without a warrant for a non-cognizable offence — such an "
-        "arrest is a threshold defect independent of whether a S.35(3) notice was served. A small number of "
-        "specific statutes carve out exceptions permitting warrantless arrest even for particular "
-        "non-cognizable matters; verify from the case record whether such a specific exception applies here "
-        "before treating this as conclusive.")
+    if all(not entry["cognizable"] for entry in known_entries):
+        return _result(req, "Non-Compliant",
+            "The cited offence(s) are recorded as NON-COGNIZABLE in the statutory reference table. Ordinarily, "
+            "police have no general power to arrest without a warrant for a non-cognizable offence — such an "
+            "arrest is a threshold defect independent of whether a S.35(3) notice was served. A small number of "
+            "specific statutes carve out exceptions permitting warrantless arrest even for particular "
+            "non-cognizable matters; verify from the case record whether such a specific exception applies here "
+            "before treating this as conclusive.")
+
+    return _result(req, "Cannot Determine",
+        "The cited offences have MIXED cognizability — some are cognizable, some are not. Whether the arrest "
+        "was lawful depends on which specific offence the arrest power was actually exercised under; this "
+        "cannot be determined automatically from the combined citation list. Verify from the case record.")
     
     
 def check_223_cognizance_bar(f):
@@ -752,6 +820,24 @@ def check_default_bail(f, user_chargesheet_date=None):
             f"{deadline_60.strftime('%d-%m-%Y')}; if the 90-day window applies (offences carrying 10+ years, "
             f"life, or death), it becomes available on {deadline_90.strftime('%d-%m-%Y')}. Confirm which "
             f"threshold applies once the underlying offence attempted under any variable section is known.")
+
+    elif looked_up == "CONTAINS_CONTINGENT":
+        p = parse_datetime_full(f.get("production_datetime_full"))
+        if p is not None:
+            remand_start = p
+            remand_basis = "actual production-before-magistrate date stated in document"
+        else:
+            remand_start = a + timedelta(days=1)
+            remand_basis = "ASSUMED as one day after arrest (production date not stated) — verify against the actual remand order"
+        deadline_60 = remand_start + timedelta(days=60)
+        deadline_90 = remand_start + timedelta(days=90)
+        return _result(req, "Cannot Determine",
+            f"One or more cited sections has a punishment that is contingent on another factor (not a fixed "
+            f"value in our reference table), so whether the 60-day or 90-day window applies cannot be "
+            f"confirmed. Both possible deadlines, based on {remand_basis}: if the 60-day window applies, "
+            f"default bail becomes available on {deadline_60.strftime('%d-%m-%Y')}; if the 90-day window "
+            f"applies, it becomes available on {deadline_90.strftime('%d-%m-%Y')}. Verify the applicable "
+            f"threshold independently.")
     else:
         upper = looked_up if looked_up is not None else f.get("punishment_years_upper_bound")
         ...
@@ -892,6 +978,18 @@ def compute_bail_pathway_info(sections_cited):
                        "police station or only by a court cannot be determined from this information."
         }
 
+    # Only flag as contingent based on the BAILABLE field specifically —
+    # not the blanket needs_review flag, which can be true for unrelated
+    # reasons (e.g. a missing offence description) that don't affect bail.
+    contingent_sections = [sec for sec, data in known_entries if data.get("bailable") == "contingent"]
+    if contingent_sections:
+        return {
+            "pathway": "unknown",
+            "message": f"Bail eligibility for section(s) {', '.join(contingent_sections)} depends on "
+                       f"circumstances not captured here (e.g. the underlying offence abetted) — this "
+                       f"cannot be determined automatically. Verify with a lawyer."
+        }
+
     if all(data["bailable"] for _, data in known_entries):
         return {
             "pathway": "police_station",
@@ -917,7 +1015,6 @@ def compute_bail_pathway_info(sections_cited):
                    "not the police station, should be approached for bail. Verify this with a lawyer given "
                    "the mixed charges."
     }
-
 
 def check_freeze_section_and_scope(f):
     req = "Blanket freeze under 106/107 BNSS restrcited to disputed amount [High Court trend]"
@@ -1112,10 +1209,20 @@ def check_fir_no_arrest_status(f):
             "this document.")
 
     names = ", ".join(f"{sec} ({data['offence']})" for sec, data in known)
-    cognizable_status = "cognizable" if all(d["cognizable"] for _, d in known) else \
-                         "non-cognizable" if all(not d["cognizable"] for _, d in known) else "mixed cognizability"
-    bailable_status = "bailable" if all(d["bailable"] for _, d in known) else \
-                       "non-bailable" if all(not d["bailable"] for _, d in known) else "mixed bailability"
+
+    def describe(field_values, true_label, false_label):
+        if any(v == "contingent" for v in field_values):
+            return f"{true_label}/{false_label} status depends on circumstances not captured here"
+        if all(field_values):
+            return true_label
+        if all(not v for v in field_values):
+            return false_label
+        return f"mixed {true_label.split()[0]}"
+
+    cognizable_values = [d.get("cognizable") for _, d in known]
+    bailable_values = [d.get("bailable") for _, d in known]
+    cognizable_status = describe(cognizable_values, "cognizable", "non-cognizable")
+    bailable_status = describe(bailable_values, "bailable", "non-bailable")
 
     return _result(req, "Not Applicable",
         f"No arrest has occurred yet, so arrest-procedure checks (notice, grounds, production, default bail) "
