@@ -35,10 +35,14 @@ def get_subsection_text(full_text, sub_num):
     end = min(end_candidates)
     return full_text[start:end]
 
-
 def get_offence_description(text):
-    m = re.match(r'^\d+[\(\)a-zA-Z0-9]*\.?\s*(\(\d+\)\s*)?(.+?)[,\.]', text)
-    return m.group(2).strip() if m else None
+    """Offence description, ending at whichever comes first: a comma, period,
+    em-dash, or the phrase "shall be punish" (the consistent boundary between
+    offence description and punishment clause in BNS's drafting style)."""
+    m = re.match(r'^(\d+[\(\)a-zA-Z0-9]*\.?\s*)?(\(\d+\)\s*)?(.+?)(?:,|\.|\u2014|\s+shall be punish)', text, re.IGNORECASE)
+    return m.group(3).strip() if m else None
+
+
 
 
 full_table = {}

@@ -44,6 +44,7 @@ for key in all_keys:
             or classification.get("cognizable") == "contingent"
             or punishment.get("max_years") == "contingent"
             or has_multiple_conditions
+            or punishment.get("offence") is None
         ),
     }
 
