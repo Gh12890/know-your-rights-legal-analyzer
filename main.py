@@ -332,6 +332,8 @@ def build_grounded_section_context(sections_cited):
                 punishment_desc = "max punishment: Life/Death"
             elif data['max_years'] is not None:
                 punishment_desc = f"max punishment: {data['max_years']} years"
+            elif data.get('max_months') is not None:
+                punishment_desc = f"max punishment: {data['max_months']} months"
             else:
                 punishment_desc = "punishment not resolved — needs manual review"
 
@@ -361,10 +363,21 @@ def get_max_years_from_sections(sections_cited):
     'CONTAINS_CONTINGENT' (checked via life_or_death == "contingent"
     specifically, NOT needs_review — a section's punishment can be a clean
     fixed number even when its cognizable/bailable status, a separate
-    field, is contingent — confirmed real case: Section 57)."""
+    field, is contingent — confirmed real case: Section 57).
+
+    Months-only sections (e.g. a 3-month ceiling) are real, known, resolved
+    punishments — not variable/unresolved ones — so they must not be lumped
+    into has_variable. They're tracked separately and only used as a
+    fallback maximum (converted to a fractional year figure purely for
+    numeric comparison against other cited sections) when no years-based
+    candidate exists among the cited sections. The raw max_months value
+    itself is never silently presented to the person as if it were years —
+    that only happens in build_grounded_section_context's own months-aware
+    display line."""
     if not sections_cited:
         return None
     candidates = []
+    months_only_candidates = []
     has_variable = False
     has_contingent = False
     for sec in sections_cited:
@@ -379,13 +392,16 @@ def get_max_years_from_sections(sections_cited):
             return "LIFE_OR_DEATH"
         if data["max_years"] is not None:
             candidates.append(data["max_years"])
+        elif data.get("max_months") is not None:
+            months_only_candidates.append(data["max_months"])
         else:
             has_variable = True
     if has_contingent:
         return "CONTAINS_CONTINGENT"
     if has_variable:
         return "CONTAINS_VARIABLE"
-    return max(candidates) if candidates else None
+    if not candidates and months_only_candidates:
+        return max(months_only_candidates) / 12
 
 FREEZE_EXTRACTION_PROMPT =""" Extract only what the bank/account freezing document explicitly states. DO NOT judge legality. Use null if not present.
  "If the document does not mention any BNS/BNSS/CrPC section number anywhere in connection with the freeze, you MUST answer 'none cited' — do not answer 'unclear' in this case. 'unclear' is only for when a section is mentioned but its exact identity is ambiguous."

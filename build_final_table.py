@@ -34,6 +34,7 @@ for key in all_keys:
     entry = {
         "offence": punishment.get("offence"),
         "max_years": punishment.get("max_years"),
+        "max_months": punishment.get("max_months"),
         "life_or_death": punishment.get("life_or_death"),
         "punishment_shape": punishment.get("punishment_shape"),
         "cognizable": classification.get("cognizable"),
