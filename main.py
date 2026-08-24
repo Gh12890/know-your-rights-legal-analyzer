@@ -723,9 +723,9 @@ def check_dk_basu_memo(f):
     missing = [ name for name ,v in checks if v is False]
     unclear = [name for name, v in checks if v == "unclear" or  v is None]
     if missing:
-        return _result(req, "Non-Compliant", f"D.K Basu items misisng: { ','.join(missing)}. ")
+       return _result(req, "Non-Compliant", f"D.K Basu items missing: {', '.join(missing)}. ")
     if unclear:
-        return _result(req, "Cannot Determine", f" D.K Basu items unclear from document: {'.'.join(unclear)}.")
+       return _result(req, "Cannot Determine", f" D.K Basu items unclear from document: {', '.join(unclear)}.")
     return _result(req, "Compliant", "Witness attestation, family notification, and medical exam all recorded.")
 
 def check_night_arrest_of_woman(f):
