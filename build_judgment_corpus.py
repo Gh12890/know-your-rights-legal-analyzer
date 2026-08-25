@@ -85,6 +85,43 @@ JUDGMENTS = [
         "source_url": "https://indiankanoon.org/doc/151036912/",
         "output": "corpus/youth_bar_association_v_union_of_india.json",
     },
+    {
+        "pdf": "l_muruganantham_indiankanoon.PDF",
+        "case_name": "L. Muruganantham v State of Tamil Nadu",
+        "citation": "2025 INSC 844",
+        "court": "Supreme Court of India",
+        "source_url": "https://indiankanoon.org/doc/77627897/",
+        "output": "corpus/l_muruganantham_v_state_of_tamil_nadu.json",
+    },
+    {
+        # NOT a Supreme Court judgment -- see main-block note below. Kept in
+        # the corpus per explicit user decision (2026-08-25) to broaden
+        # beyond pure SC precedent rather than drop non-SC sources.
+        "pdf": "prakash_ranjan_indiankanoon.PDF",
+        "case_name": "Prakash Ranjan v State of Bihar",
+        "citation": "Civil Writ Jurisdiction Case No. 20349 of 2019",
+        "court": "High Court of Judicature at Patna",
+        "source_url": "https://indiankanoon.org/doc/195353027/",
+        "output": "corpus/prakash_ranjan_v_state_of_bihar.json",
+    },
+    {
+        # NOT a Supreme Court judgment -- see main-block note below.
+        "pdf": "rakhi_mitra_indiankanoon.PDF",
+        "case_name": "Rakhi Mitra and Anr v State of West Bengal",
+        "citation": "2025:CHC-AS:1826",
+        "court": "High Court at Calcutta",
+        "source_url": "https://indiankanoon.org/doc/106336343/",
+        "output": "corpus/rakhi_mitra_v_state_of_west_bengal.json",
+    },
+    {
+        # NOT a Supreme Court judgment -- see main-block note below.
+        "pdf": "sri_manjunath_mp_indiankanoon.PDF",
+        "case_name": "Sri Manjunath M P v State of Karnataka",
+        "citation": "2026:KHC:2726",
+        "court": "High Court of Karnataka at Bengaluru",
+        "source_url": "https://indiankanoon.org/doc/107568550/",
+        "output": "corpus/sri_manjunath_mp_v_state_of_karnataka.json",
+    },
 ]
 
 RAW_PDF_DIR = "raw_pdfs"
@@ -164,6 +201,20 @@ if __name__ == "__main__":
                 ' Not corrected, since guessing the missing letters would mean inserting text not actually'
                 ' extracted from the source -- left as-is and flagged here instead, consistent with the'
                 ' "Cannot Determine over silent guessing" principle used elsewhere in this project.'
+            )
+        if j["pdf"] in (
+            "prakash_ranjan_indiankanoon.PDF",
+            "rakhi_mitra_indiankanoon.PDF",
+            "sri_manjunath_mp_indiankanoon.PDF",
+        ):
+            notes += (
+                ' DEVIATION FROM CORPUS NORM: every other record in this corpus is a Supreme Court of'
+                ' India judgment, added to ground the "binding Supreme Court procedural requirements" this'
+                ' project checks against (see README). This record is a High Court judgment instead'
+                f' ({j["court"]}) and is not currently cited anywhere in main.py\'s compliance logic.'
+                ' Kept in the corpus per explicit user decision (2026-08-25) to broaden sourcing rather than'
+                ' drop it, but it should NOT be treated as equivalent authority to the Supreme Court records'
+                ' here -- a High Court ruling binds only within its own state/UT, not nationally.'
             )
         if j["pdf"] == "youth_bar_association_indiankanoon_v2.pdf":
             notes += (
