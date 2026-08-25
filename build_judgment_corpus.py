@@ -93,10 +93,18 @@ JUDGMENTS = [
         "source_url": "https://indiankanoon.org/doc/77627897/",
         "output": "corpus/l_muruganantham_v_state_of_tamil_nadu.json",
     },
-    {
+        {
         # NOT a Supreme Court judgment -- see main-block note below. Kept in
         # the corpus per explicit user decision (2026-08-25) to broaden
         # beyond pure SC precedent rather than drop non-SC sources.
+        #
+        # CONFIRMED: this document does NOT cite or apply Arnesh Kumar,
+        # D.K. Basu, Vihaan Kumar, or Satender Kumar Antil anywhere in its
+        # text (checked directly) -- it is a 2020 civil writ petition
+        # against Bihar's Excise Department, unrelated in subject matter to
+        # the arrest-procedure doctrine line the rest of this corpus is
+        # built around. Kept per user instruction, but it is NOT an
+        # applying-precedent source for anything main.py currently checks.
         "pdf": "prakash_ranjan_indiankanoon.PDF",
         "case_name": "Prakash Ranjan v State of Bihar",
         "citation": "Civil Writ Jurisdiction Case No. 20349 of 2019",
@@ -106,6 +114,16 @@ JUDGMENTS = [
     },
     {
         # NOT a Supreme Court judgment -- see main-block note below.
+        #
+        # CONFIRMED: this document cites and applies Arnesh Kumar v State of
+        # Bihar and Satender Kumar Antil v CBI (checked directly). It is an
+        # APPLYING/ILLUSTRATIVE precedent, not a binding rule-source -- it
+        # shows a High Court applying existing Supreme Court doctrine to a
+        # specific fact pattern (per user framing, 2026-08-26: HC judgments
+        # in this corpus mainly reiterate SC precedent rather than create
+        # new binding law). Should be presented, if ever surfaced, as an
+        # example of application/consequences, subordinate to and never
+        # replacing the Arnesh Kumar / Satender Kumar Antil corpus entries.
         "pdf": "rakhi_mitra_indiankanoon.PDF",
         "case_name": "Rakhi Mitra and Anr v State of West Bengal",
         "citation": "2025:CHC-AS:1826",
@@ -115,6 +133,12 @@ JUDGMENTS = [
     },
     {
         # NOT a Supreme Court judgment -- see main-block note below.
+        #
+        # CONFIRMED: this document cites and applies Arnesh Kumar v State of
+        # Bihar (checked directly). Same APPLYING/ILLUSTRATIVE status as
+        # Rakhi Mitra above -- shows a High Court applying Arnesh Kumar to
+        # quash proceedings on vague S.498A-style allegations. Subordinate
+        # to, never a substitute for, the Arnesh Kumar corpus entry itself.
         "pdf": "sri_manjunath_mp_indiankanoon.PDF",
         "case_name": "Sri Manjunath M P v State of Karnataka",
         "citation": "2026:KHC:2726",
@@ -142,12 +166,23 @@ def extract_and_clean(pdf_path, source_url):
     # This is distinct from the Youth Bar Association contamination pattern
     # (site chrome, timestamps, "CASE RECAST AI") -- none of that appears
     # here; this is a clean, single, mechanical footer to strip.
+        # NOTE: an earlier version of this pattern required a literal leading
+    # \n before the case-name-repeat line and an optional trailing \n after
+    # the page number. That created a REAL overlap bug: re.sub/finditer
+    # don't allow overlapping matches, and each match's trailing \n was
+    # also the NEXT footer's required leading \n -- so whichever footer's
+    # leading \n got "consumed" by the previous match's greedy trailing \n
+    # would silently fail to match. This surfaced as exactly the LAST
+    # footer on every document surviving un-stripped (confirmed real case:
+    # Prakash Ranjan, caught by judgment_qa.py). Fixed by not requiring a
+    # leading \n at all -- the "Indian Kanoon - <url>" line itself is
+    # distinctive enough to anchor on without it.
     escaped_url = re.escape(source_url.replace("https://", "http://").rstrip("/"))
     footer_pattern = re.compile(
-        rf'\n[^\n]{{1,150}}\nIndian Kanoon - {escaped_url}/\n\d+\n',
+        rf'[^\n]{{1,150}}\nIndian Kanoon - {escaped_url}/\n\d+\n?',
         re.IGNORECASE
     )
-    cleaned = footer_pattern.sub('\n', text)
+    cleaned = footer_pattern.sub('', text)
 
     # Light cleanup
     cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
@@ -215,6 +250,26 @@ if __name__ == "__main__":
                 ' Kept in the corpus per explicit user decision (2026-08-25) to broaden sourcing rather than'
                 ' drop it, but it should NOT be treated as equivalent authority to the Supreme Court records'
                 ' here -- a High Court ruling binds only within its own state/UT, not nationally.'
+            )
+        if j["pdf"] == "prakash_ranjan_indiankanoon.PDF":
+            notes += (
+                ' PRECEDENT STATUS (confirmed by direct text search, 2026-08-26): this document does NOT'
+                ' cite Arnesh Kumar, D.K. Basu, Vihaan Kumar, or Satender Kumar Antil anywhere -- it is a'
+                ' 2020 civil writ petition against Bihar\'s Excise Department, topically unrelated to the'
+                ' arrest-procedure doctrine line the rest of this corpus grounds. It is NOT an applying-'
+                ' precedent source for anything currently checked in main.py.'
+            )
+        if j["pdf"] in ("rakhi_mitra_indiankanoon.PDF", "sri_manjunath_mp_indiankanoon.PDF"):
+            cited = "Arnesh Kumar v State of Bihar and Satender Kumar Antil v CBI" if j["pdf"] == "rakhi_mitra_indiankanoon.PDF" else "Arnesh Kumar v State of Bihar"
+            notes += (
+                f' PRECEDENT STATUS (confirmed by direct text search, 2026-08-26): this document cites and'
+                f' applies {cited}. Per user framing (2026-08-26): High Court judgments in this corpus mainly'
+                f' reiterate/apply existing Supreme Court precedent rather than create new binding law. This'
+                f' record is an APPLYING/ILLUSTRATIVE precedent -- useful for showing practical consequences'
+                f' and how a court rules when the cited Supreme Court doctrine is applied to specific facts --'
+                f' not a rule-source in its own right. If ever surfaced by retrieval logic, it should be'
+                f' presented as an example of application, clearly subordinate to and never in place of the'
+                f' Supreme Court judgment(s) it applies.'
             )
         if j["pdf"] == "youth_bar_association_indiankanoon_v2.pdf":
             notes += (
