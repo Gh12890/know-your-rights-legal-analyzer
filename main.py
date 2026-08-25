@@ -4,11 +4,22 @@ import json
 import typing
 from datetime import datetime, timedelta
 from anthropic import Anthropic
-from bns_section_data_v2 import BNS_SECTION_DATA
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable,Table, TableStyle
 from reportlab.platypus import Table as _Table
 from reportlab.lib import colors as _colors
 import streamlit as st
+from bns_section_data_v2 import BNS_SECTION_DATA
+
+try:
+    from retrieval import get_statute_section
+    _retrieval_available = True
+except ImportError:
+    # retrieval.py or its chunk files may not be present in every
+    # environment (e.g. a fresh clone missing the corpus/chunks
+    # directories). Degrade honestly to the pre-retrieval fallback message
+    # rather than crashing the app.
+    _retrieval_available = False
+
 
 try:
     api_key = st.secrets["ANTHROPIC_API_KEY"]
@@ -348,7 +359,42 @@ def build_grounded_section_context(sections_cited):
                 line += f" [{classification_desc}]"
             lines.append(line)
         else:
-            lines.append(f"- Section {clean}: not in our verified reference table — do not assume or guess what this section covers.")
+            # CRITICAL: BNS and BNSS both number their own sections starting
+            # from 1 independently -- confirmed ALL 359 BNS section numbers
+            # collide with a same-numbered BNSS section, and the two mean
+            # completely different things (e.g. "106": BNS 106 is causing
+            # death by negligence, an offence; BNSS 106 is police powers to
+            # seize stolen property, a procedure). Since sections_cited
+            # carries no reliable act suffix, silently trying one act before
+            # the other would silently show the WRONG statute roughly half
+            # the time. Both are looked up and shown if both exist, clearly
+            # labeled, rather than guessing -- same honest-collision pattern
+            # used for Vihaan Kumar's dual opinions in retrieval.py.
+            retrieved_by_act = {}
+            if _retrieval_available:
+                for act in ("BNS", "BNSS"):
+                    result = get_statute_section(act, clean)
+                    if result:
+                        retrieved_by_act[act] = result
+
+            if retrieved_by_act:
+                if len(retrieved_by_act) > 1:
+                    lines.append(
+                        f"- Section {clean}: not in our verified compliance table. This number exists in "
+                        f"BOTH BNS and BNSS with different meanings -- showing both since which one was "
+                        f"meant cannot be determined automatically; read both and use context to decide:"
+                    )
+                else:
+                    lines.append(
+                        f"- Section {clean}: not in our verified compliance table, but here is the actual "
+                        f"statutory text (read this directly rather than assuming what it covers):"
+                    )
+                for act, retrieved in retrieved_by_act.items():
+                    snippet = retrieved["text"][:600].strip()
+                    truncated_note = "..." if len(retrieved["text"]) > 600 else ""
+                    lines.append(f"  [{act}] \"{snippet}{truncated_note}\"")
+            else:
+                lines.append(f"- Section {clean}: not in our verified reference table — do not assume or guess what this section covers.")
     return "\n".join(lines)
 
 
