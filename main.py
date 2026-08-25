@@ -2,6 +2,7 @@ import fitz
 import os
 import json
 import typing
+from xml.sax.saxutils import escape as _xml_escape
 from datetime import datetime, timedelta
 from anthropic import Anthropic
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable,Table, TableStyle
@@ -128,8 +129,23 @@ def parse_date(raw: typing.Optional[str]) -> typing.Optional[datetime]:
     return None
 
 
-def _result(requirement: str, status: str, explanation: str) -> dict:
-    return {"requirement": requirement, "status": status, "explanation": explanation}
+def _result(requirement: str, status: str, explanation: str, doctrine_key: str = None) -> dict:
+    """doctrine_key, when given, must match a key in retrieval.py's
+    JUDGMENT_CITATION_MAP. This attaches the real source paragraph(s) for
+    that doctrine to the result as 'source_paragraphs' -- a lookup only,
+    never used to influence status or explanation, which are decided
+    entirely above this line by the calling check function. Safe to omit;
+    existing call sites are unaffected."""
+    result = {"requirement": requirement, "status": status, "explanation": explanation}
+    if doctrine_key is not None and _retrieval_available:
+        try:
+            from retrieval import get_judgment_doctrine
+            paragraphs = get_judgment_doctrine(doctrine_key)
+            if paragraphs:
+                result["source_paragraphs"] = paragraphs
+        except Exception:
+            pass
+    return result
 
 
 def check_30_day_window(fields: dict) -> dict:
@@ -446,8 +462,11 @@ def get_max_years_from_sections(sections_cited):
         return "CONTAINS_CONTINGENT"
     if has_variable:
         return "CONTAINS_VARIABLE"
-    if not candidates and months_only_candidates:
+    if candidates:
+        return max(candidates)
+    if months_only_candidates:
         return max(months_only_candidates) / 12
+    return None
 
 FREEZE_EXTRACTION_PROMPT =""" Extract only what the bank/account freezing document explicitly states. DO NOT judge legality. Use null if not present.
  "If the document does not mention any BNS/BNSS/CrPC section number anywhere in connection with the freeze, you MUST answer 'none cited' — do not answer 'unclear' in this case. 'unclear' is only for when a section is mentioned but its exact identity is ambiguous."
@@ -692,16 +711,19 @@ def check_arnesh_kumar_notice(f):
     notice = f.get("41A_or_35_BNSS_notice_issued_before_arrest")
     if notice is True:
         return _result(req, "Compliant",
-            f"Prior S.35(3) notice recorded before arrest for an offence punishable up to {upper} years ({source}).")
+            f"Prior S.35(3) notice recorded before arrest for an offence punishable up to {upper} years ({source}).",
+            doctrine_key="arnesh_kumar_checklist")
     if notice is False:
         return _result(req, "May be Non-Compliant",
             f"Offence punishable up to {upper} years ({source}); arrest was made after the event on the basis "
             f"of investigation, and no other arrest power under S.35(1) has been established. No mention of "
             f"the mandatory S.35(3) notice. Per Satender Kumar Antil (2026 INSC 115): notice is the rule and "
-            f"arrest the exception. The arrest may be illegal if no notice was in fact served.")
+            f"arrest the exception. The arrest may be illegal if no notice was in fact served.",
+            doctrine_key="arnesh_kumar_checklist")
     return _result(req, "Cannot Determine",
         "Arrest appears to fall on the S.35(1)(b) pathway, but whether a prior notice was served is unclear "
-        "from the information given.")
+        "from the information given.",
+        doctrine_key="arnesh_kumar_checklist")
     
 def check_cognizable_arrest_basis(f):
     req = "Threshold basis for arrest without warrant [cognizability of the offence]"
@@ -765,14 +787,14 @@ def check_written_grounds(f):
     req= "Written grounds of arrest furnished to arrestee [Prabir Purkayastha (2024) / Vihaan Kumar, 2025 INSC 162]"
     v= f.get("grounds_of_arrest_in_writing_furnished_to_arrestee")
     if v is True :
-        return _result(req, "Compliant", "Written grounds of arrest were furnished to the arrestee.")
+        return _result(req, "Compliant", "Written grounds of arrest were furnished to the arrestee.", doctrine_key="vihaan_kumar_written_grounds")
     if v is False:
         return _result(req, "May be Non-Compliant",
     "The document does not mention of written grounds of arrest recorded being furnished. "
     "Per Vihaan Kumar (2025 INSC 162): failure to furnish written grounds violates Article 22(1), "
     "renders the arrest itself illegal, and is a ground for bail even where statutory bail restrictions "
-    "exist — the burden is on the state to prove grounds were furnished.")
-    return _result(req, "Cannot Determine", "Whether written grounds were furnished cannot be determined from the document.")
+    "exist — the burden is on the state to prove grounds were furnished.", doctrine_key="vihaan_kumar_written_grounds")
+    return _result(req, "Cannot Determine", "Whether written grounds were furnished cannot be determined from the document.", doctrine_key="vihaan_kumar_written_grounds")
 
 def check_dk_basu_memo(f):
     req ="Arrest memo attested by witness, family informed, medical exam [DK Basu (1997)]"
@@ -785,10 +807,10 @@ def check_dk_basu_memo(f):
     missing = [ name for name ,v in checks if v is False]
     unclear = [name for name, v in checks if v == "unclear" or  v is None]
     if missing:
-       return _result(req, "Non-Compliant", f"D.K Basu items missing: {', '.join(missing)}. ")
+       return _result(req, "Non-Compliant", f"D.K Basu items missing: {', '.join(missing)}. ", doctrine_key="dk_basu_safeguards")
     if unclear:
-       return _result(req, "Cannot Determine", f" D.K Basu items unclear from document: {', '.join(unclear)}.")
-    return _result(req, "Compliant", "Witness attestation, family notification, and medical exam all recorded.")
+       return _result(req, "Cannot Determine", f" D.K Basu items unclear from document: {', '.join(unclear)}.", doctrine_key="dk_basu_safeguards")
+    return _result(req, "Compliant", "Witness attestation, family notification, and medical exam all recorded.", doctrine_key="dk_basu_safeguards")
 
 def check_night_arrest_of_woman(f):
     req = "Woman not arrested between sunset and sunrise [S.46(4) CrPC/ Sheela Barse]"
@@ -1318,18 +1340,20 @@ def check_accused_fir_copy_provided(f):
             "application — either to the police officer (before the FIR is forwarded to court) or to the "
             "Magistrate (after it is forwarded). No application is indicated yet, so this right has not "
             "been actively invoked. NOTE: this is a distinct, earlier route from Section 230 BNSS (formerly "
-            "Section 207 CrPC), which only supplies documents automatically at the later chargesheet stage.")
+            "Section 207 CrPC), which only supplies documents automatically at the later chargesheet stage.",
+            doctrine_key="youth_bar_association_fir_copy_guidelines")
     provided = f.get("accused_fir_copy_provided")
     if provided is True:
-        return _result(req, "Compliant", "A copy of the FIR was provided pursuant to the accused's application, consistent with Youth Bar Association guidelines (b)-(c).")
+        return _result(req, "Compliant", "A copy of the FIR was provided pursuant to the accused's application, consistent with Youth Bar Association guidelines (b)-(c).", doctrine_key="youth_bar_association_fir_copy_guidelines")
     if provided is False:
         return _result(req, "Non-Compliant",
             "The accused applied for a copy of the FIR but it was not provided. Per Youth Bar Association "
             "guideline (b), an application to the police officer should be met with a copy within 24 hours; "
             "per guideline (c), an application to the court once the FIR has been forwarded should be met "
             "within two working days. This is separate from, and earlier than, the Section 230 BNSS "
-            "(formerly Section 207 CrPC) chargesheet-stage disclosure obligation.")
-    return _result(req, "Cannot Determine", "Whether the copy was provided after application is unclear.")
+            "(formerly Section 207 CrPC) chargesheet-stage disclosure obligation.",
+            doctrine_key="youth_bar_association_fir_copy_guidelines")
+    return _result(req, "Cannot Determine", "Whether the copy was provided after application is unclear.", doctrine_key="youth_bar_association_fir_copy_guidelines")
 
 
 SENSITIVE_EXEMPT_SECTIONS = {"64", "64(1)", "64(2)", "65", "65(1)", "65(2)", "66", "67",
@@ -1346,25 +1370,29 @@ def check_fir_online_upload(f, user_checked_online=None, days_since_registration
             "The cited offence falls in a category the Supreme Court treats as presumptively sensitive "
             "(sexual offence / terrorism), exempt from the online-upload mandate. NOTE: courts may also "
             "exempt other matters on privacy grounds not captured by section number alone — this "
-            "exemption list is illustrative, not exhaustive, per the judgment itself.")
+            "exemption list is illustrative, not exhaustive, per the judgment itself.",
+            doctrine_key="youth_bar_association_fir_copy_guidelines")
 
     if user_checked_online is None:
         return _result(req, "Cannot Determine",
             "Whether the FIR was uploaded to the police/State website cannot be confirmed without checking "
-            "the relevant portal directly — this is a fact only you or your lawyer can verify by looking.")
+            "the relevant portal directly — this is a fact only you or your lawyer can verify by looking.",
+            doctrine_key="youth_bar_association_fir_copy_guidelines")
 
     if user_checked_online is True:
-        return _result(req, "Compliant", "FIR confirmed available online, as required.")
+        return _result(req, "Compliant", "FIR confirmed available online, as required.", doctrine_key="youth_bar_association_fir_copy_guidelines")
 
     if days_since_registration is not None and days_since_registration > 3:
         return _result(req, "May be Non-Compliant",
             f"FIR reported as not found online, {days_since_registration} days after registration — "
             f"beyond even the maximum 72-hour connectivity extension. "
             f"IMPORTANT: this alone is NOT grounds for anticipatory bail (same judgment, para (g)) — "
-            f"raise it as a procedural point, not as a bail argument on its own.")
+            f"raise it as a procedural point, not as a bail argument on its own.",
+            doctrine_key="youth_bar_association_fir_copy_guidelines")
 
     return _result(req, "Cannot Determine",
-        "FIR reported as not yet found online, but within the permitted window — check again shortly.")
+        "FIR reported as not yet found online, but within the permitted window — check again shortly.",
+        doctrine_key="youth_bar_association_fir_copy_guidelines")
     
 def run_fir_no_arrest_checks(fields, user_checked_online=None, days_since_registration=None):
     checks = [
@@ -1691,6 +1719,19 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
         story.append(Paragraph(f"<b>{check.get('requirement', '')}</b>", label))
         story.append(Paragraph(f"Status: <b>{status}</b>", style))
         story.append(Paragraph(check.get("explanation", ""), body))
+        source_paragraphs = check.get("source_paragraphs")
+        if source_paragraphs:
+            case_name = source_paragraphs[0].get("case_name", "")
+            citation = source_paragraphs[0].get("citation", "")
+            story.append(Paragraph(f"<i>Source: {_xml_escape(case_name)} ({_xml_escape(citation)})</i>", small))
+            for para in source_paragraphs:
+                para_label = para.get("paragraph_number", "")
+                author = para.get("opinion_author")
+                label = f"¶{para_label}" + (f" ({author}, J.)" if author else "")
+                raw_text = para.get("text", "")
+                snippet = raw_text[:500].strip()
+                truncated_note = "..." if len(raw_text) > 500 else ""
+                story.append(Paragraph(f"<i>{_xml_escape(label)}: {_xml_escape(snippet)}{truncated_note}</i>", small))
         story.append(Spacer(1, 4))
 
     story.append(Paragraph(f"<b>Overall Assessment:</b> {compliance.get('overall_assessment', '')}", body))

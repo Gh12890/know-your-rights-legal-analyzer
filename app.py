@@ -168,6 +168,17 @@ def render_compliance_ui_main(result):
             st.markdown(f"{emoji} **{check.get('requirement', '').strip()}**")
             st.markdown(f":{color}[{check.get('status', '')}]")
             st.caption(check.get("explanation", ""))
+            source_paragraphs = check.get("source_paragraphs")
+            if source_paragraphs:
+                case_name = source_paragraphs[0].get("case_name", "")
+                citation = source_paragraphs[0].get("citation", "")
+                with st.expander(f"📖 Read the source: {case_name} ({citation})"):
+                    for para in source_paragraphs:
+                        para_label = para.get("paragraph_number", "")
+                        author = para.get("opinion_author")
+                        label = f"¶{para_label}" + (f" ({author}, J.)" if author else "")
+                        st.markdown(f"**{label}**")
+                        st.caption(para.get("text", ""))
     overall = compliance.get("overall_assessment", "")
     if overall:
         st.info(overall)
