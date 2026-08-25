@@ -69,6 +69,22 @@ JUDGMENTS = [
         "source_url": "https://indiankanoon.org/doc/189692408/",
         "output": "corpus/pankaj_bansal_v_union_of_india.json",
     },
+    
+        {
+        # Re-download of the original Youth Bar Association source, which had
+        # confirmed contamination (2 stray private-use-area glyphs at the
+        # very start, likely captured UI icons; truncated party labels
+        # "Petitio"/"Respond") found by judgment_qa.py. This v2 download,
+        # via the same clean method used for the other 7 judgments this
+        # session, opens directly with the real case caption -- no glyphs
+        # found on inspection. Replaces the original corpus record.
+        "pdf": "youth_bar_association_indiankanoon_v2.pdf",
+        "case_name": "Youth Bar Association v Union of India",
+        "citation": "AIR 2016 SC 4136",
+        "court": "Supreme Court of India",
+        "source_url": "https://indiankanoon.org/doc/151036912/",
+        "output": "corpus/youth_bar_association_v_union_of_india.json",
+    },
 ]
 
 RAW_PDF_DIR = "raw_pdfs"
@@ -138,6 +154,28 @@ if __name__ == "__main__":
             f"timestamp stamps or 'CASE RECAST AI' boilerplate found here). "
             f"Whitespace normalized; no substantive content altered."
         )
+        if j["pdf"] == "satender_kumar_antil_2026_indiankanoon.pdf":
+            notes += (
+                ' KNOWN DEFECT: PDF source has a pre-existing text-extraction artifact (confirmed present'
+                ' in the raw PyMuPDF output before any cleanup) truncating 3 words in the page-1 case'
+                ' caption only: "REPORTABLE" -> "REPOR", "PETITIONER" -> "P", "RESPONDENTS" -> "RES".'
+                ' Confirmed isolated to the caption block; the substantive judgment text (holdings,'
+                ' reasoning) reads clean with no other documents in this batch showing the same defect.'
+                ' Not corrected, since guessing the missing letters would mean inserting text not actually'
+                ' extracted from the source -- left as-is and flagged here instead, consistent with the'
+                ' "Cannot Determine over silent guessing" principle used elsewhere in this project.'
+            )
+        if j["pdf"] == "youth_bar_association_indiankanoon_v2.pdf":
+            notes += (
+                ' [SUPERSEDED 2026-08-25]: Replaced an earlier download (same source_url, same case) after'
+                ' judgment_qa.py flagged 2 stray private-use-area Unicode glyphs (U+EDD9, U+EDDA, likely'
+                ' captured UI icon fonts) and truncated party labels ("Petitio"/"Respond") in that'
+                ' extraction. This download shows neither defect on re-verification with judgment_qa.py --'
+                ' opens directly with the real case caption, no stray glyphs found, party labels intact.'
+                ' One benign QA flag remains (closing-signature heuristic miss on the Court Master sign-off'
+                ' format, same false-positive pattern seen on D.K. Basu and Pankaj Bansal -- confirmed NOT'
+                ' a truncation on manual inspection).'
+            )
         out_path = save_document(
             text=cleaned,
             case_name=j["case_name"],
