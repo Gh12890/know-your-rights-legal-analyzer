@@ -1729,8 +1729,13 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
                 author = para.get("opinion_author")
                 label = f"¶{para_label}" + (f" ({author}, J.)" if author else "")
                 raw_text = para.get("text", "")
-                snippet = raw_text[:500].strip()
-                truncated_note = "..." if len(raw_text) > 500 else ""
+                is_curated_excerpt = para_label == "checklist (excerpted)"
+                if is_curated_excerpt:
+                    snippet = raw_text.strip()
+                    truncated_note = ""
+                else:
+                    snippet = raw_text[:1200].strip()
+                    truncated_note = "..." if len(raw_text) > 1200 else ""
                 story.append(Paragraph(f"<i>{_xml_escape(label)}: {_xml_escape(snippet)}{truncated_note}</i>", small))
         story.append(Spacer(1, 4))
 

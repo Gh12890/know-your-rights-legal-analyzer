@@ -154,15 +154,45 @@ JUDGMENT_CITATION_MAP = {
         "case_key": "arnesh_kumar",
         "paragraph_numbers": ["fallback_12", "fallback_13"],
         "opinion_author": None,
+        "manual_override_text": (
+            "All the State Governments to instruct its police officers not to automatically arrest "
+            "when a case under Section 498-A of the IPC is registered but to satisfy themselves about "
+            "the necessity for arrest under the parameters laid down above flowing from Section 41, "
+            "Cr.PC;\n\n"
+            "All police officers be provided with a check list containing specified sub-clauses under "
+            "Section 41(1)(b)(ii);\n\n"
+            "The police officer shall forward the check list duly filed and furnish the reasons and "
+            "materials which necessitated the arrest, while forwarding/producing the accused before "
+            "the Magistrate for further detention;\n\n"
+            "The Magistrate while authorising detention of the accused shall peruse the report "
+            "furnished by the police officer in terms aforesaid and only after recording its "
+            "satisfaction, the Magistrate will authorise detention;\n\n"
+            "The decision not to arrest an accused, be forwarded to the Magistrate within two weeks "
+            "from the date of the institution of the case with a copy to the Magistrate which may be "
+            "extended by the Superintendent of police of the district for the reasons to be recorded "
+            "in writing;\n\n"
+            "Notice of appearance in terms of Section 41A of Cr.PC be served on the accused within two "
+            "weeks from the date of institution of the case, which may be extended by the "
+            "Superintendent of Police of the District for the reasons to be recorded in writing;\n\n"
+            "Failure to comply with the directions aforesaid shall apart from rendering the police "
+            "officers concerned liable for departmental action, they shall also be liable to be "
+            "punished for contempt of court to be instituted before High Court having territorial "
+            "jurisdiction.\n\n"
+            "We hasten to add that the directions aforesaid shall not only apply to the cases under "
+            "Section 498-A of the I.P.C. or Section 4 of the Dowry Prohibition Act, the case in hand, "
+            "but also such cases where offence is punishable with imprisonment for a term which may be "
+            "less than seven years or which may extend to seven years; whether with or without fine."
+        ),
         "verified_note": (
-            "Confirmed: fallback_12 opens 'we give the following direction' "
-            "and lists the checklist/notice/Magistrate-satisfaction "
-            "directions; fallback_13 continues with the two-week timelines "
-            "and departmental-action/contempt consequences. Arnesh Kumar's "
-            "paragraph numbers did not survive PDF extraction (see "
-            "chunk_judgments.py notes), so these are fixed-size fallback "
-            "chunk ids, not true paragraph numbers -- verified by content, "
-            "not by number."
+            "Confirmed: fallback_12 and fallback_13 are ~1500-char blind chunks (Arnesh Kumar's "
+            "paragraph numbers did not survive PDF extraction -- see chunk_judgments.py notes), so the "
+            "raw chunk boundaries include text before and after the actual checklist directions (the "
+            "preceding paragraph on anticipatory bail volume, and the trailing instruction to circulate "
+            "the judgment to Chief Secretaries). manual_override_text is a hand-trimmed exact excerpt of "
+            "just the 7 checklist/timeline/consequence directions plus the 7-year applicability line, "
+            "taken verbatim from the same source text -- no wording changed, only the surrounding "
+            "context removed. This is the ONE entry in this map needing manual trimming; every other "
+            "doctrine below has real paragraph-number boundaries and needs no override."
         ),
     },
     "dk_basu_safeguards": {
@@ -209,10 +239,29 @@ def get_judgment_doctrine(doctrine_key):
     """Convenience wrapper: resolves a doctrine key from
     JUDGMENT_CITATION_MAP directly to its real source text, so callers
     don't need to know the underlying case_key/paragraph_numbers/
-    opinion_author details. Returns None if the doctrine key isn't mapped."""
+    opinion_author details. Returns None if the doctrine key isn't mapped.
+
+    If the map entry has a manual_override_text (confirmed real need: only
+    arnesh_kumar_checklist, whose blind fallback chunks include irrelevant
+    surrounding text), that hand-trimmed excerpt is returned instead of the
+    raw chunk lookup -- still the case's own real words, just without the
+    extra context a human wouldn't want repeated on every check."""
     entry = JUDGMENT_CITATION_MAP.get(doctrine_key)
     if entry is None:
         return None
+
+    if "manual_override_text" in entry:
+        chunks = get_judgment_paragraphs(entry["case_key"], entry["paragraph_numbers"], opinion_author=entry["opinion_author"])
+        case_name = chunks[0]["case_name"] if chunks else None
+        citation = chunks[0]["citation"] if chunks else None
+        return [{
+            "case_name": case_name,
+            "citation": citation,
+            "paragraph_number": "checklist (excerpted)",
+            "opinion_author": None,
+            "text": entry["manual_override_text"],
+        }]
+
     return get_judgment_paragraphs(
         entry["case_key"],
         entry["paragraph_numbers"],
