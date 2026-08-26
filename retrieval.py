@@ -42,6 +42,8 @@ _JUDGMENT_CHUNK_FILES = {
     "nalsa": "chunks/national_legal_services_authority_v_union_of_india_chunks.json",
     "pankaj_bansal": "chunks/pankaj_bansal_v_union_of_india_chunks.json",
     "youth_bar_association": "chunks/youth_bar_association_v_union_of_india_chunks.json",
+    "rakhi_mitra": "chunks/rakhi_mitra_and_anr_v_state_of_west_bengal_chunks.json",
+    "sri_manjunath_mp": "chunks/sri_manjunath_m_p_v_state_of_karnataka_chunks.json",
 }
 
 _statute_cache = {}
@@ -245,6 +247,49 @@ JUDGMENT_CITATION_MAP = {
             "right (a)-(c) and the 24/48/72-hour online upload requirement "
             "(d), both cited by main.py's check_early_fir_copy_right and "
             "check_fir_uploaded_online functions."
+        ),
+    },
+    
+        "rakhi_mitra_arnesh_kumar_consequences": {
+        # APPLYING/ILLUSTRATIVE PRECEDENT, NOT a rule-source -- this is a
+        # Calcutta HC judgment restating and applying Arnesh Kumar's own
+        # consequence rule, not creating new binding law. Per user framing
+        # (2026-08-26): High Court judgments in this corpus mainly
+        # reiterate/apply existing Supreme Court precedent. If ever
+        # surfaced to a person, this should be presented as "here's how a
+        # High Court applied the Arnesh Kumar consequence rule", clearly
+        # subordinate to and never in place of the arnesh_kumar_checklist
+        # entry above, which is the actual Supreme Court source.
+        "case_key": "rakhi_mitra",
+        "paragraph_numbers": ["18"],
+        "opinion_author": None,
+        "verified_note": (
+            "Confirmed: paragraph 18 directly quotes and restates Arnesh Kumar paragraph 11's "
+            "consequence rule (departmental action + contempt of court for non-compliance with the "
+            "S.35(3)/S.41A notice requirement). This paragraph number is NOT one of Rakhi Mitra's own "
+            "flagged duplicates (see judgment_qa.py's duplicate-paragraph check) -- confirmed unambiguous, "
+            "single occurrence. NOTE: this document's own paragraph 11 (distinct from this doctrine) is a "
+            "genuine duplicate -- do not confuse the two; paragraph 18 was chosen specifically because it "
+            "carries no such ambiguity."
+        ),
+    },
+    "sri_manjunath_arnesh_kumar_application": {
+        # APPLYING/ILLUSTRATIVE PRECEDENT, NOT a rule-source -- same status
+        # as rakhi_mitra_arnesh_kumar_consequences above. This Karnataka HC
+        # judgment applies Arnesh Kumar's vague-allegation reasoning to
+        # quash a specific S.498A-style proceeding; it does not create new
+        # binding law. Subordinate to, never a substitute for, the
+        # arnesh_kumar_checklist entry.
+        "case_key": "sri_manjunath_mp",
+        "paragraph_numbers": ["22", "27"],
+        "opinion_author": None,
+        "verified_note": (
+            "Confirmed: paragraph 22 directly names and quotes Arnesh Kumar v State of Bihar "
+            "(paragraphs 10, 11, 11.1-11.8). Paragraph 27 is the Court's own finding applying that "
+            "doctrine to these specific facts ('baseless, general and sweeping allegations... abuse of "
+            "process of law'), immediately followed by the formal quashing order at paragraph 28. Both "
+            "22 and 27 confirmed NOT among this document's flagged duplicates (see judgment_qa.py) -- "
+            "unambiguous, single occurrences each."
         ),
     },
 }
