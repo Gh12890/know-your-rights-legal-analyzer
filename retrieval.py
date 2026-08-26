@@ -147,6 +147,21 @@ def get_judgment_paragraphs(case_key, paragraph_numbers, opinion_author=None):
 # sense of what the case is "about". This is what lets main.py's existing
 # citation strings (e.g. "D.K. Basu safeguards", "Youth Bar Association
 # guidelines (a)-(c)") resolve to real, checkable source text on demand.
+#
+# REQUIRED CHECK before adding any new entry: several sourced judgments
+# contain genuine DUPLICATE paragraph numbers -- confirmed real cases
+# include NALSA, Prabir Purkayastha, L. Muruganantham, Rakhi Mitra,
+# Satender Kumar Antil 2026, Sri Manjunath M P, Prakash Ranjan, and even
+# Vihaan Kumar's own Oka opinion (see judgment_qa.py's
+# find_duplicate_paragraph_numbers docstring for the confirmed causes).
+# Before mapping a doctrine to a paragraph number in one of these
+# documents, run judgment_qa.py and confirm that specific number is NOT
+# a duplicate for that document -- or if it is, confirm which occurrence
+# is the document's own reasoning (not a quoted passage) before using it.
+# get_judgment_paragraphs already handles an unverified duplicate safely
+# (returns all matches rather than silently picking one), but a
+# JUDGMENT_CITATION_MAP entry should point to a specific, human-checked
+# occurrence, not rely on that fallback.
 # ---------------------------------------------------------------------------
 
 JUDGMENT_CITATION_MAP = {

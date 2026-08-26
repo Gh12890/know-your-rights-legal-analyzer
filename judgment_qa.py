@@ -1,3 +1,4 @@
+
 """
 Judgment-specific QA module — the counterpart to corpus_qa.py's
 verify_section_coverage, which is statute-shaped only (numbered-section gap
@@ -33,6 +34,10 @@ heuristic flags for a human to look at, not a pass/fail gate the way
 verify_section_coverage is for statutes. A judgment that fails a heuristic
 here may still be a perfectly good source; the point is to surface anomalies
 for a human decision, not to silently accept or silently discard.
+
+A SEPARATE, chunk-level check (find_duplicate_paragraph_numbers, at the
+bottom of this file) operates on *_chunks.json files rather than corpus
+records -- see its docstring for what it catches and why.
 """
 
 import re
@@ -189,6 +194,28 @@ def verify_judgment(record):
     }
 
 
+def find_duplicate_paragraph_numbers(chunks):
+    """Chunk-level check (operates on a *_chunks.json list, not a corpus
+    record): flags paragraph_number values that appear more than once in
+    the same chunked judgment. This is a REAL, confirmed defect class,
+    distinct from the corpus-text checks above -- it happens when a
+    judgment quotes another case's numbered paragraphs inline (confirmed
+    real cases: L. Muruganantham quotes a lower court's paragraphs 38-39
+    mid-reasoning; Sri Manjunath M P quotes Arnesh Kumar's paragraphs 4 and
+    11 while applying that precedent). The chunker cannot reliably
+    distinguish "this is the document's own paragraph 11" from "this is a
+    quoted excerpt that happens to retain its original paragraph 11" --
+    doing so would need much deeper text analysis (quotation-mark
+    tracking, cross-referencing the quoted case's actual text) that risks
+    being fragile and wrong in new ways. Rather than silently resolving
+    this, it is surfaced here for human review, consistent with this
+    project's "Cannot Determine over silent guessing" principle."""
+    from collections import Counter
+    nums = [c["paragraph_number"] for c in chunks]
+    counts = Counter(nums)
+    return {k: v for k, v in counts.items() if v > 1 and k != "preamble"}
+
+
 if __name__ == "__main__":
     import json
     import glob
@@ -209,3 +236,19 @@ if __name__ == "__main__":
             print(f"  {report['summary']}")
             for flag in report["flags"]:
                 print(f"    - {flag}")
+
+    print("\n--- Chunk-level check: duplicate paragraph numbers ---")
+    chunk_files = glob.glob("chunks/*_chunks.json")
+    for filepath in sorted(chunk_files):
+        with open(filepath, "r", encoding="utf-8") as f:
+            chunks = json.load(f)
+        if not chunks or "paragraph_number" not in chunks[0]:
+            continue  # statute chunk files use section_number, not this
+        dupes = find_duplicate_paragraph_numbers(chunks)
+        if dupes:
+            print(f"\n{filepath}")
+            print(f"  Duplicate paragraph number(s) found: {dupes}")
+            print(f"  Likely cause: this judgment quotes another case's numbered "
+                  f"paragraphs inline. Verify which occurrence is the document's "
+                  f"own reasoning before relying on a lookup by this number alone.")
+            

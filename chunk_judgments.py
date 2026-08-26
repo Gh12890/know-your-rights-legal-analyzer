@@ -5,18 +5,18 @@ on numbered SECTIONS. Judgments have no such native structure; the closest
 analogue is numbered PARAGRAPHS, which most (not all) Indian Supreme Court
 judgments use internally.
 
-Findings that shaped this design (verified against all 8 sourced judgments,
-not assumed):
+Findings that shaped this design (verified against all 12 sourced
+judgments, not assumed):
 
-1. 7 of 8 documents have genuine, sequential numbered paragraphs extractable
+1. Most documents have genuine, sequential numbered paragraphs extractable
    via a simple "\\nN. " pattern. Verified these are real paragraph numbers,
    not false positives, by checking the sequence is genuinely ascending.
 
-2. Arnesh Kumar is the ONE exception: its paragraph numbers did not survive
-   PyMuPDF's text extraction (likely a font/positioning quirk in that
-   specific PDF). It falls back to fixed-size chunking, clearly flagged as
-   lower quality in its chunk metadata -- not silently treated the same as
-   the other 7.
+2. Arnesh Kumar is the ONE exception with zero usable paragraph numbering:
+   its paragraph numbers did not survive PyMuPDF's text extraction (likely
+   a font/positioning quirk in that specific PDF). It falls back to
+   fixed-size chunking, clearly flagged as lower quality in its chunk
+   metadata -- not silently treated the same as the others.
 
 3. Vihaan Kumar genuinely contains TWO separate judicial opinions in one
    document (Oka, J. writing the lead opinion; Kotiswar Singh, J. writing a
@@ -27,6 +27,36 @@ not assumed):
    second opinion -- confirmed by finding only one judge marker in that
    document). Vihaan Kumar's two opinions are chunked separately so
    "paragraph 1" from each opinion never collides.
+
+4. Sri Manjunath M P v State of Karnataka's case CAPTION lists petitioners
+   and respondents as numbered items (6, 7, 8, then 1, 2...) using the
+   exact same "\\nN. " pattern as real paragraph numbers, appearing BEFORE
+   the judgment's own genuine 1, 2, 3... sequence. The original sequence
+   validator required the very FIRST match overall to be 1 or 2, which
+   wrongly rejected this document's otherwise-clean sequence entirely,
+   falling back to degraded fixed-size chunking. Fixed by scanning forward
+   for where a genuine long ascending run actually begins, skipping a
+   non-sequential preamble. A SECOND, related defect in the same document:
+   the respondent list's own numbering (1, 2 for two respondents)
+   immediately precedes the real judgment body which ALSO starts at "2."
+   ("2. Heard learned counsels..."), producing an accepted-looking
+   1, 2, 2, 3, 4... sequence where the first "2" is still caption content.
+   Detected as an immediate duplicate near the sequence start and skipped.
+
+5. Multiple documents (Prakash Ranjan, Rakhi Mitra, Satender Kumar Antil
+   2026, Sri Manjunath M P, and even Vihaan Kumar's own Oka opinion)
+   contain genuine duplicate paragraph numbers caused by quoting another
+   case's numbered paragraphs inline while discussing/applying that
+   precedent. This is NOT auto-resolved here -- distinguishing "the
+   court's own paragraph N" from "a quoted excerpt that retained its
+   original paragraph N" would need much deeper text analysis (quotation
+   tracking, cross-referencing the quoted case) that risks being fragile
+   and wrong in new ways. Surfaced instead via judgment_qa.py's chunk-level
+   duplicate check for human review. retrieval.py's get_judgment_paragraphs
+   already handles this safely by design -- it returns ALL matching chunks
+   for a requested paragraph number rather than silently picking one, the
+   same honest-collision pattern used for the BNS/BNSS section-number
+   overlap and Vihaan Kumar's dual opinions.
 
 Chunk shape mirrors chunk_corpus.py's statute chunks where reasonable
 (case_name, citation, source_url, source_type) but swaps section_number for
@@ -49,7 +79,7 @@ FALLBACK_CHUNK_SIZE = 1500  # chars, for documents with no usable paragraph numb
 def find_judge_markers(text):
     """Returns list of (judge_name, position) for each 'J.' signature marker
     found. More than one distinct marker indicates a multi-opinion
-    document -- confirmed reliable against all 8 sourced judgments, unlike
+    document -- confirmed reliable against all 12 sourced judgments, unlike
     the paragraph-restart heuristic which false-positived on NALSA."""
     markers = []
     for m in JUDGE_MARKER_PATTERN.finditer(text):
@@ -80,6 +110,50 @@ def split_by_opinion(text):
     return segments
 
 
+def find_genuine_sequence_start(boundaries):
+    """Finds the index into `boundaries` where a genuine ascending
+    paragraph sequence actually begins, skipping over a non-sequential
+    preamble if one exists. Confirmed real case: Sri Manjunath M P v State
+    of Karnataka's caption lists petitioners/respondents as numbered items
+    (6, 7, 8, 1, 2...) using the exact same "\\nN. " pattern as real
+    paragraph numbers, BEFORE the judgment's own genuine 1, 2, 3... sequence
+    begins. Requiring the very first match overall to be 1 or 2 (the old
+    behaviour) wrongly rejected this document's real, otherwise-clean
+    sequence entirely. This scans forward for the first position where a
+    long ascending run actually starts, so a short non-sequential prefix
+    doesn't sink an otherwise genuine sequence. Returns None if no genuine
+    start is found anywhere.
+
+    Also handles a SECOND real defect found in the same document: the
+    party list's own numbering can itself look like a clean ascending
+    sequence (1, 2 for two respondents) immediately followed by the real
+    judgment body ALSO starting at "2." ("2. Heard learned counsels...").
+    This produces a genuine-looking 1, 2, 2, 3, 4... sequence where the
+    first "2" is still party-listing content, not judgment prose. Detected
+    here as an immediate duplicate number within the first few boundaries
+    of an otherwise-accepted sequence, and skipped past."""
+    nums = [int(b[1]) for b in boundaries]
+    for start in range(len(nums)):
+        if nums[start] not in (1, 2):
+            continue
+        remaining = nums[start:]
+        if len(remaining) < 2:
+            continue
+        transitions = len(remaining) - 1
+        ascending = sum(1 for i in range(1, len(remaining)) if remaining[i] > remaining[i - 1])
+        if ascending / transitions < 0.85:
+            continue
+        # Found an accepted sequence -- now check for an immediate
+        # duplicate near its start (the caption/body collision case).
+        for i in range(1, min(4, len(remaining))):
+            if remaining[i] == remaining[i - 1]:
+                # Duplicate found this early: the real sequence begins
+                # at the SECOND occurrence of the duplicated number.
+                return start + i
+        return start
+    return None
+
+
 def is_genuine_paragraph_sequence(boundaries):
     """Validates that found paragraph markers form a real ascending sequence
     starting near 1, rather than trusting a raw count threshold. Confirmed
@@ -91,18 +165,7 @@ def is_genuine_paragraph_sequence(boundaries):
     correctly accepts it."""
     if len(boundaries) < 2:
         return False
-    nums = [int(b[1]) for b in boundaries]
-    if nums[0] not in (1, 2):
-        return False
-    total_transitions = len(nums) - 1
-    ascending_run = sum(1 for i in range(1, len(nums)) if nums[i] > nums[i - 1])
-    # Require the large majority of consecutive transitions to be genuinely
-    # ascending. Verified against real data: NALSA has 145 transitions with
-    # only 2 genuine violations (a quoted numbered list restarting at 1,
-    # a footnote-like aside) -- a 98.6% ascending ratio, correctly accepted.
-    # Vihaan Kumar's short concurrence has only 2 transitions (1->2->3),
-    # both ascending -- also correctly accepted despite being a tiny sample.
-    return ascending_run / max(total_transitions, 1) >= 0.85
+    return find_genuine_sequence_start(boundaries) is not None
 
 
 def find_paragraph_boundaries(text):
@@ -114,6 +177,16 @@ def find_paragraph_boundaries(text):
 
 def chunk_by_paragraph(text, base_fields):
     boundaries = find_paragraph_boundaries(text)
+
+    # Trim any non-sequential preamble (confirmed real case: Sri Manjunath
+    # M P's numbered party-listing caption uses the same digit-period
+    # pattern as real paragraphs before the genuine 1, 2, 3... sequence
+    # starts) so those false-positive matches don't get chunked as if they
+    # were real early paragraphs.
+    genuine_start = find_genuine_sequence_start(boundaries)
+    if genuine_start is not None and genuine_start > 0:
+        boundaries = boundaries[genuine_start:]
+
     chunks = []
 
     if boundaries and boundaries[0][0] > 0:
