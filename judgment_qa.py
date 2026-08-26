@@ -198,18 +198,49 @@ def find_duplicate_paragraph_numbers(chunks):
     """Chunk-level check (operates on a *_chunks.json list, not a corpus
     record): flags paragraph_number values that appear more than once in
     the same chunked judgment. This is a REAL, confirmed defect class,
-    distinct from the corpus-text checks above -- it happens when a
-    judgment quotes another case's numbered paragraphs inline (confirmed
-    real cases: L. Muruganantham quotes a lower court's paragraphs 38-39
-    mid-reasoning; Sri Manjunath M P quotes Arnesh Kumar's paragraphs 4 and
-    11 while applying that precedent). The chunker cannot reliably
-    distinguish "this is the document's own paragraph 11" from "this is a
-    quoted excerpt that happens to retain its original paragraph 11" --
-    doing so would need much deeper text analysis (quotation-mark
-    tracking, cross-referencing the quoted case's actual text) that risks
-    being fragile and wrong in new ways. Rather than silently resolving
-    this, it is surfaced here for human review, consistent with this
-    project's "Cannot Determine over silent guessing" principle."""
+    distinct from the corpus-text checks above. Verified TWO distinct real
+    causes so far, not one -- do not assume every hit is the same
+    phenomenon:
+
+    (a) The judgment quotes ANOTHER COURT'S numbered paragraphs inline
+        while discussing/applying that precedent. Confirmed real cases:
+        L. Muruganantham quotes a lower court's paragraphs inline mid-
+        reasoning; Prabir Purkayastha quotes Pankaj Bansal's paragraphs
+        36-39 verbatim before returning to its own paragraphs 36-39;
+        Sri Manjunath M P quotes Arnesh Kumar's paragraphs while applying
+        it; Vihaan Kumar's own Oka opinion has a duplicate paragraph 29
+        from a similar inline quotation.
+
+    (b) The judgment quotes a NON-JUDICIAL numbered instrument (an
+        international declaration, a cited report's own numbered
+        recommendations, etc.) that happens to also use "N." numbering.
+        Confirmed real case: NALSA quotes the Yogyakarta Principles
+        (an international declaration on gender identity, itself
+        numbered "1.", "2.", "3."...) AND separately quotes a cited
+        report's own numbered policy-recommendations list -- neither is
+        a "court" being quoted, so this is a genuinely different
+        mechanism from (a) even though it produces the same symptom.
+
+    Either way, the chunker cannot reliably distinguish "this is the
+    document's own paragraph N" from "this is a quoted/reproduced
+    numbered passage that happens to carry the number N" -- doing so
+    would need much deeper text analysis (quotation-mark tracking,
+    cross-referencing the quoted source's actual text, distinguishing
+    judicial from non-judicial numbered sources) that risks being
+    fragile and wrong in new ways. Rather than silently resolving this,
+    it is surfaced here for human review, consistent with this project's
+    "Cannot Determine over silent guessing" principle.
+
+    NOTE on L. Muruganantham specifically: it has an unusually large
+    number of duplicates (18 distinct paragraph numbers) and its raw
+    number sequence is genuinely messy on inspection -- clean ascending
+    runs interrupted by scattered single out-of-place numbers (likely
+    citation/footnote fragments matching the "\\nN. " pattern by
+    coincidence) plus what looks like a second independently-numbered
+    section partway through. This has NOT been fully diagnosed beyond
+    confirming causes (a) and (b) apply to some of its duplicates --
+    treat this document's paragraph-number lookups with extra caution
+    until someone reads it end-to-end."""
     from collections import Counter
     nums = [c["paragraph_number"] for c in chunks]
     counts = Counter(nums)
