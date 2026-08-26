@@ -179,6 +179,17 @@ def render_compliance_ui_main(result):
                         label = f"¶{para_label}" + (f" ({author}, J.)" if author else "")
                         st.markdown(f"**{label}**")
                         st.caption(para.get("text", ""))
+            applying_precedent_paragraphs = check.get("applying_precedent_paragraphs")
+            if applying_precedent_paragraphs:
+                case_name = applying_precedent_paragraphs[0].get("case_name", "")
+                citation = applying_precedent_paragraphs[0].get("citation", "")
+                with st.expander(f"⚖️ How a court has applied this: {case_name} ({citation})"):
+                    for para in applying_precedent_paragraphs:
+                        para_label = para.get("paragraph_number", "")
+                        author = para.get("opinion_author")
+                        label = f"¶{para_label}" + (f" ({author}, J.)" if author else "")
+                        st.markdown(f"**{label}**")
+                        st.caption(para.get("text", ""))
     overall = compliance.get("overall_assessment", "")
     if overall:
         st.info(overall)

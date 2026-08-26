@@ -129,13 +129,32 @@ def parse_date(raw: typing.Optional[str]) -> typing.Optional[datetime]:
     return None
 
 
-def _result(requirement: str, status: str, explanation: str, doctrine_key: str = None) -> dict:
+def _result(requirement: str, status: str, explanation: str, doctrine_key: str = None,
+            applying_precedent_key: str = None) -> dict:
     """doctrine_key, when given, must match a key in retrieval.py's
-    JUDGMENT_CITATION_MAP. This attaches the real source paragraph(s) for
-    that doctrine to the result as 'source_paragraphs' -- a lookup only,
-    never used to influence status or explanation, which are decided
-    entirely above this line by the calling check function. Safe to omit;
-    existing call sites are unaffected."""
+    JUDGMENT_CITATION_MAP -- the PRIMARY source (a Supreme Court judgment).
+    This attaches the real source paragraph(s) for that doctrine to the
+    result as 'source_paragraphs' -- a lookup only, never used to
+    influence status or explanation, which are decided entirely above
+    this line by the calling check function.
+
+    applying_precedent_key, when given, must ALSO match a
+    JUDGMENT_CITATION_MAP key, but points to a High Court judgment
+    illustrating how the primary doctrine gets applied in practice (e.g.
+    rakhi_mitra_arnesh_kumar_consequences, sri_manjunath_arnesh_kumar_application).
+    This is kept as a SEPARATE parameter from doctrine_key, not folded
+    into it or accepted as a list on the same field, specifically so every
+    call site stays self-documenting about which source is the primary
+    binding rule and which is a subordinate illustration -- a High Court
+    ruling binds only within its own state/UT, never nationally, and must
+    never be presented as equivalent authority to the Supreme Court
+    source. Stored on the result as 'applying_precedent_paragraphs',
+    distinct from 'source_paragraphs', so any renderer can trivially tell
+    the two apart and label them differently rather than needing to
+    inspect court metadata at render time.
+
+    Both parameters are safe to omit; existing call sites using only
+    doctrine_key (or neither) are unaffected."""
     result = {"requirement": requirement, "status": status, "explanation": explanation}
     if doctrine_key is not None and _retrieval_available:
         try:
@@ -143,6 +162,14 @@ def _result(requirement: str, status: str, explanation: str, doctrine_key: str =
             paragraphs = get_judgment_doctrine(doctrine_key)
             if paragraphs:
                 result["source_paragraphs"] = paragraphs
+        except Exception:
+            pass
+    if applying_precedent_key is not None and _retrieval_available:
+        try:
+            from retrieval import get_judgment_doctrine
+            applying_paragraphs = get_judgment_doctrine(applying_precedent_key)
+            if applying_paragraphs:
+                result["applying_precedent_paragraphs"] = applying_paragraphs
         except Exception:
             pass
     return result
@@ -719,7 +746,17 @@ def check_arnesh_kumar_notice(f):
             f"of investigation, and no other arrest power under S.35(1) has been established. No mention of "
             f"the mandatory S.35(3) notice. Per Satender Kumar Antil (2026 INSC 115): notice is the rule and "
             f"arrest the exception. The arrest may be illegal if no notice was in fact served.",
-            doctrine_key="arnesh_kumar_checklist")
+            doctrine_key="arnesh_kumar_checklist",
+            # Rakhi Mitra directly restates Arnesh Kumar's consequence rule
+            # (departmental action + contempt) for exactly this scenario --
+            # non-compliance with the notice requirement. Sri Manjunath M P
+            # is deliberately NOT attached anywhere: it applies Arnesh Kumar
+            # to a substantive vague-allegation/abuse-of-process question,
+            # which is a different legal question from the procedural
+            # notice-timing question this function checks, and this project
+            # has no existing check for that substantive question -- wiring
+            # it here would misrepresent what it's actually relevant to.
+            applying_precedent_key="rakhi_mitra_arnesh_kumar_consequences")
     return _result(req, "Cannot Determine",
         "Arrest appears to fall on the S.35(1)(b) pathway, but whether a prior notice was served is unclear "
         "from the information given.",
@@ -1727,7 +1764,11 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
             for para in source_paragraphs:
                 para_label = para.get("paragraph_number", "")
                 author = para.get("opinion_author")
-                label = f"¶{para_label}" + (f" ({author}, J.)" if author else "")
+                # NOTE: renamed from "label" to avoid shadowing the outer
+                # ParagraphStyle object also named "label" (defined earlier
+                # in this function) -- that collision caused a crash on
+                # every check AFTER the first one with source_paragraphs.
+                para_label_str = f"¶{para_label}" + (f" ({author}, J.)" if author else "")
                 raw_text = para.get("text", "")
                 is_curated_excerpt = para_label == "checklist (excerpted)"
                 if is_curated_excerpt:
@@ -1736,11 +1777,22 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
                 else:
                     snippet = raw_text[:1200].strip()
                     truncated_note = "..." if len(raw_text) > 1200 else ""
-                story.append(Paragraph(f"<i>{_xml_escape(label)}: {_xml_escape(snippet)}{truncated_note}</i>", small))
+                story.append(Paragraph(f"<i>{_xml_escape(para_label_str)}: {_xml_escape(snippet)}{truncated_note}</i>", small))
+        applying_precedent_paragraphs = check.get("applying_precedent_paragraphs")
+        if applying_precedent_paragraphs:
+            case_name = applying_precedent_paragraphs[0].get("case_name", "")
+            citation = applying_precedent_paragraphs[0].get("citation", "")
+            story.append(Paragraph(
+                f"<i>How courts have applied this: {_xml_escape(case_name)} ({_xml_escape(citation)})</i>", small))
+            for para in applying_precedent_paragraphs:
+                para_label = para.get("paragraph_number", "")
+                author = para.get("opinion_author")
+                para_label_str = f"¶{para_label}" + (f" ({author}, J.)" if author else "")
+                raw_text = para.get("text", "")
+                snippet = raw_text[:1200].strip()
+                truncated_note = "..." if len(raw_text) > 1200 else ""
+                story.append(Paragraph(f"<i>{_xml_escape(para_label_str)}: {_xml_escape(snippet)}{truncated_note}</i>", small))
         story.append(Spacer(1, 4))
-
-    story.append(Paragraph(f"<b>Overall Assessment:</b> {compliance.get('overall_assessment', '')}", body))
-    story.append(Spacer(1, 10))
     
      # ---- If Bail Is Needed — informational, NOT a compliance verdict ----
     bail_pathway = full_analysis.get("bail_pathway")
