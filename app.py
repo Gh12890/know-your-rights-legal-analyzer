@@ -54,7 +54,7 @@ st.write(
 mode = st.radio(
     "What would you like to do?",
     ["I have a document to upload", "I don't have any paper — ask me questions instead",
-     "I have several documents to triage"]
+     "I have several documents to triage", "I just want to ask something in my own words"]
 )
 
 st.divider()
@@ -972,11 +972,144 @@ def run_batch_triage_flow():
             st.rerun()
 
 # =============================================================
+# CHAT MODE (ask in your own words)
+# =============================================================
+def run_chat_flow():
+    st.write(
+        "Ask about a police arrest, an FIR, or your rights during criminal proceedings "
+        "in your own words — no need to know any legal terms or section numbers. "
+        "I'll tell you honestly if something is outside what I can check."
+    )
+
+    st.session_state.setdefault("chat_history", [])
+
+    # Replay the conversation so far, so the person can scroll back and see
+    # what's already been asked/answered, same as any familiar chat app.
+    for turn in st.session_state["chat_history"]:
+        with st.chat_message(turn["role"]):
+            st.markdown(turn["content"])
+
+    question = st.chat_input("Type your question here...")
+    if not question:
+        return
+
+    st.session_state["chat_history"].append({"role": "user", "content": question})
+    with st.chat_message("user"):
+        st.markdown(question)
+
+    with st.chat_message("assistant"):
+        with st.spinner("Looking into this..."):
+            from chat_assistant import answer_question
+            result = answer_question(question)
+
+        state = result["state"]
+
+        if state == "unrelated":
+            reply = (
+                "That doesn't look like a legal question, so I don't think I can help with it here. "
+                "I'm built specifically to help with **police arrests, FIRs, and criminal procedure "
+                "under Indian law (BNS/BNSS)**. If you had a question along those lines, feel free to "
+                "ask — in your own words is completely fine."
+            )
+
+        elif state == "covered_elsewhere_in_tool":
+            reply = (
+                "This sounds like it's about a **bank account freeze** or a **cheque bounce case** — "
+                "and good news, this tool does handle those, just not through this chat yet.\n\n"
+                "**What you can do next:** switch to **\"I have a document to upload\"** above, and "
+                "upload the freeze letter, cheque return memo, or legal notice you have. That feature "
+                "has detailed, working checks specifically built for these situations — it can tell "
+                "you things like whether the notice timing was correct, whether the demand amount "
+                "matches the cheque, and more."
+            )
+
+        elif state == "adjacent_uncovered":
+            reply = (
+                "This sounds like a real legal question, but it's outside what I'm built to check. "
+                "Right now I only cover **police arrests, FIRs, and criminal procedure** under Indian "
+                "law (BNS/BNSS) — things like whether police can arrest someone, what notice must be "
+                "given before an arrest, and what rights an arrested person has.\n\n"
+                "**What you can do next:** for this kind of question, it's best to speak with a lawyer "
+                "who handles that specific area of law."
+            )
+
+        elif state == "classifier_unavailable" or state == "retrieval_unavailable":
+            reply = (
+                "I'm having trouble looking into this right now — something on my end isn't working "
+                "properly. This isn't about your question; it's a technical issue.\n\n"
+                "**What you can do next:** try again in a moment, or use the **\"I have a document to "
+                "upload\"** or **\"I don't have any paper — ask me questions instead\"** options above, "
+                "which don't depend on this."
+            )
+
+        elif state == "no_match":
+            reply = (
+                "I looked, but I couldn't find anything in what I've studied that clearly matches this. "
+                "That might mean I just need more detail, or it might genuinely be outside what I "
+                "currently cover.\n\n"
+                "**What you can do next:** try describing the situation with a bit more detail (what "
+                "happened, and roughly when), or if you know the specific section of law involved, "
+                "mention it directly — I can look that up precisely."
+            )
+
+        elif state == "conflicting_matches":
+            if result.get("response_text"):
+                reply = result["response_text"]
+            else:
+                reply = (
+                    "This touches on more than one part of the law, and they don't all say the same "
+                    "thing — so I don't want to guess which one applies to you. Here's what I found:"
+                )
+            with st.expander("📖 See what I found and compared"):
+                for m in result["matches"]:
+                    label = m.get("section_number") or m.get("paragraph_number")
+                    source = m.get("case_name") or "BNS/BNSS"
+                    st.markdown(f"**{source}, Section/Para {label}** (relevance: {m['score']:.2f})")
+                    st.caption(m["text"][:500])
+            reply += (
+                "\n\n**What you can do next:** if you have a document (like an FIR or arrest memo), "
+                "uploading it here would let me check exactly which provision applies to your situation, "
+                "instead of guessing between them."
+            )
+
+        elif state == "single_match":
+            if result.get("response_text"):
+                reply = result["response_text"]
+            else:
+                # Generation failed but retrieval succeeded -- fall back
+                # to showing the real retrieved text directly rather than
+                # inventing a summary, consistent with this project's
+                # "never guess" principle.
+                m = result["matches"][0]
+                reply = f"Here's what I found on this:\n\n> {m['text'][:800]}"
+            with st.expander("📖 Read the source"):
+                for m in result["matches"]:
+                    label = m.get("section_number") or m.get("paragraph_number")
+                    source = m.get("case_name") or "BNS/BNSS"
+                    st.markdown(f"**{source}, Section/Para {label}**")
+                    st.caption(m["text"][:800])
+
+        else:
+            reply = "Something unexpected happened on my end — please try rephrasing your question."
+
+        st.markdown(reply)
+
+    st.session_state["chat_history"].append({"role": "assistant", "content": reply})
+
+    st.caption(
+        "This is general information based on Indian law and court judgments, not legal advice. "
+        "For guidance on your specific situation, please consult a qualified lawyer."
+    )
+
+
+# =============================================================
 # ROUTER
 # =============================================================
 if mode == "I have a document to upload":
     run_document_flow()
 elif mode == "I don't have any paper — ask me questions instead":
     run_no_document_flow()
+elif mode == "I just want to ask something in my own words":
+    run_chat_flow()
 else:
     run_batch_triage_flow()
