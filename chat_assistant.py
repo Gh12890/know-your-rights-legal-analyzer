@@ -197,7 +197,27 @@ def format_retrieved_text_for_prompt(matches):
        to actually answer the question, even though retrieval had
        already found it.
     Fixed by including each match's structured compliance data (when
-    available) alongside its raw text."""
+    available) alongside its raw text.
+
+    CONFIRMED REAL BUG (2026-08-28), found while wiring in
+    statute_doctrine_map.py's curated overrides for BNSS 43(5): this
+    function had NO handling for a "context_note" field. Curated
+    statute overrides (source="curated_override") carry a hand-verified
+    legal nuance in this field -- e.g. the Madurai Bench ruling that
+    BNSS 43(5) is directory, not mandatory -- that doesn't exist
+    anywhere in the raw statute text itself and can't be derived from
+    all_variants (which is BNS_SECTION_DATA compliance-table data, a
+    different thing). Without this fix, a curated override's match dict
+    passed through this function silently, produced no error, and
+    LOST the one piece of information the override existed to add --
+    the LLM prompt only ever saw the bare Section 43 text, never the
+    curated nuance. Caught by tracing the real function against the
+    real dict shape before integration, not discovered via a runtime
+    error (there wasn't one -- this was a silent, no-crash omission).
+    Fixed by adding an explicit context_note block, kept separate from
+    the all_variants block since it's a conceptually different kind of
+    addition (hand-written legal nuance vs. structured compliance-table
+    data)."""
     blocks = []
     for m in matches:
         label = m.get("section_number") or m.get("paragraph_number") or m.get("chunk_id")
@@ -209,6 +229,17 @@ def format_retrieved_text_for_prompt(matches):
             source = f"Section {label}"
 
         block = f"[{source}, Section/Para {label}]\n{m['text']}"
+
+        # NEW (2026-08-28): surface curated context notes (e.g.
+        # statute_doctrine_map.py's hand-verified legal nuance for
+        # BNSS 43(5)) that don't exist in raw statute text and aren't
+        # part of the BNS_SECTION_DATA compliance table below. This is
+        # deliberately a separate block from all_variants, since it's
+        # a different kind of content (hand-written nuance vs.
+        # structured cognizable/bailable/max_years data) and mixing
+        # them would blur where each piece of information came from.
+        if m.get("context_note"):
+            block += "\n\n[Important legal context for this section]\n" + m["context_note"]
 
         variants = m.get("all_variants") or {}
         if variants:
@@ -276,7 +307,6 @@ def format_retrieved_text_for_prompt(matches):
         blocks.append(block)
     return "\n\n---\n\n".join(blocks)
 
-
 def answer_question(question):
     """Main entry point for the chat interface. Returns a dict describing
     the outcome, always including a 'state' field so the UI layer can
@@ -296,15 +326,42 @@ def answer_question(question):
                                or the document-upload domains)
       'classifier_unavailable' -- couldn't even classify the question
       'no_match'           -- in scope, but nothing in the corpus cleared
-                               the similarity threshold
+                               the similarity threshold, AND no curated
+                               statute override matched either
       'single_match'       -- one coherent, agreeing set of matches
       'conflicting_matches' -- multiple matches that disagree on a key
                                legal attribute (e.g. cognizability) --
                                never silently picks one
       'retrieval_unavailable' -- embeddings aren't set up (no API key,
                                no embeddings file, etc.)
+
+    FIXED 2026-08-28: the conflicting_matches branch was previously
+    nested INSIDE the no_match check's if-block (an indentation bug),
+    making it unreachable -- since no_match returns immediately on its
+    own condition, the nested conflicting_matches check could only ever
+    fire if result["state"] was simultaneously "no_match" AND
+    "conflicting_matches", which never happens. Real consequence: a
+    genuine conflicting-matches result was silently falling through to
+    the single_match handling below, mislabeling a conflict as a clean
+    match. Fixed by making conflicting_matches a proper sibling
+    elif, checked before the single_match fallthrough.
+
+    ADDED 2026-08-28: a curated statute doctrine override check
+    (statute_doctrine_map.py), covering known gaps where semantic
+    search under-retrieves a specific high-stakes statute section
+    (currently: BNSS 43(5), night-arrest-of-women safeguard, which
+    scores ~0.343 against real "arrested at night" queries --
+    indistinguishable from the confirmed-irrelevant ceiling ~0.339,
+    per this project's own Aug 27 calibration data). This check runs
+    BEFORE the normal semantic-search state handling, so it applies
+    regardless of what score semantic search assigns -- it's a
+    deliberate bypass for specific, known, verified gaps, not a
+    replacement for semantic search generally. See
+    statute_doctrine_map.py's module docstring for full reasoning and
+    scope limits.
     """
     from semantic_retrieval import find_relevant_sections
+    from statute_doctrine_map import get_statute_doctrine_override
 
     category, reasoning = classify_scope(question)
 
@@ -321,32 +378,62 @@ def answer_question(question):
         return {"state": "adjacent_uncovered", "reasoning": reasoning}
 
     # category == "in_scope" from here on
+
+    # Curated statute override check -- runs BEFORE normal semantic
+    # retrieval's state handling, so a known high-stakes gap (like
+    # BNSS 43(5)) surfaces even if the embedding score alone wouldn't
+    # clear SIMILARITY_THRESHOLD. This does NOT replace semantic
+    # search -- both run, and both sets of results get combined below.
+    statute_overrides = get_statute_doctrine_override(question)
+
     result = find_relevant_sections(question)
 
     if result["state"] == "unavailable":
+        # Even if retrieval is unavailable, a curated override may
+        # still apply -- don't discard it just because the general
+        # embedding-based path is down.
+        if statute_overrides:
+            retrieved_text = format_retrieved_text_for_prompt(statute_overrides)
+            response_text = generate_grounded_response(question, retrieved_text)
+            return {
+                "state": "single_match",
+                "matches": statute_overrides,
+                "response_text": response_text,
+            }
         return {"state": "retrieval_unavailable"}
 
     if result["state"] == "no_match":
+        # A curated override can still provide an answer even when
+        # normal semantic search found nothing above threshold --
+        # this is the exact scenario the override exists for.
+        if statute_overrides:
+            retrieved_text = format_retrieved_text_for_prompt(statute_overrides)
+            response_text = generate_grounded_response(question, retrieved_text)
+            return {
+                "state": "single_match",
+                "matches": statute_overrides,
+                "response_text": response_text,
+            }
         return {"state": "no_match"}
 
-        if result["state"] == "conflicting_matches":
-            all_matches = result["matches"] + result.get("judgment_matches", [])
-            retrieved_text = format_retrieved_text_for_prompt(all_matches)
-            response_text = generate_grounded_response(question, retrieved_text, is_conflict=True)
-            return {
-                        "state": "conflicting_matches",
-                        "matches": all_matches,
-                        "response_text": response_text,
-            }
-        
-        
+    if result["state"] == "conflicting_matches":
+        all_matches = result["matches"] + result.get("judgment_matches", []) + statute_overrides
+        retrieved_text = format_retrieved_text_for_prompt(all_matches)
+        response_text = generate_grounded_response(question, retrieved_text, is_conflict=True)
+        return {
+            "state": "conflicting_matches",
+            "matches": all_matches,
+            "response_text": response_text,
+        }
 
     # single_match -- combine statute matches with judgment matches
     # (confirmed real fix: previously judgment_matches were computed by
     # find_relevant_sections but never actually used here, so case law
     # like Arnesh Kumar never reached the response generator even when
-    # it was the single highest-scoring result overall)
-    all_matches = result["matches"] + result.get("judgment_matches", [])
+    # it was the single highest-scoring result overall) AND any
+    # curated statute overrides that matched alongside the normal
+    # semantic results.
+    all_matches = result["matches"] + result.get("judgment_matches", []) + statute_overrides
     retrieved_text = format_retrieved_text_for_prompt(all_matches)
     response_text = generate_grounded_response(question, retrieved_text)
     return {
@@ -354,6 +441,3 @@ def answer_question(question):
         "matches": all_matches,
         "response_text": response_text,
     }
-    
-    
-    
