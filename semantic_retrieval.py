@@ -35,15 +35,7 @@ import json
 import os
 import numpy as np
 
-# CONFIRMED REAL BUG (2026-08-27): unlike embed_corpus.py, this module
-# never loaded .env, so VOYAGE_API_KEY never reached os.environ when this
-# script (or anything importing it) ran standalone. voyageai.Client()
-# then silently constructed with no key, every embed() call failed, and
-# semantic_search's blanket "except Exception: return None" swallowed
-# the real error -- producing a confusing "unavailable" state on every
-# single query with no indication of why. Confirmed directly: the exact
-# same API call succeeded when .env was loaded manually, and failed
-# (returned None) when going through this module unmodified.
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -59,15 +51,7 @@ except ImportError:
 MODEL = "voyage-law-2"
 EMBEDDINGS_PATH = "embeddings/corpus_embeddings.json"
 
-# Similarity threshold below which a match is NOT trusted -- confirmed
-# starting point only, not empirically tuned yet (would need real query
-# examples run against real embeddings to calibrate properly; this is a
-# reasonable, conservative default per Voyage's own documented guidance
-# that dot-product/cosine scores above ~0.75 generally indicate strong
-# topical relevance for their models, with real variance by domain).
-# MUST be revisited once real usage data exists -- do not treat 0.75 as
-# validated, only as a safe starting point that errs toward "Cannot
-# Determine" rather than a false-confident match.
+
 SIMILARITY_THRESHOLD = 0.40
 #Threshold level put at 0.40 down from 0.75. 1 means identical , pointing in same direction. 
 
@@ -78,17 +62,7 @@ SIMILARITY_THRESHOLD = 0.40
 # purposes of flagging a conflict.
 
 
-# CALIBRATED AGAIN 2026-08-27: raised from 5 to 10 after a confirmed real
-# failure. Question: "can police arrest directly for cheating?" -- the
-# actual answering section (BNS 318, the cheating definition) ranked 6th
-# at score 0.405, just above SIMILARITY_THRESHOLD, but outside the old
-# top_k=5 window. It was therefore NEVER passed to the response
-# generator, which correctly (and honestly) said it didn't have enough
-# information -- but that honesty was a symptom of a retrieval-window
-# bug, not a genuine corpus gap. Verified the wider window is safe: all
-# 10 results for this query scored in a tight 0.38-0.43 cluster, every
-# one genuinely topically relevant (arrest procedure and cheating
-# sections), no noise introduced by widening.
+
 TOP_MATCHES_TO_CONSIDER = 10
 
 _corpus_cache = None
@@ -154,15 +128,87 @@ def semantic_search(query, top_k=TOP_MATCHES_TO_CONSIDER, _raise_errors=False):
     return results
 
 
+"""
+ADD near the top of semantic_retrieval.py, replacing the single
+SIMILARITY_THRESHOLD constant with two separate ones.
+
+WHY SPLIT (2026-08-28): a real user question -- "police came to my
+house and arrested me saying that i stole a goat" -- failed to surface
+BNS Section 303 (theft) at all. Confirmed real score: 0.3542, just
+below the single shared threshold of 0.40. Investigating this revealed
+the deeper problem: statute matching and judgment matching were being
+held to the SAME threshold, despite being fundamentally different
+kinds of evidence:
+
+- Statute sections are a CLOSED, fully-known vocabulary -- all ~360
+  BNS sections and ~530 BNSS sections are already embedded, already
+  verified, already have deterministic compliance data in
+  BNS_SECTION_DATA. A statute match either genuinely applies or it
+  doesn't; there's little risk in being more permissive here, since
+  the SET of possible statute matches is small and fully controlled.
+- Judgment/doctrine matches pull from a fuzzier, more open precedent
+  space (currently 12 judgments, growing). Being too permissive here
+  risks surfacing a genuinely unrelated case merely because it shares
+  vocabulary -- a different, real risk (see BNS_SECTION_DATA's own
+  "conflicting_matches" logic, built for exactly this kind of danger).
+
+Given this asymmetry, statutes get a LOWER (more permissive) threshold
+than judgments. The specific values below were chosen by testing
+against every real confirmed score available at time of writing (this
+session's goat-theft/D.K.-Basu/Prabir-Purkayastha/Youth-Bar-Association
+scores, plus the Aug 27 handoff's BNSS-43(5) and confirmed-noise-ceiling
+numbers) -- see the accompanying test script's output for the full
+comparison table. STATUTE_SIMILARITY_THRESHOLD=0.34 was the narrowest
+value that fixed both known statute-retrieval failures (goat theft at
+0.3542, a hypothetical near-BNSS-43(5)-adjacent statute score) without
+crossing the confirmed noise ceiling (~0.339) -- this is a narrow
+margin (0.001), acknowledged directly, not a comfortable buffer.
+JUDGMENT_SIMILARITY_THRESHOLD is kept at the existing 0.40, UNCHANGED,
+since no confirmed real judgment-matching failure has been found at
+that threshold -- lowering it was never the actual problem, and doing
+so anyway would add judgment-matching risk to solve a statute-matching
+problem.
+
+MUST be revisited if a real failure is later found on either side of
+this split -- these are evidence-based starting points from a small
+number of real data points, not a large-scale calibration.
+"""
+
+STATUTE_SIMILARITY_THRESHOLD = 0.34
+JUDGMENT_SIMILARITY_THRESHOLD = 0.40
+
+# Kept for any external code that still imports the old combined name
+# directly -- deliberately aliased to the MORE CONSERVATIVE (judgment)
+# value, not the more permissive statute one, so nothing that isn't
+# explicitly updated to use the split constants silently becomes more
+# permissive by accident.
+SIMILARITY_THRESHOLD = JUDGMENT_SIMILARITY_THRESHOLD
+
+
+# ---------------------------------------------------------------------
+# REPLACE find_relevant_sections() with this version:
+# ---------------------------------------------------------------------
+
 def find_relevant_sections(query):
     """Higher-level function for BOTH statute and judgment lookup: returns
     a dict describing what was found, in one of four honest states --
-    'no_match' (nothing cleared SIMILARITY_THRESHOLD), 'single_match'
+    'no_match' (nothing cleared its applicable threshold), 'single_match'
     (exactly one section family cleared the threshold and they agree),
     'conflicting_matches' (multiple STATUTE sections cleared the
     threshold with DIFFERENT cognizable/bailable status -- the "rioting"
     case), or 'unavailable' (embeddings aren't set up at all). Never
     silently picks one match to hide a conflict.
+
+    CHANGED 2026-08-28: statute and judgment matches are now filtered
+    against SEPARATE thresholds (STATUTE_SIMILARITY_THRESHOLD=0.34,
+    JUDGMENT_SIMILARITY_THRESHOLD=0.40), not one shared value. See the
+    module-level comment above these constants for the full confirmed
+    real-failure writeup (goat theft, Section 303, scored 0.3542 --
+    below the old shared 0.40 threshold, now correctly caught). This
+    was a deliberate, evidence-based split, not a blanket threshold
+    lowering -- judgment matching keeps its prior, more conservative
+    value unchanged, since no real judgment-matching failure has been
+    found to justify loosening it.
 
     CONFIRMED REAL BUG (2026-08-27): this function previously filtered
     to statute matches ONLY (discarding every judgment match, however
@@ -183,8 +229,8 @@ def find_relevant_sections(query):
     if results is None:
         return {"state": "unavailable"}
 
-    statute_matches = [r for r in results if r["type"] == "statute" and r["score"] >= SIMILARITY_THRESHOLD]
-    judgment_matches = [r for r in results if r["type"] == "judgment" and r["score"] >= SIMILARITY_THRESHOLD]
+    statute_matches = [r for r in results if r["type"] == "statute" and r["score"] >= STATUTE_SIMILARITY_THRESHOLD]
+    judgment_matches = [r for r in results if r["type"] == "judgment" and r["score"] >= JUDGMENT_SIMILARITY_THRESHOLD]
 
     if not statute_matches and not judgment_matches:
         return {"state": "no_match", "results": results}

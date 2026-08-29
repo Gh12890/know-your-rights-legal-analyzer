@@ -762,37 +762,145 @@ def check_arnesh_kumar_notice(f):
         "from the information given.",
         doctrine_key="arnesh_kumar_checklist")
     
+
+def _resolve_field_with_conditions(entry, field_name):
+    """
+    Shared helper for check_cognizable_arrest_basis and
+    compute_bail_pathway_info: determines the TRUSTWORTHY value of a
+    boolean-ish field (cognizable or bailable) for one BNS_SECTION_DATA
+    entry, accounting for multi-condition sections where the top-level
+    value can DISAGREE with individual conditions.
+ 
+    CONFIRMED REAL BUG THIS FIXES (2026-08-28), found via a direct audit
+    of all 436 entries in bns_final_merged_table.json: the previous
+    logic only checked whether the top-level field was literally the
+    string "contingent". This missed 60 of 84 needs_review=True entries
+    entirely (the string check only caught 24). Of those 60, a further
+    direct audit of the 20 entries with has_multiple_conditions=True and
+    a clean top-level value found 8 REAL disagreements -- cases where
+    the top-level value is provably wrong for at least one genuine
+    condition. Confirmed example: Section 303(2) (theft) has top-level
+    cognizable=True, but its own all_conditions show cognizable values
+    of [False, True] depending on which condition applies -- meaning a
+    real theft case matching the non-cognizable condition would have
+    been WRONGLY told the offence is cognizable. This section is
+    already live and discussed by name in this tool's chat interface as
+    of this session.
+ 
+    Also confirmed: at least one entry (Section 95) has the literal
+    string "contingent" appearing INSIDE individual conditions even
+    though its own top-level field is a clean boolean -- so checking
+    only the top-level field for "contingent" is insufficient even for
+    that specific string-based signal; every condition must be checked.
+ 
+    Args:
+        entry: one BNS_SECTION_DATA value (a dict for a single section
+            or subsection key).
+        field_name: "cognizable" or "bailable".
+ 
+    Returns:
+        One of:
+          - True or False: the field's real, verified, TRUSTWORTHY
+            value (either no multi-condition complexity exists, or
+            every condition agrees with the top-level value).
+          - "contingent": either the top-level field IS the literal
+            string "contingent", OR any individual condition contains
+            that string, OR conditions exist but genuinely DISAGREE
+            with each other or with the top-level value. In every one
+            of these cases, the caller should treat this exactly like
+            the pre-existing "contingent" handling (i.e. "Cannot
+            Determine" -- verify from the case record), since silently
+            picking one condition over another would be a legal
+            classification the LLM/this function isn't positioned to
+            make. This is a deliberate REUSE of the existing
+            "contingent" signal/vocabulary already handled downstream,
+            not a new state -- callers require NO changes to their
+            "contingent" branch, only to how this value gets computed
+            before reaching that branch.
+    """
+    top_level = entry.get(field_name)
+ 
+    # Top-level is already the explicit sentinel -- no further checking
+    # needed, this is the case the original code already handled
+    # correctly.
+    if top_level == "contingent":
+        return "contingent"
+ 
+    conditions = entry.get("all_conditions")
+    has_multiple = entry.get("has_multiple_conditions")
+ 
+    # No multi-condition complexity at all -- top-level value stands as
+    # the real, trustworthy value (this covers the vast majority of
+    # entries, including all 352 "clean" ones, unaffected by this fix).
+    if not has_multiple or not conditions:
+        return top_level
+ 
+    # Multi-condition section: check EVERY condition's value for this
+    # field, including scanning for the literal "contingent" string
+    # inside a condition even if the top-level field itself is clean
+    # (confirmed necessary by Section 95's real data).
+    condition_values = set()
+    for cond in conditions:
+        cond_value = cond.get(field_name)
+        if cond_value == "contingent":
+            return "contingent"
+        condition_values.add(cond_value)
+ 
+    # All conditions agree with EACH OTHER -- but do they also agree
+    # with the top-level value? A section could theoretically have all
+    # conditions agree with each other while disagreeing with a stale
+    # or mis-set top-level field; treat that as untrustworthy too,
+    # since we can't tell which one is actually correct.
+    if len(condition_values) == 1:
+        only_condition_value = next(iter(condition_values))
+        if only_condition_value == top_level:
+            return top_level  # genuinely safe, confirmed by agreement
+        else:
+            return "contingent"  # top-level and conditions disagree
+ 
+    # Conditions disagree with EACH OTHER -- this is the confirmed real
+    # bug case (e.g. Section 303(2)). Cannot pick one without making a
+    # legal classification decision this function shouldn't make.
+    return "contingent"
+
+  
 def check_cognizable_arrest_basis(f):
     req = "Threshold basis for arrest without warrant [cognizability of the offence]"
-
+ 
     cleaned = [re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(s).strip(), flags=re.IGNORECASE).strip()
                for s in f.get("sections_cited", [])]
-
+ 
     if not cleaned:
         return _result(req, "Cannot Determine",
             "No recognised section cited; whether the offence is cognizable (permitting arrest without "
             "warrant) cannot be established.")
-
+ 
     known_entries = [BNS_SECTION_DATA[sec] for sec in cleaned if sec in BNS_SECTION_DATA]
     if not known_entries:
         return _result(req, "Cannot Determine",
             "Cited section(s) not recognised in the lookup table; cognizability status cannot be established.")
-
-    # Only flag as contingent based on the COGNIZABLE field specifically —
-    # not a blanket needs_review, which can be true for unrelated reasons
-    # (e.g. a missing offence description) that don't affect cognizability.
-    if any(entry.get("cognizable") == "contingent" for entry in known_entries):
+ 
+    # CHANGED 2026-08-28: was `entry.get("cognizable") == "contingent"`,
+    # which only caught the literal top-level string and missed 8
+    # confirmed real cases where has_multiple_conditions=True entries
+    # have a clean top-level value that disagrees with at least one
+    # genuine condition (see _resolve_field_with_conditions docstring
+    # for the full confirmed-bug writeup, including Section 303(2)
+    # already live in this tool's chat interface).
+    resolved_cognizable = [_resolve_field_with_conditions(entry, "cognizable") for entry in known_entries]
+ 
+    if any(val == "contingent" for val in resolved_cognizable):
         return _result(req, "Cannot Determine",
             "Cognizability of the cited section(s) depends on circumstances not captured here (e.g. the "
             "underlying/related offence) — cannot be automatically established. Verify from the case record.")
-
-    if all(entry["cognizable"] for entry in known_entries):
+ 
+    if all(val is True for val in resolved_cognizable):
         return _result(req, "Compliant",
             "The cited offence(s) are cognizable — police ordinarily have power to arrest without a warrant. "
             "This does not by itself confirm the specific arrest power exercised was lawful; see the notice "
             "and other checks below for that.")
-
-    if all(not entry["cognizable"] for entry in known_entries):
+ 
+    if all(val is False for val in resolved_cognizable):
         return _result(req, "Non-Compliant",
             "The cited offence(s) are recorded as NON-COGNIZABLE in the statutory reference table. Ordinarily, "
             "police have no general power to arrest without a warrant for a non-cognizable offence — such an "
@@ -800,11 +908,13 @@ def check_cognizable_arrest_basis(f):
             "specific statutes carve out exceptions permitting warrantless arrest even for particular "
             "non-cognizable matters; verify from the case record whether such a specific exception applies here "
             "before treating this as conclusive.")
-
+ 
     return _result(req, "Cannot Determine",
         "The cited offences have MIXED cognizability — some are cognizable, some are not. Whether the arrest "
         "was lawful depends on which specific offence the arrest power was actually exercised under; this "
         "cannot be determined automatically from the combined citation list. Verify from the case record.")
+
+
     
     
 def check_223_cognizance_bar(f):
@@ -1091,18 +1201,21 @@ def compute_bail_pathway_info(sections_cited):
     cleaned = [re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(s).strip(), flags=re.IGNORECASE).strip()
                for s in (sections_cited or [])]
     known_entries = [(sec, BNS_SECTION_DATA[sec]) for sec in cleaned if sec in BNS_SECTION_DATA]
-
+ 
     if not known_entries:
         return {
             "pathway": "unknown",
             "message": "No recognised section was available, so whether bail can be granted at the "
                        "police station or only by a court cannot be determined from this information."
         }
-
-    # Only flag as contingent based on the BAILABLE field specifically —
-    # not the blanket needs_review flag, which can be true for unrelated
-    # reasons (e.g. a missing offence description) that don't affect bail.
-    contingent_sections = [sec for sec, data in known_entries if data.get("bailable") == "contingent"]
+ 
+    # CHANGED 2026-08-28: was `data.get("bailable") == "contingent"`,
+    # same fix and same reasoning as check_cognizable_arrest_basis
+    # above -- see _resolve_field_with_conditions for the full
+    # confirmed-bug writeup.
+    resolved = [(sec, _resolve_field_with_conditions(data, "bailable")) for sec, data in known_entries]
+ 
+    contingent_sections = [sec for sec, val in resolved if val == "contingent"]
     if contingent_sections:
         return {
             "pathway": "unknown",
@@ -1110,8 +1223,8 @@ def compute_bail_pathway_info(sections_cited):
                        f"circumstances not captured here (e.g. the underlying offence abetted) — this "
                        f"cannot be determined automatically. Verify with a lawyer."
         }
-
-    if all(data["bailable"] for _, data in known_entries):
+ 
+    if all(val is True for _, val in resolved):
         return {
             "pathway": "police_station",
             "message": "The cited offence(s) are BAILABLE. Under S.478 BNSS, bail is a matter of right and "
@@ -1119,8 +1232,8 @@ def compute_bail_pathway_info(sections_cited):
                        "not need to wait for a court to open. If bail is refused at the station despite this, "
                        "that refusal is itself worth raising with a magistrate or superior officer."
         }
-
-    if all(not data["bailable"] for _, data in known_entries):
+ 
+    if all(val is False for _, val in resolved):
         return {
             "pathway": "court_only",
             "message": "The cited offence(s) are NON-BAILABLE. Bail is discretionary and can only be granted "
@@ -1128,7 +1241,7 @@ def compute_bail_pathway_info(sections_cited):
                        "magistrate — through a lawyer if possible — as soon as possible; there is no "
                        "automatic right to release here."
         }
-
+ 
     return {
         "pathway": "mixed",
         "message": "Some cited offence(s) are bailable and others are not. Where offences are mixed, courts "

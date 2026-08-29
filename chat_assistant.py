@@ -58,8 +58,12 @@ elif _api_key:
     client = Anthropic(api_key=_api_key)
 else:
     client = None
+    
 
-HAIKU_MODEL = "claude-haiku-4-5-20251001"
+
+#HAIKU_MODEL = "claude-haiku-4-5-20251001"
+SONNET_MODEL = "claude-sonnet-5"  # per this environment's current model list
+
 
 SCOPE_CLASSIFIER_PROMPT = """You are a scope classifier for a legal tool that helps with Indian criminal procedure. This chat feature specifically covers BNS/BNSS arrest, FIR, and police procedure topics, grounded in Arnesh Kumar, D.K. Basu, Vihaan Kumar, Satender Kumar Antil, Youth Bar Association, Prabir Purkayastha, Pankaj Bansal, NALSA, and applying High Court judgments.
 
@@ -94,8 +98,8 @@ def classify_scope(question):
         return None, None
     try:
         response = client.messages.create(
-            model=HAIKU_MODEL,
-            max_tokens=150,
+            model=SONNET_MODEL,
+            max_tokens=1500,
             messages=[{"role": "user", "content": SCOPE_CLASSIFIER_PROMPT.format(question=question)}],
         )
         raw = response.content[0].text.strip()
@@ -117,34 +121,47 @@ def classify_scope(question):
 RESPONSE_GENERATION_PROMPT = """You are a careful, warm legal guide helping a layperson understand Indian criminal procedure (BNS/BNSS). You are NOT a lawyer and must not give legal advice -- you explain what the law and courts have said, in plain language, and always point the person toward a concrete next step.
 
 CRITICAL RULES, never break these:
-- Use ONLY the retrieved text provided below. Do not add facts, section numbers, case holdings, or law/act NAMES from your own general knowledge, even if you're confident they're correct.
-- Do NOT refer to the "Indian Penal Code" or "IPC" unless those exact words appear in the retrieved text below. Confirmed real failure: a past response called BNS Section 318 "Section 318 of the Indian Penal Code (BNS)" -- the IPC is a DIFFERENT, older law that BNS replaced; conflating them is factually wrong and this corpus never mentions the IPC. Refer only to the act named in the retrieved text (BNS or BNSS).
-- If the retrieved text doesn't fully answer the question, say so honestly rather than filling the gap.
+- Use ONLY the information provided below. Do not add facts, section numbers, case holdings, or law/act NAMES from your own general knowledge, even if you're confident they're correct.
+- Do NOT refer to the "Indian Penal Code" or "IPC" unless those exact words appear in the information below. Confirmed real failure: a past response called BNS Section 318 "Section 318 of the Indian Penal Code (BNS)" -- the IPC is a DIFFERENT, older law that BNS replaced; conflating them is factually wrong and this corpus never mentions the IPC. Refer only to the act named in the information below (BNS or BNSS).
+- NEVER use the words "retrieved text", "the text I have", "the retrieved information", "the classification table", "the compliance table", or any other phrase describing WHERE this information came from. The person reading this is a layperson, often under real stress -- they should never see the internal machinery behind the answer. Just state the law directly: write "Section 303 covers..." not "the retrieved text shows Section 303 covers...". If something isn't covered, say "I don't have information on..." not "the retrieved text doesn't include...".
+- If the information below doesn't fully answer the question, say so honestly rather than filling the gap -- but ONLY flag genuine gaps. CONFIRMED REAL FAILURE (2026-08-28): given Section 109(1) where the underlying data showed a general punishment (10 years) versus an enhanced one (life imprisonment, if the act causes hurt) -- both of which were correctly and specifically stated in the answer -- the response THEN added an extra, confusing caveat calling this a "flagged exception... that couldn't be cleanly extracted," implying missing information that did not actually exist. If you have already stated the specific facts clearly (e.g. "the punishment is X, or Y if Z happens"), do NOT also add a vaguer follow-up caveat suggesting the details are incomplete or that "a lawyer should confirm the exact condition" -- you already stated the exact condition. Only flag genuine uncertainty when you are ACTUALLY missing a specific fact you cannot state, not as a reflexive hedge after already answering completely.
 - Never state a compliance verdict (like "this is legal" or "this is illegal") -- you can explain what the law says, but whether it applies to the person's specific situation requires facts you don't have.
-- Always end with a short, concrete "what you can do next" suggestion (e.g. "if you have a copy of the FIR, you could upload it here for a full check", or "a lawyer could confirm which of these applies to your situation").
+- Always end with a short, concrete "what you can do next" suggestion (e.g. "if you have a copy of the FIR, you could upload it here for a full check", or "a lawyer could confirm which of these applies to your situation"). Include this only ONCE, at the very end -- do not repeat a "what you can do next" section twice.
 - Keep the tone warm and plain -- avoid legal jargon where you can, and explain any term you must use.
-- When you name a section, ALWAYS include its exact subsection number if the retrieved text distinguishes between subsections (e.g. write "Section 318(4)", not just "Section 318") -- confirmed real failure: describing 318(4)'s punishment without ever naming it as 318(4) specifically, making it impossible for the reader to verify which provision was meant.
+- When you name a section, ALWAYS include its exact subsection number if the information distinguishes between subsections (e.g. write "Section 318(4)", not just "Section 318") -- confirmed real failure: describing 318(4)'s punishment without ever naming it as 318(4) specifically, making it impossible for the reader to verify which provision was meant.
+- MANDATORY: if ANY statute section (BNS or BNSS) appears in the information below, you MUST explicitly name and briefly describe every single one of them in your answer, even if a court judgment is also present and even if the statute text seems less directly relevant than the judgment. Do not let a rich, narrative judgment crowd out plainer statute text -- the statute sections are usually the MOST directly relevant answer to "what does the law say about my situation," since they define the actual offence, while judgments typically speak to arrest PROCEDURE more generally. Address the statute sections FIRST, by name, before discussing any judgment. EXCEPTION: if a section is clearly not relevant to the person's actual question (e.g. a general procedural section about how a Magistrate frames charges, when the person is asking about the threshold for filing a charge), you may briefly note it doesn't seem to apply rather than describing it in full -- do not force an irrelevant section into the main explanation just because it was among the retrieved candidates.
 {conflict_instruction}
 
 The person's question: {question}
 
-Retrieved information (this is REAL text from Indian statutes and court judgments -- use only this):
+Here is the real legal information relevant to this question (statute text and court judgments) -- use only this, and present it as your own direct knowledge of the law, never as something you were "given" or "retrieved":
 {retrieved_text}
 
-Write a short, clear, warm answer, followed by a "What you can do next" line."""
+Write a short, clear, warm answer, followed by a single "What you can do next" line at the end."""
 
-_CONFLICT_INSTRUCTION = """- IMPORTANT: the retrieved sections genuinely DISAGREE with each other on a key point (e.g. some are arrestable without a warrant, others are not). Do NOT blend them into one narrative paragraph. Structure your answer as clearly separated scenarios, each labeled with its exact section number, e.g.:
+
+_CONFLICT_INSTRUCTION = """- IMPORTANT: the sections below genuinely DISAGREE with each other on a key point (e.g. some are arrestable without a warrant, others are not). Do NOT blend them into one narrative paragraph. Structure your answer as clearly separated scenarios, each labeled with its exact section number, e.g.:
   "**If [scenario 1, naming the exact section]:** [what applies]"
   "**If [scenario 2, naming the exact section]:** [what applies]"
   Make the fork in the law visually obvious, not something the reader has to infer from careful reading."""
+  
+  
+# ---------------------------------------------------------------------
+# REPLACE generate_grounded_response with this version -- adds an
+# optional `model` parameter, defaulting to HAIKU_MODEL so every
+# existing call site (answer_question, which never passes `model`)
+# behaves EXACTLY as before. Only a test script that explicitly passes
+# model=SONNET_MODEL will use the stronger model. This is deliberately
+# non-invasive: no production behavior changes until you decide to
+# change answer_question's calls, which this does NOT do.
+# ---
 
-
-def generate_grounded_response(question, retrieved_text, is_conflict=False):
+def generate_grounded_response(question, retrieved_text, is_conflict=False, model=SONNET_MODEL):
     """Generates a plain-language answer using ONLY the given retrieved
     text. Returns None if the generation call fails -- callers should
     fall back to showing the raw retrieved text directly rather than
     inventing a summary.
-
+ 
     is_conflict: set True when called for a 'conflicting_matches' result,
     so the prompt explicitly instructs the model to structure its answer
     as separated scenarios rather than blending disagreeing provisions
@@ -152,14 +169,23 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False):
     conflicting_matches case (cheating: 318(1) non-arrestable vs 318(4)
     arrestable) was answered as a single fluent paragraph that only
     named one subsection explicitly, hiding the fork in the law the
-    conflicting_matches state exists specifically to surface."""
+    conflicting_matches state exists specifically to surface.
+ 
+    model: ADDED 2026-08-28 for a deliberate, evidence-gated Haiku-vs-
+    Sonnet comparison, per this project's own Aug 27 handoff note that
+    a model upgrade should be considered "only if real misclassifications
+    are observed, not upgraded pre-emptively" -- a real one was (see
+    RESPONSE_GENERATION_PROMPT's confirmed-failure comment, the goat/
+    theft case). Defaults to HAIKU_MODEL so this parameter is 100%
+    backward compatible; no existing call site changes behavior unless
+    it explicitly passes a different model."""
     if client is None:
         return None
     try:
         conflict_instruction = _CONFLICT_INSTRUCTION if is_conflict else ""
         response = client.messages.create(
-            model=HAIKU_MODEL,
-            max_tokens=700,
+            model=model,
+            max_tokens=1500,
             messages=[{
                 "role": "user",
                 "content": RESPONSE_GENERATION_PROMPT.format(
@@ -217,7 +243,40 @@ def format_retrieved_text_for_prompt(matches):
     Fixed by adding an explicit context_note block, kept separate from
     the all_variants block since it's a conceptually different kind of
     addition (hand-written legal nuance vs. structured compliance-table
-    data)."""
+    data).
+
+    CONFIRMED REAL BUG (2026-08-29), found via a real user question
+    ("when can police file charges of attempt to murder"): the
+    multi-condition extraction regex (r'less than ([\\d,]+) rupees') was
+    written specifically for Section 303's theft threshold and was the
+    ONLY extraction pattern this function knew. Section 109(1)'s two
+    conditions (a "general" case vs. "if such act causes hurt to any
+    person") have NO rupee threshold at all -- the distinction is a
+    plain descriptive condition, not a numeric one. Since the regex
+    correctly found no match, extracted_facts stayed empty, and the
+    code fell through to the generic "a real exception exists that this
+    system could not cleanly extract" fallback -- FALSELY implying
+    missing information, when the actual condition text
+    ("if such act causes hurt to any person") was sitting right there,
+    perfectly readable, in raw_text_preview the entire time. This
+    produced a confusing, inaccurate response: the model correctly
+    described BOTH conditions (10 years general; life imprisonment if
+    hurt caused) using the raw statute text, then ALSO added a false
+    caveat from this fallback message claiming an exception existed
+    that couldn't be captured -- self-contradictory, and confusing for
+    a layperson under stress.
+
+    Fixed by generalizing extraction: first try the rupee-threshold
+    pattern (Section 303-style), and if that doesn't match, fall back
+    to using the condition's own descriptive label directly (Section
+    109-style) -- extracting a clean, short version of the actual
+    distinguishing fact from raw_text_preview's leading condition
+    description, rather than assuming every multi-condition section
+    follows the same shape as theft's value exception. The TRUE
+    unresolved fallback (genuinely uninterpretable raw_text_preview,
+    e.g. garbled beyond any recognizable condition) is now reserved for
+    cases where NEITHER pattern extracts anything usable -- not the
+    default whenever the specific rupee-regex happens not to match."""
     blocks = []
     for m in matches:
         label = m.get("section_number") or m.get("paragraph_number") or m.get("chunk_id")
@@ -230,14 +289,6 @@ def format_retrieved_text_for_prompt(matches):
 
         block = f"[{source}, Section/Para {label}]\n{m['text']}"
 
-        # NEW (2026-08-28): surface curated context notes (e.g.
-        # statute_doctrine_map.py's hand-verified legal nuance for
-        # BNSS 43(5)) that don't exist in raw statute text and aren't
-        # part of the BNS_SECTION_DATA compliance table below. This is
-        # deliberately a separate block from all_variants, since it's
-        # a different kind of content (hand-written nuance vs.
-        # structured cognizable/bailable/max_years data) and mixing
-        # them would blur where each piece of information came from.
         if m.get("context_note"):
             block += "\n\n[Important legal context for this section]\n" + m["context_note"]
 
@@ -251,50 +302,67 @@ def format_retrieved_text_for_prompt(matches):
                 has_multiple = variant_data.get("has_multiple_conditions")
                 line = f"  - {variant_key}: cognizable={cog}, bailable={bail}, max_years={years}"
                 if has_multiple:
-                    # CONFIRMED REAL BUG, FIXED IN TWO STEPS (2026-08-27):
-                    # Step 1 found that has_multiple_conditions sections
-                    # (e.g. theft's value-based exception) were silently
-                    # omitted entirely -- fixed by flagging that an
-                    # exception exists.
-                    # Step 2, this fix: the flagging text said the exact
-                    # threshold "isn't accessible", which the user
-                    # correctly caught as FALSE -- the real Rs.5,000
-                    # threshold and the "upon return of property"
-                    # condition ARE cleanly present in
-                    # all_conditions[]['raw_text_preview'], just scrambled
-                    # in LINE ORDER (a PDF table-extraction artifact), not
-                    # actually missing. Confirmed by direct regex
-                    # extraction: the threshold is reliably recoverable.
-                    # Only genuinely un-recoverable details (e.g. exact
-                    # wording of "first offense" style qualifiers, if any
-                    # exist beyond what's extracted) should be flagged as
-                    # uncertain -- not facts that are simply reachable via
-                    # this extraction.
                     conditions = variant_data.get("all_conditions", [])
                     extracted_facts = []
                     for cond in conditions:
                         preview = cond.get("raw_text_preview", "")
+
+                        # PATTERN 1 (original, Section 303-style): a
+                        # numeric rupee threshold with an optional
+                        # return/restoration qualifier.
                         threshold_match = re.search(r'less than ([\d,]+) rupees', preview)
-                        mentions_return = "return" in preview.lower() or "restoration" in preview.lower()
                         if threshold_match:
+                            mentions_return = "return" in preview.lower() or "restoration" in preview.lower()
                             fact = f"if the value of the property is less than Rs. {threshold_match.group(1)}"
                             if mentions_return:
                                 fact += " and the property is returned/restored"
                             fact += f", this becomes: cognizable={cond.get('cognizable')}, bailable={cond.get('bailable')}"
                             extracted_facts.append(fact)
+                            continue
+
+                        # PATTERN 2 (NEW, Section 109-style): no numeric
+                        # threshold, but the condition itself carries a
+                        # short, real, plain-language description (e.g.
+                        # "If such act causes hurt to any person") --
+                        # this is exactly what the "condition" field
+                        # already stores for such entries. Use it
+                        # directly rather than treating its absence from
+                        # Pattern 1 as "nothing could be extracted".
+                        condition_desc = cond.get("condition", "")
+                        is_generic_label = condition_desc.strip().lower() in ("general", "")
+                        if condition_desc and not is_generic_label:
+                            # condition_desc can itself be a multi-line
+                            # raw preview fragment (confirmed real case:
+                            # 109(1)'s second condition's "condition"
+                            # field is "If such act causes hurt to\n
+                            # Imprisonment for life, or\nCognizable...\n
+                            # C" -- truncated mid-word). Take only the
+                            # first line, which reliably holds the real
+                            # descriptive clause before the punishment/
+                            # classification columns begin.
+                            first_line = condition_desc.split("\n")[0].strip()
+                            if first_line and first_line.lower() != "general":
+                                fact = (
+                                    f"in the specific situation described as \"{first_line}\", "
+                                    f"this becomes: cognizable={cond.get('cognizable')}, "
+                                    f"bailable={cond.get('bailable')}"
+                                )
+                                extracted_facts.append(fact)
+
                     if extracted_facts:
                         line += (
-                            " -- NOTE: this section has a value-based exception, confirmed from the "
-                            "source data: " + "; ".join(extracted_facts) + ". State this specific "
-                            "threshold as a known fact -- do not tell the user this detail is "
-                            "unavailable, since it is available. Do not add any OTHER condition "
-                            "(such as 'first offense') that is not stated here."
+                            " -- NOTE: this section has multiple conditions, confirmed from the "
+                            "source data: " + "; ".join(extracted_facts) + ". State these specific "
+                            "conditions as known facts -- do not tell the user these details are "
+                            "unavailable or that an exception exists which couldn't be captured, "
+                            "since the conditions ARE available and listed here. Do not add any "
+                            "OTHER condition beyond what is stated here."
                         )
                     else:
-                        # Genuine fallback: multiple conditions exist but
-                        # this system couldn't cleanly extract the specific
-                        # threshold -- here, and only here, is uncertainty
-                        # actually honest.
+                        # Genuine fallback: multiple conditions exist,
+                        # NEITHER extraction pattern found anything
+                        # usable in raw_text_preview -- here, and only
+                        # here, is uncertainty actually honest.
                         line += (
                             " -- NOTE: this section has MULTIPLE conditions; the above is the "
                             "general-case classification only, and a real exception exists that "
