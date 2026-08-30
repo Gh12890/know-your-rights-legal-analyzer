@@ -181,6 +181,78 @@ except Exception as e:
 
 
 print("\n" + "=" * 70)
+print("HIGH-SEVERITY CONFIRMATION GATE TESTS [LIVE API -- real cost incurred]")
+print("=" * 70)
+print("CONFIRMED SERIOUS REAL BUG THIS COVERS: 'can police arrest me directly")
+print("for dowry. My wife has filed a dowry case' was matched to Section 80")
+print("(DOWRY DEATH, mandatory minimum 7 years to life) despite the person's")
+print("own words describing a LIVING wife who filed a complaint -- a")
+print("fabricated severity level that could distort real decisions in a")
+print("real crisis. This is treated as priority-one, not a general edge case.")
+print()
+
+try:
+    from interview_flow import (
+        suggest_offence,
+        HIGH_SEVERITY_CONFIRMATION_GATE,
+        _confirm_high_severity_fact,
+    )
+
+    # Part 1: confirm the ORIGINAL failing phrase still matches Section 80
+    # via semantic search alone (i.e. the underlying vocabulary-overlap
+    # match is EXPECTED to still happen -- the gate exists specifically
+    # to catch and reject it, not to prevent the match from occurring at
+    # the search layer).
+    result = suggest_offence("can police arrest me directly for dowry. My wife has filed a dowry case")
+    check(
+        result is not None and result["section_number"] in ("80", "80(1)"),
+        f"REGRESSION SETUP: this phrase still matches Section 80 at the search "
+        f"layer (got {result.get('section_number') if result else None!r}) -- "
+        f"confirms the gate below is actually being exercised, not testing a "
+        f"scenario that no longer occurs"
+    )
+
+    # Part 2: the gate itself -- deterministic, no API call -- correctly
+    # REJECTS Section 80 when the death fact is explicitly contradicted.
+    check(
+        _confirm_high_severity_fact("80", "no") is False,
+        "gate correctly REJECTS Section 80 when the person confirms the "
+        "woman did NOT die -- the exact real regression this fixes"
+    )
+    check(
+        _confirm_high_severity_fact("80", "yes") is True,
+        "gate correctly ACCEPTS Section 80 when death is genuinely confirmed"
+    )
+    check(
+        _confirm_high_severity_fact("80", "my wife has filed a case") is None,
+        "gate correctly treats a non-answer as ambiguous (re-ask), rather than "
+        "silently accepting OR rejecting based on an answer that doesn't "
+        "actually address the death question"
+    )
+
+    # Part 3: confirm re-describing the offence after rejection correctly
+    # lands on Section 85 (cruelty), NOT Section 86 (the definitional
+    # clause) -- the second real bug found in the same investigation.
+    result_85 = suggest_offence("cruelty")
+    check(
+        result_85 is not None and result_85["section_number"] == "85",
+        f"after rejection, describing the offence as 'cruelty' correctly "
+        f"resolves to Section 85 (the real offence), NOT Section 86 (a "
+        f"definitional clause with no BNS_SECTION_DATA entry) "
+        f"(got {result_85.get('section_number') if result_85 else None!r}) "
+        f"-- REGRESSION TEST for the definitional-section rejection fix"
+    )
+    if result_85:
+        check(
+            result_85["plain_offence_name"] != "this offence",
+            f"plain_offence_name for Section 85 is a real name, not the "
+            f"generic fallback placeholder (got {result_85['plain_offence_name']!r})"
+        )
+except Exception as e:
+    check(False, f"high-severity gate test raised an unexpected exception: {e}")
+
+
+print("\n" + "=" * 70)
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILURE(S)")
     for f in FAILURES:
@@ -189,3 +261,4 @@ if FAILURES:
 else:
     print("RESULT: ALL TESTS PASSED")
     sys.exit(0)
+    

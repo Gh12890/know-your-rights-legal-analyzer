@@ -193,6 +193,18 @@ class InterviewState:
                                # so the UI layer knows whether a
                                # "ready_for_results" return is the
                                # first (Tier 1) or second (Tier 2) pass.
+        self._pending_high_severity_section = None  # NEW 2026-08-29:
+                               # tracks a section awaiting its
+                               # mandatory fact-confirmation, kept
+                               # SEPARATE from _pending_section (the
+                               # normal offence-confirmation state) so
+                               # the two flows can never be confused --
+                               # a high-severity match is never treated
+                               # as a normal pending confirmation.
+        self._pending_high_severity_offence_name = None  # the plain
+                               # name to use ONCE confirmed (e.g.
+                               # "dowry death") -- kept separate from
+                               # the section number itself for clarity.
 
     def known_field_count(self):
         return sum(
@@ -279,6 +291,128 @@ class OffenceIdentificationError(Exception):
     section if they already know it -- never silently skip this step,
     since sections_cited is the single highest-value field."""
     pass
+
+
+# ---------------------------------------------------------------------
+# HIGH-SEVERITY OFFENCE CONFIRMATION GATE
+#
+# ADDED 2026-08-29 after a confirmed, serious real failure: the message
+# "can police arrest me directly for dowry. My wife has filed a dowry
+# case" -- which describes an ONGOING complaint from a LIVING wife --
+# was matched to Section 80, DOWRY DEATH (mandatory minimum 7 years to
+# life), instead of Section 85 (cruelty, max 3 years) or another
+# dowry-adjacent provision. The person's own words directly
+# contradicted the match (a living complainant cannot be the subject of
+# a death provision), but suggest_offence()'s vocabulary-overlap
+# semantic match had no way to detect this contradiction -- it matches
+# on textual similarity to "dowry", not on whether the underlying FACT
+# PATTERN (a death having occurred) is actually present or absent in
+# what the person said.
+#
+# This is materially more dangerous than the earlier goat-theft/
+# attempt-to-murder mismatches: those produced an embarrassing wrong
+# classification, but this one told a person facing a 3-year-max
+# offence that they were exposed to a 7-year-to-life mandatory minimum
+# -- a fabricated severity level that could distort their decisions
+# (panic, wrong lawyer engagement, wrong urgency assessment) in a real
+# crisis.
+#
+# THE GATE: for a small, curated set of severity-defining sections
+# (life imprisonment, death penalty, or mandatory minimums this
+# extreme), semantic match alone is NEVER sufficient. This dict maps
+# each guarded section to the SPECIFIC deterministic fact question
+# that must be explicitly answered before the section is accepted --
+# not a generic "is that right?" yes/no, but a targeted question about
+# the exact fact that distinguishes this severe offence from its
+# lesser-severity relatives. If the person's answer doesn't confirm
+# that fact, the match is REJECTED and the system falls back to asking
+# the person to describe the offence differently, rather than silently
+# downgrading to a guess at a lesser section (guessing the lesser
+# section would be just as unfounded as guessing the greater one).
+#
+# Deliberately small and growing, same curation discipline as
+# COMMON_OFFENCE_NAMES elsewhere in this file -- add an entry only
+# after confirming a real section's fact pattern against BNS_SECTION_DATA,
+# not preemptively for every severe-sounding section.
+HIGH_SEVERITY_CONFIRMATION_GATE = {
+    "80": {
+        "fact_question": "I want to check one important thing before going further -- did the woman involved in this case die?",
+        "plain_offence_name_if_confirmed": "dowry death",
+        # If the person's answer is a clear negative, this is the
+        # single, deterministic signal that Section 80 does NOT apply
+        # -- fall back to asking for the offence again, since a
+        # semantic match that gets contradicted by an explicit fact
+        # check should never be silently replaced with another guess.
+    },
+    "80(1)": {  # subsection variant, same gate applies
+        "fact_question": "I want to check one important thing before going further -- did the woman involved in this case die?",
+        "plain_offence_name_if_confirmed": "dowry death",
+    },
+    "101": {
+        "fact_question": "I want to check one important thing before going further -- did the person die as a result of this?",
+        "plain_offence_name_if_confirmed": "murder",
+    },
+    "109": {
+        "fact_question": "I want to check one important thing before going further -- did the person actually die, or did they survive?",
+        "plain_offence_name_if_confirmed": "attempt to murder",
+        # Note: attempt to murder REQUIRES the person to have survived
+        # (or the act to not have resulted in death) -- if they died,
+        # this is likely Section 101 (murder) instead, not Section 109.
+        # This gate's confirmation logic for this entry is inverted
+        # relative to the others -- see _confirm_high_severity_fact()'s
+        # handling of "requires_survival" below.
+        "requires_survival": True,
+    },
+    "109(1)": {
+        "fact_question": "I want to check one important thing before going further -- did the person actually die, or did they survive?",
+        "plain_offence_name_if_confirmed": "attempt to murder",
+        "requires_survival": True,
+    },
+}
+
+
+def _confirm_high_severity_fact(section_number, user_answer):
+    """Given a high-severity section and the person's answer to its
+    fact_question, returns True if the fact pattern is confirmed
+    (section should be accepted), False if contradicted (section
+    should be REJECTED, not downgraded to a guess), or None if the
+    answer is genuinely ambiguous (should be asked again, not assumed
+    either way).
+
+    Uses the same deterministic yes/no detection as
+    _looks_affirmative()/_looks_like_dont_know() elsewhere in this
+    file -- NOT an LLM call, since a wrong guess on this specific gate
+    is exactly the failure this mechanism exists to prevent, and an
+    extra model call introduces a new place for that same class of
+    error to creep back in.
+    """
+    gate = HIGH_SEVERITY_CONFIRMATION_GATE.get(section_number)
+    if gate is None:
+        return True  # not a guarded section, nothing to confirm
+
+    requires_survival = gate.get("requires_survival", False)
+    affirmative = _looks_affirmative(user_answer)
+    negative = _looks_like_no(user_answer)
+
+    if requires_survival:
+        # For attempt-to-murder: "did they survive" -- YES means the
+        # gate is satisfied (attempt to murder correctly implies
+        # survival). NO (they died) means this is likely Section 101
+        # (murder) instead, so REJECT this match.
+        if affirmative:
+            return True
+        if negative:
+            return False
+        return None
+
+    # For dowry death / murder: the fact_question asks "did [X] die" --
+    # YES confirms the severe section applies. NO means it does NOT
+    # apply and must be rejected, not downgraded to a guess.
+    if affirmative:
+        return True
+    if negative:
+        return False
+    return None
 
 
 # Deterministic keyword-to-gender mapping for relationship words that
@@ -437,12 +571,62 @@ def suggest_offence(description_text):
     if not statute_results:
         return None
 
-    best = max(statute_results, key=lambda r: r["score"])
-    if best["score"] < OFFENCE_SUGGESTION_THRESHOLD:
+    # FIXED 2026-08-29: previously took ONLY the single highest-scoring
+    # statute match, with no check for whether it resolves to a REAL
+    # offence-creating provision. CONFIRMED REAL FAILURE: the word
+    # "cruelty" matched Section 86 (BNS's DEFINITIONAL clause explaining
+    # what "cruelty" means for the purposes of Section 85 -- it has NO
+    # entry at all in BNS_SECTION_DATA, since it creates no offence and
+    # carries no punishment) instead of Section 85 (the actual
+    # cruelty-by-husband offence, which DOES exist in BNS_SECTION_DATA).
+    # The old code accepted Section 86 anyway, producing a summary that
+    # correctly diagnosed its own confusion ("Section 86 is not the
+    # offence-creating provision") but still presented the WRONG
+    # section as the identified offence.
+    #
+    # Fixed by trying EVERY statute match above threshold, in score
+    # order, and accepting the FIRST one that resolves to a real
+    # BNS_SECTION_DATA entry (exact bare key or a real subsection
+    # variant) -- never accepting a textually-strong match that turns
+    # out to be a definitional/procedural section with no actual
+    # offence data behind it. This is a general, structural fix, not a
+    # curated exclusion list for Section 86 specifically -- any future
+    # definitional section (there are others, e.g. Section 264's
+    # general/procedural framing) is caught by the same check.
+    try:
+        from main import BNS_SECTION_DATA
+    except ImportError:
+        BNS_SECTION_DATA = {}
+
+    sorted_candidates = sorted(statute_results, key=lambda r: r["score"], reverse=True)
+
+    best = None
+    for candidate in sorted_candidates:
+        if candidate["score"] < OFFENCE_SUGGESTION_THRESHOLD:
+            break  # remaining candidates score even lower, stop here
+
+        candidate_section = candidate["section_number"]
+        exact = BNS_SECTION_DATA.get(candidate_section)
+        has_subsection_variant = any(
+            k.startswith(f"{candidate_section}(") for k in BNS_SECTION_DATA
+        )
+        if exact is not None or has_subsection_variant:
+            best = candidate
+            break  # first REAL offence-creating match, in score order -- use it
+        else:
+            logger.info(
+                "suggest_offence: candidate section %r (score %.3f) has NO "
+                "entry in BNS_SECTION_DATA -- likely a definitional/procedural "
+                "section, not a real offence. Rejecting and trying next "
+                "candidate.",
+                candidate_section, candidate["score"]
+            )
+
+    if best is None:
         logger.info(
-            "suggest_offence: best statute match for %r scored %.3f, "
-            "below OFFENCE_SUGGESTION_THRESHOLD=%.2f -- no suggestion offered",
-            description_text[:80], best["score"], OFFENCE_SUGGESTION_THRESHOLD
+            "suggest_offence: no candidate resolved to a real BNS_SECTION_DATA "
+            "entry for %r -- no suggestion offered",
+            description_text[:80]
         )
         return None
 
@@ -741,6 +925,58 @@ def process_turn(state, user_message):
     # confirmation/clarification prompt.
     if not state.offence_confirmed:
         pending_section = getattr(state, "_pending_section", None)
+        pending_high_severity = getattr(state, "_pending_high_severity_section", None)
+
+        # ---------------------------------------------------------------
+        # HIGH-SEVERITY FACT CONFIRMATION -- handled FIRST, before the
+        # dont-know shortcut or the normal pending_section check, since
+        # this is a distinct, stricter flow. The person's answer to the
+        # fact_question (e.g. "did the woman involved in this case
+        # die?") determines whether the guarded section is ACCEPTED or
+        # REJECTED -- never silently downgraded to a different guess.
+        # ---------------------------------------------------------------
+        if pending_high_severity is not None:
+            confirmed = _confirm_high_severity_fact(pending_high_severity, user_message)
+
+            if confirmed is True:
+                state.fields["sections_cited"] = [pending_high_severity]
+                state.offence_confirmed = True
+                state.offence_plain_language = state._pending_high_severity_offence_name
+                state._pending_high_severity_section = None
+                next_field, next_question = state.next_question() or (None, None)
+                if next_field is None:
+                    return _build_results(state)
+                return {
+                    "state": "asking_field",
+                    "field_name": next_field,
+                    "question": next_question,
+                }
+
+            if confirmed is False:
+                # REJECTED -- the fact pattern was explicitly
+                # contradicted. Do NOT downgrade to a guess at a
+                # lesser section; ask the person to describe the
+                # offence again, same as a genuine no-match, since we
+                # now know the ONLY candidate found was wrong and have
+                # no safe fallback to substitute.
+                state._pending_high_severity_section = None
+                return {
+                    "state": "offence_unclear",
+                    "question": (
+                        "Thanks for clarifying -- that changes which section applies. "
+                        "Could you describe again, in a few words, what offence the police "
+                        "mentioned?"
+                    ),
+                }
+
+            # confirmed is None -- genuinely ambiguous answer, ask the
+            # exact same fact_question again rather than guessing.
+            gate = HIGH_SEVERITY_CONFIRMATION_GATE[pending_high_severity]
+            return {
+                "state": "confirming_offence",
+                "plain_offence_name": gate["plain_offence_name_if_confirmed"],
+                "question": f"Sorry, I want to be precise about this one -- {gate['fact_question']}",
+            }
 
         # Real escape hatch: if the person explicitly says they don't
         # know/aren't sure, honor that rather than forcing a guess or
@@ -857,6 +1093,27 @@ def _attempt_offence_identification(state, message_text):
 
     if suggestion is not None:
         state.offence_clarification_attempts = 0
+
+        # ---------------------------------------------------------------
+        # HIGH-SEVERITY CONFIRMATION GATE -- checked FIRST, before ANY
+        # other logic (including the explicitly-stated skip-confirmation
+        # check below). A high-severity match is NEVER accepted on
+        # semantic similarity alone, even if the person's own words
+        # happen to overlap with the offence name -- e.g. someone saying
+        # "dowry case" does NOT confirm "dowry DEATH" specifically. See
+        # HIGH_SEVERITY_CONFIRMATION_GATE's module-level docstring for
+        # the full confirmed-failure writeup this fixes.
+        # ---------------------------------------------------------------
+        if suggestion["section_number"] in HIGH_SEVERITY_CONFIRMATION_GATE:
+            gate = HIGH_SEVERITY_CONFIRMATION_GATE[suggestion["section_number"]]
+            state._pending_high_severity_section = suggestion["section_number"]
+            state._pending_high_severity_offence_name = gate["plain_offence_name_if_confirmed"]
+            return {
+                "state": "confirming_offence",
+                "plain_offence_name": gate["plain_offence_name_if_confirmed"],
+                "question": gate["fact_question"],
+            }
+
         state._pending_section = suggestion["section_number"]
         state.offence_plain_language = suggestion["plain_offence_name"]
 
@@ -994,3 +1251,18 @@ def _looks_like_dont_know(text):
         "dont know", "no idea", "unsure", "i'm not sure", "im not sure",
     )
     return any(phrase in text_lower for phrase in dont_know_phrases)
+
+
+def _looks_like_no(text):
+    """Deterministic, simple negative detection -- ADDED 2026-08-29 for
+    the high-severity confirmation gate, where correctly distinguishing
+    a clear "no" from a genuinely ambiguous answer matters enough that
+    guessing wrong in either direction has real consequences (silently
+    accepting a rejected high-severity match, or silently rejecting a
+    genuinely confirmed one). Deliberately separate from
+    _looks_like_dont_know() -- "no" and "I don't know" are different
+    answers requiring different handling by the caller."""
+    text_lower = text.strip().lower()
+    negative_words = ("no", "nope", "nah", "not", "did not", "didn't", "hasn't", "has not")
+    return any(text_lower == w or text_lower.startswith(w + " ") or text_lower.startswith(w + ",") for w in negative_words)
+
