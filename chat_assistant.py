@@ -86,6 +86,26 @@ Respond with ONLY a JSON object, no other text:
 
 User's question: {question}"""
 
+def _extract_text_from_response(response):
+    """Shared helper: safely extracts text content from an Anthropic
+    API response, regardless of block order or the presence of
+    non-text blocks (e.g. ThinkingBlock).
+ 
+    FIXED 2026-08-29: every call site in this project previously did
+    `response.content[0].text`, assuming the first content block is
+    always plain text. CONFIRMED REAL FAILURE (in layman_summary.py,
+    same bug class, same session): 'ThinkingBlock' object has no
+    attribute 'text' -- for a sufficiently complex prompt, the model
+    can return a ThinkingBlock as the first content item, followed by
+    the actual TextBlock. Applied here defensively to both call sites
+    in this file (classify_scope now runs on SONNET_MODEL specifically,
+    which is more likely to trigger extended thinking than the
+    original Haiku default this file used to have)."""
+    text_block = next((block for block in response.content if hasattr(block, "text")), None)
+    if text_block is None:
+        raise ValueError("No text block found in response.content -- only non-text blocks returned.")
+    return text_block.text
+
 
 def classify_scope(question):
     """Returns ('in_scope' | 'covered_elsewhere_in_tool' | 'adjacent_uncovered' | 'unrelated', reasoning)

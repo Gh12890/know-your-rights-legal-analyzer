@@ -51,11 +51,15 @@ st.write(
     "notices, Police & Criminal Processes, and Procedures under 106/107 BNSS)"
 )
 
+
 mode = st.radio(
     "What would you like to do?",
     ["I have a document to upload", "I don't have any paper — ask me questions instead",
-     "I have several documents to triage", "I just want to ask something in my own words"]
+     "I have several documents to triage", "I just want to ask something in my own words",
+     "I want to describe my situation and get a real assessment"]
 )
+
+
 
 st.divider()
 
@@ -1100,6 +1104,187 @@ def run_chat_flow():
         "This is general information based on Indian law and court judgments, not legal advice. "
         "For guidance on your specific situation, please consult a qualified lawyer."
     )
+    
+    
+
+
+
+def run_interview_chat_flow():
+    """Free-text conversational compliance-check flow, for a person with
+    NO document who wants to describe their situation in their own words
+    and get a REAL compliance verdict -- not just an explanation like
+    run_chat_flow() gives. Every verdict still comes from
+    run_arrest_compliance_checks(), the SAME function the document-upload
+    and button-based interview flows already use -- this mode only
+    changes HOW the fields get collected (conversation, not a form or a
+    PDF), never how compliance is decided.
+
+    UPDATED 2026-08-29: results now lead with a warm, offence-specific,
+    plain-language summary (layman_summary.py) instead of the
+    lawyer-style structured render as the FIRST thing shown. The
+    existing structured render (render_compliance_ui_main) is still
+    fully available -- just moved behind a "Show full legal breakdown"
+    expander, for when the person (or their lawyer) wants the formal
+    version. Nothing about the underlying verdict changed; this is
+    purely a presentation reorder based on two confirmed real problems:
+    the old default output was offence-generic (never named "theft"
+    even when that's what the checks were about) and assumed a level
+    of legal literacy a stressed layperson often doesn't have.
+
+    Scope: arrest cases only, matching Interview_flow.py's current scope.
+    """
+    from interview_flow import InterviewState, process_turn
+
+    st.write(
+        "Describe what happened, in your own words -- no document needed. "
+        "I'll ask a few follow-up questions, then give you a real assessment "
+        "of whether proper procedure was followed, the same way I would for "
+        "an uploaded document."
+    )
+
+    st.session_state.setdefault("interview_chat_history", [])
+    st.session_state.setdefault("interview_state_obj", InterviewState())
+
+    for turn in st.session_state["interview_chat_history"]:
+        with st.chat_message(turn["role"]):
+            st.markdown(turn["content"])
+
+    
+    if st.session_state.get("interview_chat_results") is not None:
+        results = st.session_state["interview_chat_results"]
+        full_analysis = results["full_analysis"]
+        st.divider()
+ 
+        severity = full_analysis.get("severity", {})
+        if severity.get("severity_color") in ("orange", "red"):
+            st.warning(
+                f"WARNING: {severity.get('severity_label', 'Concerns found')} -- "
+                f"see the summary below for what was found."
+            )
+ 
+        layman_text = results.get("layman_summary")
+        if layman_text:
+            st.markdown("### What this means for you")
+            st.markdown(layman_text)
+        else:
+            st.info(
+                "I have your results, but had trouble putting together a plain-language "
+                "summary. Here's the full breakdown instead:"
+            )
+            render_compliance_ui_main(full_analysis)
+ 
+        st.divider()
+ 
+        if results.get("tier_shown") == 1:
+            st.markdown(
+                "This covers the most important arrest-procedure questions. A few more "
+                "questions would let me check additional safeguards too -- whether your "
+                "family was told, whether a medical exam was done, when the person was "
+                "produced before a court, and whether a chargesheet has been filed yet -- "
+                "entirely optional."
+            )
+            if st.button("Answer a few more quick questions", key="advance_tier_2"):
+                state = st.session_state["interview_state_obj"]
+                state.advance_to_tier_2()
+                next_field, next_question = state.next_question() or (None, None)
+                if next_field is not None:
+                    st.session_state["interview_chat_history"].append(
+                        {"role": "assistant", "content": next_question}
+                    )
+                st.session_state.pop("interview_chat_results", None)
+                st.rerun()
+ 
+        with st.expander("Show full legal breakdown (useful to share with a lawyer)"):
+            render_compliance_ui_main(full_analysis)
+            render_checklist_and_raw(full_analysis)
+ 
+        if st.button("Start over", key="restart_interview_chat"):
+            from interview_flow import InterviewState
+            st.session_state["interview_chat_history"] = []
+            st.session_state["interview_state_obj"] = InterviewState()
+            st.session_state.pop("interview_chat_results", None)
+            st.rerun()
+        return
+
+    user_message = st.chat_input("Describe what happened, or answer the question above...")
+    if not user_message:
+        return
+
+    st.session_state["interview_chat_history"].append({"role": "user", "content": user_message})
+    with st.chat_message("user"):
+        st.markdown(user_message)
+
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            state = st.session_state["interview_state_obj"]
+            try:
+                result = process_turn(state, user_message)
+            except Exception as e:
+                import traceback
+                print(f"=== process_turn DIAGNOSTIC, user_message={user_message!r} ===")
+                traceback.print_exc()
+                print("=== END DIAGNOSTIC ===")
+                result = {"state": "extraction_unavailable", "field_name": None}
+
+        turn_state = result["state"]
+
+        if turn_state in ("awaiting_offence", "offence_unclear", "asking_field"):
+            acknowledgment = result.get("acknowledgment")
+            if acknowledgment:
+                reply = f"{acknowledgment} {result['question']}"
+            else:
+                reply = result["question"]
+                
+        elif turn_state == "confirming_offence":
+            reply = result["question"]
+
+        elif turn_state == "extraction_unavailable":
+            reply = "Sorry, I had trouble understanding that -- could you try rephrasing your answer?"
+
+        elif turn_state == "ready_for_results":
+            compliance_result = result["compliance_result"]
+            bail_pathway = result["bail_pathway"]
+            severity = result["severity"]
+            fields = result["fields_known"]
+            layman_text = result.get("layman_summary")
+
+            full_analysis = {
+                "classification": {
+                    "document_type": "Police & Criminal Process",
+                    "sub_type": "Arrest — reported via free-text conversation (no document)",
+                    "reasoning": "Built from your answers in this conversation, since no document was available.",
+                },
+                "missing_info": {
+                    "missing_or_unclear": [],
+                    "completeness_assessment": "Based on conversational answers only -- not a document review.",
+                },
+                "compliance": compliance_result,
+                "checklist": get_document_checklist("Police & Criminal Process"),
+                "urgency": {"urgency_level": "Cannot Determine", "deadline_message": "N/A for this mode", "days_remaining": None},
+                "severity": severity,
+                "bail_pathway": bail_pathway,
+                "extracted_fields": fields,
+            }
+            st.session_state["interview_chat_results"] = {
+                "full_analysis": full_analysis,
+                "layman_summary": layman_text,
+                "tier_shown": result.get("tier_shown"),
+            }
+            reply = "Thanks -- I have enough to give you a real assessment now. I've put it together below."
+        else:
+            reply = "Something unexpected happened on my end -- please try rephrasing."
+
+        st.markdown(reply)
+
+    st.session_state["interview_chat_history"].append({"role": "assistant", "content": reply})
+
+    if st.session_state.get("interview_chat_results") is not None:
+        st.rerun()
+
+    st.caption(
+        "This is general information based on Indian law and court judgments, not legal advice. "
+        "For guidance on your specific situation, please consult a qualified lawyer."
+    )
 
 
 # =============================================================
@@ -1111,5 +1296,7 @@ elif mode == "I don't have any paper — ask me questions instead":
     run_no_document_flow()
 elif mode == "I just want to ask something in my own words":
     run_chat_flow()
+elif mode == "I want to describe my situation and get a real assessment":
+    run_interview_chat_flow()
 else:
     run_batch_triage_flow()

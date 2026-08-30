@@ -453,7 +453,7 @@ def get_max_years_from_sections(sections_cited):
     specifically, NOT needs_review — a section's punishment can be a clean
     fixed number even when its cognizable/bailable status, a separate
     field, is contingent — confirmed real case: Section 57).
-
+ 
     Months-only sections (e.g. a 3-month ceiling) are real, known, resolved
     punishments — not variable/unresolved ones — so they must not be lumped
     into has_variable. They're tracked separately and only used as a
@@ -462,7 +462,20 @@ def get_max_years_from_sections(sections_cited):
     candidate exists among the cited sections. The raw max_months value
     itself is never silently presented to the person as if it were years —
     that only happens in build_grounded_section_context's own months-aware
-    display line."""
+    display line.
+ 
+    FIXED 2026-08-29: was `BNS_SECTION_DATA.get(clean)` -- a bare lookup
+    with no subsection fallback, same confirmed bug class as
+    check_cognizable_arrest_basis (see _lookup_section_variants'
+    docstring for the full writeup). If ALL variants for a bare section
+    number agree, use that shared value. If they DISAGREE on years/
+    life-or-death, this is now treated the same way multi-condition
+    disagreement is already treated elsewhere in this project (e.g.
+    Section 303(2)'s cognizable/bailable disagreement in
+    _resolve_field_with_conditions): flagged as CONTAINS_VARIABLE
+    rather than silently picking one variant's value, since guessing
+    which subsection actually applies would be a legal classification
+    this function isn't positioned to make."""
     if not sections_cited:
         return None
     candidates = []
@@ -471,9 +484,25 @@ def get_max_years_from_sections(sections_cited):
     has_contingent = False
     for sec in sections_cited:
         clean = str(sec).strip()
-        data = BNS_SECTION_DATA.get(clean)
-        if data is None:
+        variants = _lookup_section_variants(clean)
+        if not variants:
             continue
+ 
+        # If multiple variants exist (e.g. bare "303" matching both
+        # "303(1)" and "303(2)"), and they DISAGREE on max_years or
+        # life_or_death, this is genuinely ambiguous -- which variant
+        # actually applies depends on facts (e.g. first vs. repeat
+        # conviction) this function has no way to know. Flag as
+        # variable rather than silently picking the first one found.
+        variant_datas = [data for _key, data in variants]
+        lod_values = set(d.get("life_or_death") for d in variant_datas)
+        years_values = set(d.get("max_years") for d in variant_datas)
+ 
+        if len(variant_datas) > 1 and (len(lod_values) > 1 or len(years_values) > 1):
+            has_variable = True
+            continue
+ 
+        data = variant_datas[0]
         if data.get("life_or_death") == "contingent":
             has_contingent = True
             continue
@@ -863,7 +892,44 @@ def _resolve_field_with_conditions(entry, field_name):
     # legal classification decision this function shouldn't make.
     return "contingent"
 
-  
+
+def _lookup_section_variants(sec):
+    """Shared helper: given a bare or subsection-qualified section number,
+    return every matching BNS_SECTION_DATA entry -- the exact bare key if
+    it exists, plus every subsection variant (e.g. "303" -> "303(2)").
+ 
+    ADDED 2026-08-29 to fix a confirmed real bug found via
+    interview_flow.py: multiple functions in this file
+    (check_cognizable_arrest_basis, get_max_years_from_sections,
+    compute_bail_pathway_info, check_fir_no_arrest_status) each had
+    their OWN bare `sec in BNS_SECTION_DATA` / `.get(sec)` lookup with
+    no subsection fallback. BNS_SECTION_DATA keys 239 of 436 entries
+    (55%) by subsection only (e.g. "303(2)", not bare "303") --
+    confirmed via a real conversation where a correctly-identified,
+    correctly-confirmed "theft" offence (section "303") produced
+    "section not recognized" on every single check, because no bare
+    "303" key exists. This is the SAME bug class
+    semantic_retrieval.py's find_relevant_sections() already found and
+    fixed for its own purposes -- centralized here as ONE shared helper
+    so every caller gets the fix consistently, rather than requiring
+    the same subsection-variant logic to be independently reimplemented
+    (and potentially forgotten) in every function that reads
+    BNS_SECTION_DATA.
+ 
+    Returns: list of (matched_key, data_dict) tuples, in this order:
+        - the exact bare key's data first, if it exists
+        - every subsection variant, sorted by key, otherwise
+    Returns an empty list if nothing matches at all.
+    """
+    results = []
+    if sec in BNS_SECTION_DATA:
+        results.append((sec, BNS_SECTION_DATA[sec]))
+    variant_keys = sorted(k for k in BNS_SECTION_DATA if k.startswith(f"{sec}("))
+    for k in variant_keys:
+        results.append((k, BNS_SECTION_DATA[k]))
+    return results
+
+
 def check_cognizable_arrest_basis(f):
     req = "Threshold basis for arrest without warrant [cognizability of the offence]"
  
@@ -875,7 +941,25 @@ def check_cognizable_arrest_basis(f):
             "No recognised section cited; whether the offence is cognizable (permitting arrest without "
             "warrant) cannot be established.")
  
-    known_entries = [BNS_SECTION_DATA[sec] for sec in cleaned if sec in BNS_SECTION_DATA]
+    # FIXED 2026-08-29: was `[BNS_SECTION_DATA[sec] for sec in cleaned if
+    # sec in BNS_SECTION_DATA]` -- a BARE lookup with no subsection
+    # fallback. CONFIRMED REAL FAILURE: interview_flow.py's offence
+    # confirmation writes bare section numbers into sections_cited
+    # (e.g. "303" for theft, matched via semantic search against the
+    # embedded statute text which is chunked at the bare top-level
+    # section boundary). BNS_SECTION_DATA has NO bare "303" key --
+    # only "303(2)" -- so known_entries came back completely empty
+    # despite the person correctly confirming "theft", and every
+    # downstream check wrongly reported "section not recognized". This
+    # is the SAME subsection-collision bug semantic_retrieval.py's
+    # find_relevant_sections() already found and fixed for its own
+    # purposes (BNS_SECTION_DATA keys 239 of 436 entries, 55%, by
+    # subsection, not the bare number) -- reusing that same
+    # every-subsection-variant pattern here.
+    known_entries = []
+    for sec in cleaned:
+        known_entries.extend(data for _key, data in _lookup_section_variants(sec))
+ 
     if not known_entries:
         return _result(req, "Cannot Determine",
             "Cited section(s) not recognised in the lookup table; cognizability status cannot be established.")
@@ -913,7 +997,7 @@ def check_cognizable_arrest_basis(f):
         "The cited offences have MIXED cognizability — some are cognizable, some are not. Whether the arrest "
         "was lawful depends on which specific offence the arrest power was actually exercised under; this "
         "cannot be determined automatically from the combined citation list. Verify from the case record.")
-
+ 
 
     
     
@@ -1197,10 +1281,24 @@ def compute_bail_pathway_info(sections_cited):
     """Informational only — NOT a compliance verdict, and must never be folded
     into compliance_checks or the severity score. Tells the family what kind
     of bail process applies: police-station bail (bailable) vs. court-only
-    bail (non-bailable)."""
+    bail (non-bailable).
+ 
+    FIXED 2026-08-29: was `[(sec, BNS_SECTION_DATA[sec]) for sec in
+    cleaned if sec in BNS_SECTION_DATA]` -- same confirmed bare-lookup
+    bug class as check_cognizable_arrest_basis. Now uses the shared
+    _lookup_section_variants helper; when multiple variants exist for
+    one bare section, each is checked independently and the existing
+    "mixed" pathway logic below already handles disagreement honestly
+    (no new special-casing needed here, since a mix of bailable/
+    non-bailable variants is exactly the "mixed" case this function
+    already reports)."""
     cleaned = [re.sub(r'\s*(BNS|IPC|BNSS|CrPC)\s*$', '', str(s).strip(), flags=re.IGNORECASE).strip()
                for s in (sections_cited or [])]
-    known_entries = [(sec, BNS_SECTION_DATA[sec]) for sec in cleaned if sec in BNS_SECTION_DATA]
+ 
+    known_entries = []
+    for sec in cleaned:
+        for matched_key, data in _lookup_section_variants(sec):
+            known_entries.append((matched_key, data))
  
     if not known_entries:
         return {
@@ -1209,10 +1307,6 @@ def compute_bail_pathway_info(sections_cited):
                        "police station or only by a court cannot be determined from this information."
         }
  
-    # CHANGED 2026-08-28: was `data.get("bailable") == "contingent"`,
-    # same fix and same reasoning as check_cognizable_arrest_basis
-    # above -- see _resolve_field_with_conditions for the full
-    # confirmed-bug writeup.
     resolved = [(sec, _resolve_field_with_conditions(data, "bailable")) for sec, data in known_entries]
  
     contingent_sections = [sec for sec, val in resolved if val == "contingent"]
@@ -1568,7 +1662,25 @@ POLICE_ROUTES ={
      "Summons to Vulnerable Person": (VULNERABLE_EXTRACTION_PROMPT, run_vulnerable_compliance_checks),
      "FIR / Complaint - No Arrest Yet": (FIR_NO_ARREST_EXTRACTION_PROMPT, run_fir_no_arrest_checks),
 }
+
+def _extract_text_from_response(response):
+    """Shared helper: safely extracts text content from an Anthropic
+    API response, regardless of block order or the presence of
+    non-text blocks (e.g. ThinkingBlock).
  
+    FIXED 2026-08-29: every `.content[0].text` call site in this
+    project previously assumed the first content block is always plain
+    text. CONFIRMED REAL FAILURE (layman_summary.py, same session):
+    'ThinkingBlock' object has no attribute 'text' -- for a
+    sufficiently complex prompt, the model can return a ThinkingBlock
+    as the first content item, followed by the actual TextBlock.
+    Applied defensively across every extraction call in this file."""
+    text_block = next((block for block in response.content if hasattr(block, "text")), None)
+    if text_block is None:
+        raise ValueError("No text block found in response.content -- only non-text blocks returned.")
+    return text_block.text
+
+
 def run_police_pipeline(document_text):
     """Classify a police document into a sub type , extract fields  , run subtype-specific checks."""
     r = client.messages.create(
