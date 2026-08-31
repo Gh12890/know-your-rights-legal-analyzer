@@ -1345,13 +1345,45 @@ def compute_bail_pathway_info(sections_cited):
     }
 
 def check_freeze_section_and_scope(f):
-    req = "Blanket freeze under 106/107 BNSS restrcited to disputed amount [High Court trend]"
+    """UPDATED 2026-08-30: added real citations to Neelkanth Pharma
+    Logistics Pvt. Ltd. v Union of India (Delhi HC, 2025) and Malabar
+    Gold and Diamond Limited v Union of India (Delhi HC, 2026), sourced
+    and verified this session -- previously this check's "High Court
+    trend" reference (Karnataka, Kerala, Bombay) was an assertion with
+    no actual case law behind it in this project's corpus. Also uses
+    specific_amount_stated, when available, to make the Non-Compliant
+    message concretely reference the actual disputed sum rather than a
+    generic statement."""
+    req = "Blanket freeze under 106/107 BNSS restricted to disputed amount [Neelkanth Pharma Logistics (2025) / Malabar Gold (2026)]"
     scope = f.get("scope")
+    specific_amount = f.get("specific_amount_stated")
+ 
     if scope == "specific disputed amount":
-        return _result (req, "Compliant", "Freeze scope limited to specific disputed amount.")
+        return _result(req, "Compliant",
+            "Freeze scope limited to specific disputed amount -- this is the proportionate approach "
+            "favoured in Neelkanth Pharma Logistics Pvt. Ltd. v Union of India (Delhi High Court, "
+            "2025), which recommends marking a lien on the disputed sum over freezing an account in "
+            "its entirety.")
+ 
     if scope == "entire account":
-        return _result(req, "Non-Compliant", "Entire account frozen. High Courts (Karnataka, Kerala,Bombay) have held blanket freezes disproportionate.")
-    return _result (req, "Cannot Determine", "Freeze scope not stated in document.")
+        if specific_amount is not None and specific_amount != "":
+            return _result(req, "Non-Compliant",
+                f"Entire account frozen, despite a specific disputed amount (Rs. {specific_amount}) "
+                f"being identifiable. Per Neelkanth Pharma Logistics Pvt. Ltd. v Union of India (Delhi "
+                f"High Court, 2025), freezing an entire account rather than the specific disputed sum "
+                f"can be disproportionate and a violation of Article 21 -- the Court there noted that a "
+                f"full freeze causes serious consequences (dishonoured cheques, business disruption) "
+                f"unrelated to the disputed amount itself. Malabar Gold and Diamond Limited v Union of "
+                f"India (Delhi High Court, 2026) independently holds blanket freezing of non-accused, "
+                f"non-suspect account holders arbitrary and disproportionate.")
+        return _result(req, "Non-Compliant",
+            "Entire account frozen. High Courts have held blanket freezes disproportionate -- see "
+            "Neelkanth Pharma Logistics Pvt. Ltd. v Union of India (Delhi High Court, 2025) and Malabar "
+            "Gold and Diamond Limited v Union of India (Delhi High Court, 2026). If a specific disputed "
+            "amount can be identified, that strengthens the case that a full freeze was "
+            "disproportionate -- worth establishing this figure directly.")
+ 
+    return _result(req, "Cannot Determine", "Freeze scope not stated in document.")
 
 def check_freeze_magistrate_intimation(f):
     req = "Seizure/freeze intimated forthwith to Magistrate [S.106 BNSS]"
@@ -1363,27 +1395,111 @@ def check_freeze_magistrate_intimation(f):
     return _result(req, "Cannot Determine", "magistrate intimation not clearly stated.")
 
 def check_freeze_107_court_order(f):
-    req = "Attachment/freeze authorized via Section 107 BNSS court intimation"
+    """UPDATED 2026-08-30: added real citations to Malabar Gold and
+    Diamond Limited v Union of India (Delhi HC, 2026) and State of
+    Maharashtra v Tapas D. Neogy, (1999) 7 SCC 685, sourced and
+    verified this session -- previously this check's requirement text
+    referenced Section 107 BNSS generically with no case law attached.
+    Malabar Gold directly establishes that Section 106 alone can NEVER
+    authorise a freeze/attachment (only evidentiary seizure) -- the
+    existing final fallback branch already correctly routed non-107
+    sections to "verify whether the correct attachment procedure was
+    followed"; this update adds an explicit branch for Section 106
+    specifically, citing the doctrine, since that is the single most
+    common real defect pattern the new judgments describe."""
+    req = "Attachment/freeze authorized via Section 107 BNSS court order [Malabar Gold (2026) / Tapas D. Neogy (1999)]"
     section = f.get("section_invoked")
+ 
     if section == "107 BNSS":
         v = f.get("court_order_referenced_for_107")
         if v is True:
-            return _result(req, "Compliant", "Court order under S.107 BNSS is referenced.")
+            return _result(req, "Compliant",
+                "Court order under S.107 BNSS is referenced, consistent with the requirement in Malabar "
+                "Gold and Diamond Limited v Union of India (Delhi High Court, 2026) that "
+                "attachment/freezing of bank accounts can only be done strictly upon the order of a "
+                "competent Magistrate.")
         if v is False:
-            return _result(req, "Non-Compliant", "S.107 BNSS invoked but no referenced court order. Attachment requires prior judicial sanction.")
+            return _result(req, "Non-Compliant",
+                "S.107 BNSS invoked but no referenced court order. Per Malabar Gold and Diamond Limited "
+                "v Union of India (Delhi High Court, 2026), attachment requires prior judicial sanction "
+                "-- absence of any such order being shown is a real basis to challenge the freeze's "
+                "legality, and the account holder may request the investigating authority to produce "
+                "it.")
         return _result(req, "Cannot Determine", "Court order referenced for S.107 unclear.")
+ 
+    if section == "106 BNSS":
+        return _result(req, "Non-Compliant",
+            "The freeze is recorded as being carried out under Section 106 BNSS. Per Malabar Gold and "
+            "Diamond Limited v Union of India (Delhi High Court, 2026), Section 106 empowers police "
+            "only to seize property for evidentiary purposes -- it confers NO authority to attach or "
+            "debit-freeze a bank account. This doctrine traces back to the Supreme Court's foundational "
+            "holding in State of Maharashtra v Tapas D. Neogy, (1999) 7 SCC 685, that a bank account is "
+            "\"property\" seizable only with a genuine investigative nexus. Freezing or attaching funds "
+            "as suspected proceeds of crime can only be done under Section 107 BNSS, strictly upon the "
+            "order of a competent Magistrate. If no Section 107 order was obtained, this freeze may be "
+            "unauthorised and legally vulnerable to challenge.")
+ 
     if section == "none cited":
-        return _result(req, "May be Non-Compliant", "No legal section was cited to justify this freeze at all. Account/property attachment is supposed to proceed under Section 107 BNSS with Magistrate intimation. A freeze effected without invoking this process, on bare police request alone, may be illegal.")
-    return _result(req, "Cannot Determine", f"Freeze invoked under '{section}', not Section 107 BNSS — verify whether the correct attachment procedure was followed.")
+        return _result(req, "May be Non-Compliant",
+            "No legal section was cited to justify this freeze at all. Account/property attachment is "
+            "supposed to proceed under Section 107 BNSS with Magistrate intimation. A freeze effected "
+            "without invoking this process, on bare police request alone, may be illegal -- see Malabar "
+            "Gold and Diamond Limited v Union of India (Delhi High Court, 2026).")
+ 
+    return _result(req, "Cannot Determine",
+        f"Freeze invoked under '{section}', not Section 107 BNSS -- verify whether the correct "
+        f"attachment procedure was followed.")
+    
 
 def check_freeze_holder_intimation(f):
-    req ="Account holder intimated of freeze"
+    """UPDATED 2026-08-30: added a real, verified citation to Malabar
+    Gold and Diamond Limited v Union of India (Delhi HC, 2026),
+    fallback_8, which directly holds that account holders are "at the
+    very least, entitled to be informed of the reasons for freezing
+    their bank accounts" -- confirmed verbatim in the primary text.
+
+    IMPORTANT LEGAL CORRECTION from the previous version: the earlier
+    wording ("violated basic notice principles") did not distinguish
+    PRE-freeze notice from POST-freeze intimation -- a real, material
+    distinction confirmed via web search (2026-08-30). An Allahabad
+    High Court ruling (reported as Ashish Rawat v Union of India,
+    cited as 2026:AHC:78406-DB) explicitly held that "prior notice to
+    the account holder is not a prerequisite for freezing under
+    Section 106 BNSS" -- meaning a freeze is NOT rendered unlawful
+    merely for lacking advance warning. The same reporting confirms
+    courts have separately required POST-freeze notification, ordering
+    that "banks must inform account holders after freezing." This
+    check is about POST-freeze intimation specifically (per its field
+    name and framing "discovered only at bank/ATM"), now made explicit
+    below rather than left ambiguous.
+
+    NOTE ON SOURCING: the Allahabad HC case itself could NOT be
+    located or independently verified via indiankanoon_client.py
+    despite multiple search attempts (party name, party name + subject
+    terms, and the reported neutral citation number all returned no
+    match). Per this project's standing discipline, an unverified
+    secondary-source case is NOT cited as an authority here. The
+    citation below rests entirely on Malabar Gold, which IS
+    independently verified against primary text (fallback_8)."""
+    req = "Account holder intimated of freeze after the fact [Malabar Gold (2026)]"
     v = f.get("account_holder_intimated")
     if v is True:
-        return _result(req, "Compliant", "Account holder intimated of the freeze.")
+        return _result(req, "Compliant",
+            "Account holder intimated of the freeze. This is consistent with Malabar Gold and Diamond "
+            "Limited v Union of India (Delhi High Court, 2026), which holds that an account holder is "
+            "\"at the very least, entitled to be informed of the reasons for freezing their bank "
+            "accounts.\"")
     if v is False:
-        return _result(req, "Non-Compliant", "Account holder not intimated. Freeze discovered only at bank/ATM violated basic notice principles.")
+        return _result(req, "May be Non-Compliant",
+            "Account holder not intimated -- the freeze was discovered only at the bank/ATM. Per "
+            "Malabar Gold and Diamond Limited v Union of India (Delhi High Court, 2026), an account "
+            "holder is \"at the very least, entitled to be informed of the reasons for freezing their "
+            "bank accounts.\" Note: BNSS does not require notice BEFORE a freeze -- this concerns the "
+            "absence of any intimation AFTER the fact, which the account holder can raise directly with "
+            "the investigating authority or bank.")
     return _result(req, "Cannot Determine", "Account holder intimation status unclear.")
+
+
 
 def run_freeze_compliance_checks(fields):
     checks = [
