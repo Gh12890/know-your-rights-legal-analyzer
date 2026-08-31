@@ -292,7 +292,117 @@ JUDGMENT_CITATION_MAP = {
             "unambiguous, single occurrences each."
         ),
     },
+    
+    "tapas_d_neogy_bank_account_as_property": {
+        "case_key": "tapas_d_neogy",
+        "paragraph_numbers": ["fallback_4", "fallback_6"],
+        "opinion_author": None,
+        "verified_note": (
+            "Confirmed via direct chunk inspection (2026-08-30): "
+            "fallback_4 contains Section 102 CrPC's actual provisions as "
+            "extracted and examined by the Court ('Coming now to the "
+            "provisions of Section 102 of the Code of Criminal "
+            "Procedure, the said provisions are extracted herein below "
+            "in extenso'). fallback_6 contains the Court's own core "
+            "reasoning on why a bank account qualifies as 'property' "
+            "capable of seizure -- the money-becomes-unidentifiable-once-"
+            "mixed analysis. Other fallback chunks in this document "
+            "(fallback_7 through fallback_10) are the Court SURVEYING "
+            "other courts' prior decisions before reaching its own "
+            "conclusion -- useful context but not the holding itself, "
+            "deliberately not cited here to keep the citation focused on "
+            "the Court's own reasoning. Chunked via fixed_size_fallback "
+            "since no genuine ascending paragraph-number sequence was "
+            "found in this document -- confirmed via direct regex "
+            "inspection, same limitation this corpus already accepts "
+            "for Arnesh Kumar. judgment_qa.py flagged this document's "
+            "caption/closing as unrecognised -- CONFIRMED FALSE POSITIVE "
+            "(direct text check, 2026-08-30): both the opening and "
+            "closing are genuine, complete, real judgment text; the QA "
+            "tool's pattern-matching was calibrated against the "
+            "PDF-extraction path's typical caption/closing format and "
+            "does not yet recognise this document's real but "
+            "differently-formatted caption/closing (sourced via the "
+            "HTML/API path, not a downloaded PDF)."
+        ),
+    },
+    "neelkanth_blanket_freeze_disproportionate": {
+        "case_key": "neelkanth_pharma_logistics",
+        "paragraph_numbers": ["11", "12"],
+        "opinion_author": None,
+        "verified_note": (
+            "Confirmed via direct chunk inspection (2026-08-30): "
+            "paragraph 11 states the core fact pattern (an account with "
+            "a Rs. 93,50,05,208/- balance frozen entirely over an "
+            "innocuous Rs. 200/- credit) and the Court's finding that "
+            "there is nothing to suggest the petitioner is a suspect or "
+            "accused. Paragraph 12 (FIRST occurrence -- see duplicate "
+            "note below) is the Court's own direct holding that freezing "
+            "the entire account, rather than preserving only the "
+            "disputed Rs. 200/-, caused serious adverse financial "
+            "consequences including dishonoured cheques and business "
+            "disruption. IMPORTANT -- CONFIRMED REAL DUPLICATE "
+            "(judgment_qa.py flagged this, verified by direct chunk "
+            "comparison, 2026-08-30): paragraph '12' appears TWICE in "
+            "this document's chunks. The SECOND occurrence "
+            "('...doubtful if the amounts in question could be even "
+            "recovered from the petitioners...proceeds of crime.') is "
+            "NOT this Court's own reasoning -- it is the tail end of a "
+            "quoted excerpt from Dr. Sajir v. Reserve Bank of India, "
+            "2023 SCC OnLine Ker 9087, which this judgment quotes at "
+            "length. Only the FIRST occurrence of paragraph 12 (this "
+            "Court's own text) should be treated as Neelkanth's holding; "
+            "retrieval.py's get_judgment_doctrine returns both "
+            "occurrences by design (same honest-collision pattern used "
+            "elsewhere in this project) -- any renderer surfacing this "
+            "doctrine should make clear which fragment is being shown if "
+            "both appear. SCOPE LIMITATION: this judgment does NOT "
+            "engage with BNSS Sections 106/107's specific textual scheme "
+            "(confirmed by direct text search) -- it argues purely from "
+            "Article 21/proportionality principles, complementary to but "
+            "distinct from Malabar Gold's BNSS-textual holding below."
+        ),
+    },
+    "malabar_gold_section_106_107_textual_holding": {
+        "case_key": "malabar_gold",
+        "paragraph_numbers": ["fallback_22", "fallback_24"],
+        "opinion_author": None,
+        "verified_note": (
+            "Confirmed via direct chunk inspection (2026-08-30): "
+            "fallback_22 states that the Investigating Agency may "
+            "proceed under Section 107 BNSS to debit-freeze or attach "
+            "funds, framing this as the ONLY lawful route (as opposed to "
+            "Section 106, which the Court holds is evidentiary-seizure-"
+            "only). fallback_24 contains the Court's direct holding that "
+            "'any blanket or disproportionate freezing of bank accounts' "
+            "is impermissible absent the proper Section 107 procedure. "
+            "OTHER RELEVANT CHUNKS NOT CITED HERE, noted for "
+            "completeness: fallback_16, fallback_17, and fallback_19 "
+            "also discuss the Section 106/107 distinction and reference "
+            "Kartik Yogeshwar Chatur v. Union of India (Bombay HC, 2025 "
+            "SCC OnLine Bom 4778, NOT independently sourced/verified in "
+            "this corpus yet) -- fallback_16 and fallback_17 open with a "
+            "quotation mark and appear to be quoting another source "
+            "rather than this Court's own direct language, so were not "
+            "selected as the primary citation. CONFIRMED DATA-QUALITY "
+            "NOTE (2026-08-30): this document's fixed_size_fallback "
+            "chunking has scattered a recurring Delhi HC digital-"
+            "signature portal footer into multiple chunks throughout the "
+            "document (confirmed at fallback_14, fallback_18, "
+            "fallback_23) -- this appears to repeat multiple times "
+            "within the source HTML, unlike the single-footer-per-page "
+            "pattern this project's PDF-extraction pipeline already "
+            "handles. Not a content-loss issue (the real holding text is "
+            "fully intact in the chunks cited above), but worth knowing "
+            "this footer-noise pattern exists for this HTML-sourced "
+            "document specifically. judgment_qa.py flagged this "
+            "document's caption/closing as unrecognised -- CONFIRMED "
+            "FALSE POSITIVE (direct text check, 2026-08-30), same "
+            "reasoning as Tapas D. Neogy's note above."
+        ),
+    },
 }
+
 
 
 def get_judgment_doctrine(doctrine_key):
