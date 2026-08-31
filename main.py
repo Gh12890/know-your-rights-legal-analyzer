@@ -202,14 +202,234 @@ def check_amount_match(fields: dict) -> dict:
     return _result(req, "Compliant", f"Demand matches face value (Rs.{face:,}); interest not improperly bundled.")
 
 
-def check_enforceable_debt(fields: dict) -> dict:
-    req = "Cheque issued for legally enforceable debt [Laxmi Dyechem]"
-    purpose = str(fields.get("cheque_purpose", "unclear")).lower()
-    if purpose == "debt":
-        return _result(req, "Compliant", "Notice frames the cheque as issued for a debt/liability.")
-    if purpose in ("security", "advance"):
-        return _result(req, "Non-Compliant", f"Notice frames the cheque as '{purpose}', not an enforceable debt.")
-    return _result(req, "Cannot Determine", "Purpose of the cheque is unclear from the text.")
+def explain_debt_presumption_status(f):
+    """NEW 2026-08-30: REPLACES check_enforceable_debt entirely.
+    check_enforceable_debt is RETIRED -- it treated "was this cheque
+    for an enforceable debt" as a fact the tool could determine from a
+    notice's self-description, returning a flat Compliant/Non-Compliant
+    verdict. This is legally backwards per Rangappa v Sri Mohan,
+    (2010) 11 SCC 441, paragraphs 14 and 34: Section 139's presumption
+    of a legally enforceable debt is MANDATORY once the cheque
+    signature is admitted/proved -- the complainant does not need to
+    prove enforceability upfront; it is presumed. The accused can only
+    rebut this on a PREPONDERANCE OF PROBABILITIES, not by merely
+    asserting a defence.
+
+    This function is DELIBERATELY INFORMATIONAL, never a compliance
+    verdict -- same "explain, don't decide" pattern as
+    compute_bail_pathway_info elsewhere in this project.
+
+    Also incorporates Bir Singh v Mukesh Kumar, (2019) 4 SCC 197,
+    paragraph 40: a blank cheque, voluntarily signed and handed over
+    by the accused and later filled in by the payee, STILL attracts
+    the Section 139 presumption -- "it was a blank cheque" is NOT, by
+    itself, a fact that defeats enforceability.
+
+    NOT YET COVERED (flagged, not silently omitted): whether an
+    informal/undocumented ("friendly") loan defeats the presumption is
+    NOT resolved by any case verified in this project as of 2026-08-30
+    -- an earlier draft of this analysis incorrectly attributed this
+    claim to Bir Singh; direct re-verification confirmed Bir Singh's
+    mention of a "friendly loan" was ONLY in the facts recitation
+    (paragraph 3, describing the complainant's allegation), never
+    stated as a Court holding. This function makes no claim about
+    informal loans."""
+    was_blank = f.get("cheque_was_blank_when_signed")
+    result_text_parts = [
+        "Under Section 139 of the Negotiable Instruments Act, once the cheque signature is admitted "
+        "or proved, the law PRESUMES the cheque was issued for a legally enforceable debt or liability "
+        "-- this presumption is mandatory, per Rangappa v Sri Mohan (2010) 11 SCC 441. The complainant "
+        "does not need to separately prove enforceability; the burden is on the accused to rebut this "
+        "presumption, and that rebuttal must clear a preponderance-of-probabilities standard -- a bare "
+        "denial or assertion that 'this wasn't a real debt' is not, by itself, sufficient."
+    ]
+
+    if was_blank is True:
+        result_text_parts.append(
+            "A blank cheque, voluntarily signed and handed over, does NOT avoid this presumption -- "
+            "per Bir Singh v Mukesh Kumar (2019) 4 SCC 197, even a blank cheque leaf later filled in by "
+            "the payee still attracts the Section 139 presumption. This is not, by itself, a valid "
+            "defence."
+        )
+
+    return {
+        "topic": "Debt presumption under Section 139 [Rangappa (2010) / Bir Singh (2019)]",
+        "explanation": " ".join(result_text_parts),
+        "note": "This is informational, not a compliance verdict -- enforceability is a legal "
+                "presumption the case itself resolves, not a fact this tool can determine from a "
+                "notice alone.",
+    }
+
+
+def compute_settlement_cost_incentive(fields):
+    """NEW 2026-08-30: informational sidebar, per Damodar S. Prabhu v
+    Sayed Babalal H, (2010) 5 SCC 663, paragraph 15 -- establishes a
+    graduated cost scheme for compounding a Section 138 case,
+    escalating the later it happens. Deliberately NEVER folded into
+    compliance_checks -- same pattern as compute_bail_pathway_info
+    elsewhere in this project.
+
+    Args:
+        fields: expects a 'case_stage' field with one of:
+            "pre_trial", "convicted_at_trial_court", "on_appeal_hc",
+            "on_appeal_sc", or "unclear".
+
+    Returns:
+        dict with 'pathway' and 'message'.
+    """
+    stage = fields.get("case_stage", "unclear")
+
+    if stage == "pre_trial":
+        return {
+            "pathway": "low_cost_compounding_available",
+            "message": "If the case is compounded (settled) now, at the pre-trial stage, minimal or no "
+                       "cost is likely to be imposed. Per Damodar S. Prabhu v Sayed Babalal H (2010) 5 "
+                       "SCC 663, the Supreme Court has established a framework encouraging early "
+                       "settlement precisely because the cost of settling rises sharply the longer the "
+                       "case continues. If the accused offers to pay the cheque amount unconditionally "
+                       "at the first hearing and the complainant accepts, the case can often be closed "
+                       "immediately at essentially no cost.",
+        }
+    if stage == "convicted_at_trial_court":
+        return {
+            "pathway": "escalated_cost_compounding",
+            "message": "Compounding remains available even after conviction at the trial court -- per "
+                       "Damodar S. Prabhu v Sayed Babalal H (2010) 5 SCC 663, compounding is not barred "
+                       "post-conviction, but a real cost (in that judgment's framework, in the range of "
+                       "10% of the cheque amount, payable to a legal aid fund) may now apply.",
+        }
+    if stage == "on_appeal_hc":
+        return {
+            "pathway": "escalated_cost_compounding",
+            "message": "Compounding remains available at the High Court appeal stage -- per Damodar S. "
+                       "Prabhu v Sayed Babalal H (2010) 5 SCC 663, the cost of compounding at this stage "
+                       "escalates further (in that judgment's framework, in the range of 15% of the "
+                       "cheque amount).",
+        }
+    if stage == "on_appeal_sc":
+        return {
+            "pathway": "escalated_cost_compounding",
+            "message": "Compounding remains available even at the Supreme Court stage -- per Damodar S. "
+                       "Prabhu v Sayed Babalal H (2010) 5 SCC 663, the cost of compounding at this stage "
+                       "is highest (in that judgment's framework, in the range of 20% of the cheque "
+                       "amount).",
+        }
+    return {
+        "pathway": "unknown",
+        "message": "The stage of the case is not known, so the applicable settlement-cost band under "
+                   "Damodar S. Prabhu v Sayed Babalal H (2010) 5 SCC 663 cannot be stated -- but note "
+                   "generally that compounding a Section 138 case becomes progressively more costly the "
+                   "later it happens, so settling early is generally favourable if settlement is being "
+                   "considered at all.",
+    }
+
+
+def check_amount_match(fields: dict) -> dict:
+    """CORRECTED 2026-08-30: previously treated ANY co-mention of
+    interest/costs alongside the principal amount as an automatic
+    Non-Compliant defect, regardless of whether the cheque amount was
+    still specifically identifiable. This is NOT what the actual case
+    law holds. CONFIRMED via Kaveri Plastics v Mahdoom Bawa Bahrudeen
+    Noorul (Supreme Court, 19 September 2025), paragraph 14, which
+    directly quotes Suman Sethi v Ajay K. Churiwal, (2000) 2 SCC 380:
+    a demand notice must specifically demand the CHEQUE AMOUNT itself
+    ('the said amount') -- but additional amounts (interest, costs)
+    mentioned ALONGSIDE the cheque amount do NOT, by themselves,
+    invalidate the notice, PROVIDED the cheque amount remains
+    specifically and severably demanded. Kaveri Plastics itself was
+    decided on a genuine AMOUNT MISMATCH (the notice demanded a
+    different figure than the actual cheque) -- that is the real
+    defect the case law protects against, not mere co-mention of
+    interest."""
+    req = "Demand specifically states the correct cheque amount [Suman Sethi (2000) via Kaveri Plastics (2025)]"
+    face = fields.get("cheque_face_value")
+    demand = fields.get("demand_principal_amount")
+    if face is None or demand is None:
+        return _result(req, "Cannot Determine", "Cheque value or demand amount missing.")
+
+    if face != demand:
+        return _result(req, "Non-Compliant",
+            f"Demand (Rs.{demand:,}) does not match cheque face value (Rs.{face:,}). Per Kaveri "
+            f"Plastics v Mahdoom Bawa Bahrudeen Noorul (Supreme Court, 2025), a notice demanding an "
+            f"amount that does not match the actual cheque -- even where the mismatch is claimed to be "
+            f"a typographical error -- can be fatal to the complaint, since the notice must specifically "
+            f"and correctly state the cheque amount.")
+
+    return _result(req, "Compliant",
+        f"Demand matches face value (Rs.{face:,}). Per Suman Sethi v Ajay K. Churiwal, (2000) 2 SCC "
+        f"380 (as quoted in Kaveri Plastics v Mahdoom Bawa Bahrudeen Noorul, Supreme Court, 2025), a "
+        f"notice that also mentions interest or costs alongside the correctly-stated cheque amount is "
+        f"not, by itself, defective -- what matters is that the cheque amount itself is specifically "
+        f"and severably demanded, which is satisfied here.")
+
+
+def check_jurisdiction(fields):
+    """NEW 2026-08-30: per Prakash Chimanlal Sheth v Jagruti Keyur
+    Rajpopat, 2025 INSC 897, paragraphs 7-8 -- a Section 138 complaint
+    must be filed at the place where the cheque was PRESENTED FOR
+    COLLECTION and dishonoured (per Section 142(2) NI Act and the
+    Constitution Bench framework in Dashrath Rupsingh Rathod v State
+    of Maharashtra, 2014) -- not wherever the complainant resides, not
+    where the loan was advanced, not where the demand notice was sent
+    from."""
+    req = "Complaint filed where cheque was presented for collection [Prakash Chimanlal Sheth (2025) / S.142(2) NI Act]"
+
+    presentation_location = fields.get("cheque_presentation_bank_location")
+    filing_location = fields.get("complaint_filed_location")
+
+    if presentation_location is None or filing_location is None:
+        return _result(req, "Cannot Determine",
+            "Where the cheque was presented for collection, and/or where the complaint was actually "
+            "filed, is not established from this information. This matters directly: per Prakash "
+            "Chimanlal Sheth v Jagruti Keyur Rajpopat (2025 INSC 897) and Section 142(2) NI Act, "
+            "jurisdiction lies specifically where the cheque was presented for collection through the "
+            "payee's bank -- not wherever is most convenient for the complainant.")
+
+    if str(presentation_location).strip().lower() == str(filing_location).strip().lower():
+        return _result(req, "Compliant",
+            "The complaint is recorded as filed at the same location where the cheque was presented "
+            "for collection, consistent with Section 142(2) NI Act and Prakash Chimanlal Sheth v "
+            "Jagruti Keyur Rajpopat (2025 INSC 897).")
+
+    return _result(req, "Non-Compliant",
+        f"The complaint is recorded as filed at '{filing_location}', but the cheque was presented for "
+        f"collection at '{presentation_location}'. Per Section 142(2) NI Act and Prakash Chimanlal "
+        f"Sheth v Jagruti Keyur Rajpopat (2025 INSC 897), jurisdiction lies specifically where the "
+        f"cheque was presented for collection -- a mismatch here is a real, threshold defect that can "
+        f"result in the complaint being quashed or transferred, independent of the case's merits.")
+
+
+def run_compliance_checks(fields: dict) -> dict:
+    """UPDATED 2026-08-30: check_enforceable_debt REMOVED from
+    compliance_checks entirely (retired -- see
+    explain_debt_presumption_status's docstring for why treating
+    enforceability as a pass/fail compliance question was legally
+    backwards per Rangappa v Sri Mohan). check_jurisdiction ADDED.
+    check_amount_match CORRECTED. The presumption explanation and
+    settlement-cost incentive are DELIBERATELY NOT included here --
+    they are informational, not compliance verdicts, and should be
+    surfaced separately by the UI layer via
+    explain_debt_presumption_status() and
+    compute_settlement_cost_incentive(), same pattern as
+    compute_bail_pathway_info being kept separate from
+    compliance_checks elsewhere in this project."""
+    checks = [
+        check_30_day_window(fields),
+        check_amount_match(fields),
+        check_15_day_payment_window(fields),
+        check_jurisdiction(fields),
+    ]
+    non_compliant = [c for c in checks if c["status"] == "Non-Compliant"]
+    undetermined = [c for c in checks if c["status"] == "Cannot Determine"]
+
+    if non_compliant:
+        overall = f"{len(non_compliant)} procedural defect(s) found. Notice may be legally vulnerable."
+    elif undetermined:
+        overall = f"No defects found, but {len(undetermined)} check(s) could not be verified from the document. Needs manual review."
+    else:
+        overall = "All checks pass. No procedural defects detected in extracted fields."
+
+    return {"compliance_checks": checks, "overall_assessment": overall}
 
 
 def check_15_day_payment_window(fields: dict) -> dict:
@@ -221,24 +441,6 @@ def check_15_day_payment_window(fields: dict) -> dict:
     return _result(req, status, f"Notice grants {window} days (statutory minimum: 15).")
 
 
-def run_compliance_checks(fields: dict) -> dict:
-    checks = [
-        check_30_day_window(fields),
-        check_amount_match(fields),
-        check_enforceable_debt(fields),
-        check_15_day_payment_window(fields),
-    ]
-    non_compliant = [c for c in checks if c["status"] == "Non-Compliant"]
-    undetermined = [c for c in checks if c["status"] == "Cannot Determine"]
-
-    if non_compliant:
-        overall = f"{len(non_compliant)} procedural defect(s) found. Notice may be legally vulnerable."
-    elif undetermined:
-        overall = f"No defects found, but {len(undetermined)} check(s) could not be verified from the document. Needs manual review."
-    else:
-        overall = "All four checks pass. No procedural defects detected in extracted fields."
-
-    return {"compliance_checks": checks, "overall_assessment": overall}
 
 
 document_checklists = {

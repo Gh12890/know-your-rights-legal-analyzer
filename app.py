@@ -435,17 +435,43 @@ CHEQUE_QUESTIONS = [
     {"key": "interest_bundled",
      "text": "Does the notice mix interest or extra costs together with the main amount in the same sentence, rather than listing them separately?",
      "type": "yesno"},
-    {"key": "cheque_purpose", "text": "Was the cheque given to repay a loan or debt, or as a security/advance?",
-     "type": "choice", "options": ["To repay a loan or debt", "As a security or advance", "Not sure"]},
+    {"key": "cheque_was_blank",
+     "text": "Was the cheque signed and handed over blank (with the amount/date filled in later by someone else), or was it fully filled in when signed?",
+     "type": "choice",
+     "options": ["Signed blank, filled in later", "Fully filled in when signed", "Not sure"]},
+    {"key": "presentation_bank_location",
+     "text": "In which city/town was the cheque presented for collection (i.e. where is the bank branch that tried to process it)?",
+     "type": "text_optional"},
+    {"key": "complaint_filed_location",
+     "text": "In which city/town has the complaint been filed (or is expected to be filed)?",
+     "type": "text_optional"},
+    {"key": "case_stage",
+     "text": "What stage is the case at right now?",
+     "type": "choice",
+     "options": ["Before trial has started", "Convicted at the trial court", "On appeal at the High Court",
+                 "On appeal at the Supreme Court", "Not sure"]},
 ]
 
 def cheque_filter(questions, answers):
     return questions  # no conditional questions in this domain
 
 def build_cheque_fields(answers):
-    purpose_map = {
-        "To repay a loan or debt": "debt", "As a security or advance": "security", "Not sure": "unclear",
+    """UPDATED 2026-08-30: see module docstring above for reasoning
+    behind each field change. cheque_purpose/purpose_map REMOVED
+    entirely -- no longer collected or used by any check."""
+    blank_map = {
+        "Signed blank, filled in later": True,
+        "Fully filled in when signed": False,
+        "Not sure": "unclear",
     }
+    stage_map = {
+        "Before trial has started": "pre_trial",
+        "Convicted at the trial court": "convicted_at_trial_court",
+        "On appeal at the High Court": "on_appeal_hc",
+        "On appeal at the Supreme Court": "on_appeal_sc",
+        "Not sure": "unclear",
+    }
+ 
     return {
         "return_memo_date": answers.get("return_memo_date"),
         "notice_date": answers.get("notice_date"),
@@ -453,8 +479,12 @@ def build_cheque_fields(answers):
         "demand_principal_amount": answers.get("demand_amount"),
         "payment_window_days_granted": answers.get("payment_window"),
         "interest_bundled_in_principal_sentence": answers.get("interest_bundled") is True,
-        "cheque_purpose": purpose_map.get(answers.get("cheque_purpose"), "unclear"),
+        "cheque_was_blank_when_signed": blank_map.get(answers.get("cheque_was_blank"), "unclear"),
+        "cheque_presentation_bank_location": answers.get("presentation_bank_location"),
+        "complaint_filed_location": answers.get("complaint_filed_location"),
+        "case_stage": stage_map.get(answers.get("case_stage"), "unclear"),
     }
+ 
 # =============================================================
 # DOMAIN 4: FIR / COMPLAINT — NO ARREST YET
 # =============================================================   
@@ -661,6 +691,21 @@ def run_interview(domain_key):
         else:
             if st.button("Next", use_container_width=True, key=f"nextn2_{domain_key}_{q['key']}"):
                 answer = "SKIPPED"
+    
+    
+    elif q["type"] == "text_optional":
+        known = st.radio("Do you know this?", ["Not sure / don't know", "Yes, I know it"],
+                          key=f"radiot_{domain_key}_{q['key']}")
+        if known == "Yes, I know it":
+            val = st.text_input(q.get("input_label", "Answer"), key=f"text_{domain_key}_{q['key']}")
+            if st.button("Next", use_container_width=True, key=f"nextt_{domain_key}_{q['key']}"):
+                if val.strip():
+                    answer = val.strip()
+                else:
+                    answer = "SKIPPED"
+        else:
+            if st.button("Next", use_container_width=True, key=f"nextt2_{domain_key}_{q['key']}"):
+                answer = "SKIPPED"
 
     elif q["type"] == "crime_name_search":
         accum_key = f"confirmed_sections_{domain_key}"
@@ -723,12 +768,34 @@ def run_interview(domain_key):
 
 from main import compute_bail_pathway_info
 def show_interview_results(domain_key, config):
+    """UPDATED 2026-08-30: added presumption_info and settlement_info
+    keys to full_analysis, gated to domain_key == "Cheque Bounce",
+    same ternary pattern already used for bail_pathway's arrest-only
+    gating. Calls explain_debt_presumption_status and
+    compute_settlement_cost_incentive, both new functions sourced from
+    Rangappa v Sri Mohan (2010), Bir Singh v Mukesh Kumar (2019), and
+    Damodar S. Prabhu v Sayed Babalal H (2010) -- see main.py for full
+    citations.
+
+    IMPORTANT: whether these render via render_compliance_ui_main
+    depends on that function already having a branch for these NEW
+    keys, which was not confirmed. Rather than assume, this also adds
+    a guaranteed-visible DIRECT render below the main call -- if
+    render_compliance_ui_main is later confirmed to handle these keys
+    itself, remove the direct block below to avoid double-rendering."""
     if st.button("◀ Back to last question", key=f"back_results_{domain_key}"):
         st.session_state[f"step__{domain_key}"] = len(config["questions"])
         st.rerun()
     answers = st.session_state[f"answers__{domain_key}"]
     fields = config["build_fields"](answers)
     compliance_result = config["compliance_runner"](fields)
+
+    presumption_info = None
+    settlement_info = None
+    if domain_key == "Cheque Bounce":
+        from main import explain_debt_presumption_status, compute_settlement_cost_incentive
+        presumption_info = explain_debt_presumption_status(fields)
+        settlement_info = compute_settlement_cost_incentive(fields)
 
     full_analysis = {
         "classification": {
@@ -745,11 +812,25 @@ def show_interview_results(domain_key, config):
         "urgency": {"urgency_level": "Cannot Determine", "deadline_message": "N/A for interview mode", "days_remaining": None},
         "severity": compute_severity(compliance_result.get("compliance_checks", [])),
         "bail_pathway": compute_bail_pathway_info(fields.get("sections_cited", [])) if domain_key == "Arrest-related process" else None,
+        "presumption_info": presumption_info,
+        "settlement_info": settlement_info,
         "extracted_fields": fields
     }
 
     render_compliance_ui_main(full_analysis)
 
+    # TEMPORARY DIRECT RENDER (2026-08-30): guaranteed-visible fallback
+    # until render_compliance_ui_main is confirmed to handle these keys
+    # itself -- see docstring above.
+    if presumption_info:
+        st.subheader("About the Debt Presumption")
+        st.write(presumption_info["explanation"])
+        st.caption(presumption_info["note"])
+    if settlement_info:
+        st.subheader("If You Are Considering Settlement")
+        st.write(settlement_info["message"])
+        
+    
     if st.button("⚡ Courtroom Quick View", key=f"quickref_{domain_key}"):
         render_quick_reference(full_analysis)
     default_bail_check = next(

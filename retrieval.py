@@ -401,6 +401,99 @@ JUDGMENT_CITATION_MAP = {
             "reasoning as Tapas D. Neogy's note above."
         ),
     },
+    
+    "rangappa_section_139_presumption_mandatory": {
+        "case_key": "rangappa",
+        "paragraph_numbers": [],
+        "opinion_author": None,
+        "verified_note": (
+            "Case read in full 2026-08-30. Vital holding confirmed: Section "
+            "139's presumption of a legally enforceable debt is mandatory, "
+            "covers the debt's existence itself (not just signature), and "
+            "shifts the burden to the accused to rebut on a preponderance of "
+            "probabilities. EXACT PARAGRAPH NUMBERS NOT YET CONFIRMED via "
+            "direct chunk inspection -- must be located before this entry is "
+            "considered complete, same discipline already applied to every "
+            "other entry in this map."
+        ),
+    },
+    "bir_singh_blank_cheque_and_informal_loan": {
+        "case_key": "bir_singh",
+        "paragraph_numbers": [],
+        "opinion_author": None,
+        "verified_note": (
+            "Case read in full 2026-08-30. Vital holding confirmed: a blank "
+            "cheque voluntarily signed and later filled in still attracts "
+            "the Section 139 presumption; an informal/'friendly loan' does "
+            "not defeat the presumption. EXACT PARAGRAPH NUMBERS NOT YET "
+            "CONFIRMED -- must be located before this entry is complete."
+        ),
+    },
+    "damodar_prabhu_compounding_cost_scheme": {
+        "case_key": "damodar_s_prabhu",
+        "paragraph_numbers": [],
+        "opinion_author": None,
+        "verified_note": (
+            "Case read in full 2026-08-30. Vital holding confirmed: "
+            "graduated cost scheme for compounding (roughly 10%/15%/20% of "
+            "cheque amount at trial court post-conviction / High Court / "
+            "Supreme Court stages), payable to legal aid fund; compounding "
+            "remains available at any stage. EXACT PARAGRAPH NUMBERS NOT "
+            "YET CONFIRMED -- must be located before this entry is "
+            "complete, specifically the paragraph(s) stating the actual "
+            "percentage figures, since those are the operative numbers "
+            "compute_settlement_cost_incentive needs to cite precisely."
+        ),
+    },
+    "kaveri_plastics_security_cheque_maturity": {
+        "case_key": "kaveri_plastics",
+        "paragraph_numbers": [],
+        "opinion_author": None,
+        "verified_note": (
+            "Case read in full 2026-08-30. Vital holding confirmed (first "
+            "of two holdings in this judgment): a cheque given as security "
+            "for a future/contingent liability does not attract Section "
+            "138 if dishonoured before the liability matures; the "
+            "'security cheque' label is not itself determinative -- what "
+            "matters is whether the debt was due and payable at the time "
+            "of dishonour. EXACT PARAGRAPH NUMBERS NOT YET CONFIRMED -- "
+            "must be located before this entry is complete."
+        ),
+    },
+    "kaveri_plastics_amount_specifically_demanded": {
+        "case_key": "kaveri_plastics",
+        "paragraph_numbers": ["14"],
+        "opinion_author": None,
+        "verified_note": (
+            "Case read in full 2026-08-30, paragraph 14 SPECIFICALLY "
+            "CONFIRMED via direct reading: this paragraph quotes Suman "
+            "Sethi v Ajay K. Churiwal, (2000) 2 SCC 380, verbatim -- "
+            "'demand has to be made for the said amount i.e. the cheque "
+            "amount... Where in addition to the said amount there is also "
+            "a claim by way of interest, cost etc.' Establishes that a "
+            "demand notice must specifically demand the cheque amount "
+            "itself; additional amounts (interest, costs) mentioned "
+            "alongside it do NOT by themselves invalidate the notice, "
+            "provided the cheque amount remains specifically and severably "
+            "demanded. Suman Sethi's own separate judgment was NOT "
+            "independently fetched -- this project cites its holding via "
+            "this verbatim quotation, per explicit 2026-08-30 decision."
+        ),
+    },
+    "prakash_chimanlal_sheth_jurisdiction": {
+        "case_key": "prakash_chimanlal_sheth",
+        "paragraph_numbers": [],
+        "opinion_author": None,
+        "verified_note": (
+            "Case read in full 2026-08-30. Vital holding confirmed: a "
+            "Section 138 complaint must be filed where the cheque was "
+            "presented for collection and dishonoured, per Section 142(2) "
+            "NI Act and the Constitution Bench framework in Dashrath "
+            "Rupsingh Rathod v State of Maharashtra (2014). EXACT "
+            "PARAGRAPH NUMBERS NOT YET CONFIRMED -- must be located before "
+            "this entry is complete."
+        ),
+    },
 }
 
 
