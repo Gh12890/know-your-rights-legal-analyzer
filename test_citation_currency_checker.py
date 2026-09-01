@@ -323,6 +323,37 @@ finally:
 
 
 # ---------------------------------------------------------------------------
+# ik_query_builder: extra_search_queries are appended as extra variants
+# ---------------------------------------------------------------------------
+
+from ik_query_builder import build_doctrine_queries
+
+_yba_queries = build_doctrine_queries("youth_bar_association")
+check(
+    _yba_queries[0] == "Youth Bar Association of India vs Union of India",
+    "build_doctrine_queries still leads with the case-name query",
+)
+check(
+    "(2016) 9 SCC 473" in _yba_queries,
+    "the resolved youth_bar citation is included as a query variant",
+)
+check(
+    any("FIR uploaded police website" in q for q in _yba_queries),
+    "youth_bar's curated extra_search_queries (doctrine-phrase) are appended",
+)
+check(
+    len(_yba_queries) == len(set(_yba_queries)),
+    "no duplicate query strings are produced",
+)
+# a case_key with no extras behaves exactly as before
+_rangappa_queries = build_doctrine_queries("rangappa")
+check(
+    _rangappa_queries == ["Rangappa v Sri Mohan", "(2010) 11 SCC 441"],
+    "a case_key with no extra_search_queries is unchanged (name + citation only)",
+)
+
+
+# ---------------------------------------------------------------------------
 # Coverage guard: every doctrine_key in JUDGMENT_CITATION_MAP now resolves
 # to a CASE_METADATA entry (no MissingCaseMetadataError for any of them).
 # ---------------------------------------------------------------------------

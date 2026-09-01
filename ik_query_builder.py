@@ -107,10 +107,14 @@ CASE_METADATA = {
     },
     "youth_bar_association": {
         "case_name": "Youth Bar Association of India vs Union of India",
-        "citation": None,  # still unresolved -- year is confirmed
-                            # (see below) but exact SCC/AIR citation
-                            # number was not found via search; pull
-                            # from your own sourced PDF if needed
+        "citation": "(2016) 9 SCC 473",  # RESOLVED 2026-09-01: this
+                            # citation appears verbatim in a real citing
+                            # judgment, Abhihita Misra v State of U.P.
+                            # (Allahabad HC, 10 Nov 2025, IK tid
+                            # 174371940): "Youth Bar Association of India
+                            # vs. Union of India and Another 2016 (9) SCC
+                            # 473 has held that the copies of the F.I.R.s
+                            # should be uploaded on the police website".
         "court": "Supreme Court",
         "year": 2016,  # [Certain] — confirmed via real IK search
                         # result 2026-08-28: top hit "Youth Bar
@@ -121,6 +125,14 @@ CASE_METADATA = {
                         # single case having multiple order dates
                         # before final disposal.
         "doctrine_short": "FIR copy upload and accused FIR copy right",
+        "extra_search_queries": [
+            # The party name alone returns only this PIL's own monitoring
+            # orders. These phrase queries surfaced the real applying
+            # judgments (Abhihita Misra, Rabden Sherpa, Rabin Burman,
+            # Saurav Das, ...) on the first try, 2026-09-01.
+            '"Youth Bar Association" FIR uploaded police website',
+            'Youth Bar Association "copy of the first information report" website 24 hours',
+        ],
     },
     "tapas_d_neogy": {
         "case_name": "State of Maharashtra vs Tapas D. Neogy",
@@ -310,9 +322,16 @@ def build_doctrine_queries(case_key: str) -> list:
     citation is a real cost, not just a minor inconvenience.
 
     Returns:
-        List of query strings, in priority order. Always includes the
-        case-name query (index 0). Includes the citation query as a
-        second entry ONLY if a citation is recorded for this case_key.
+        List of query strings, in priority order: the case-name query
+        (always, index 0), then the citation query if a citation is
+        recorded, then any hand-curated 'extra_search_queries' for this
+        case_key. The extras exist for doctrines whose party name is too
+        generic for discovery -- confirmed real case (2026-09-01):
+        'Youth Bar Association of India vs Union of India' returned only
+        that PIL's own monitoring orders, never the High Court judgments
+        that actually apply its FIR-upload guideline; a doctrine-phrase
+        query ('"Youth Bar Association" FIR uploaded police website')
+        surfaced them immediately.
 
     Raises:
         UnknownCaseKeyError if case_key isn't in CASE_METADATA.
@@ -322,6 +341,10 @@ def build_doctrine_queries(case_key: str) -> list:
     metadata = CASE_METADATA[case_key]  # already validated by the call above
     if metadata.get("citation"):
         queries.append(build_doctrine_query(case_key, use_citation=True))
+
+    for extra in metadata.get("extra_search_queries", []):
+        if extra and extra not in queries:
+            queries.append(extra)
 
     return queries
 
