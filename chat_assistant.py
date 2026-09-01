@@ -310,7 +310,129 @@ _UNGROUNDED_RETRY_INSTRUCTION = """
 IMPORTANT CORRECTION: your previous answer to this exact question referenced Section(s) {sections}, but none of those section numbers appear anywhere in the information provided above. Do not mention Section(s) {sections} at all in your new answer, even if you are confident they are real and relevant -- only use section numbers that literally appear in the information above. Write a new, complete answer from scratch, following all the same rules."""
 
 
-def generate_grounded_response(question, retrieved_text, is_conflict=False, model=SONNET_MODEL):
+_MISMATCH_RETRY_INSTRUCTION = """
+IMPORTANT CORRECTION: your previous answer to this exact question stated the wrong cognizable/bailable status for one or more sections. {details} These are fixed facts from the statute's own official classification table, not a matter of interpretation. Write a new, complete answer from scratch, stating each of these correctly, following all the same rules."""
+
+
+_SECTION_WITH_SUBSECTION_PAT = re.compile(r"\bSection\s+(\d{1,3})(?:\((\d+[a-z]?)\))?", re.IGNORECASE)
+
+
+def _gather_offence_variants(matches) -> dict:
+    """Merges every match's 'all_variants' field (subsection key ->
+    BNS_SECTION_DATA entry) into one dict, across however many matches
+    were fed into this prompt. Judgment matches and BNSS-procedure
+    matches contribute nothing (they carry no all_variants) -- what's
+    left is exactly the deterministic cognizable/bailable ground truth
+    that format_retrieved_text_for_prompt already showed the model, so
+    the verification below can never disagree with what the model was
+    actually given (no separate, potentially-drifted lookup)."""
+    merged = {}
+    for m in matches or []:
+        merged.update(m.get("all_variants") or {})
+    return merged
+
+
+def _claimed_status(window: str, negative_words, positive_word) -> "bool | None":
+    """What does this stretch of the model's own answer claim -- True,
+    False, or nothing stated? negative_words (e.g. 'non-cognizable') are
+    checked FIRST since the positive word is always a literal substring
+    of the negative one ('cognizable' inside 'non-cognizable')."""
+    low = window.lower()
+    if any(w in low for w in negative_words):
+        return False
+    if positive_word in low:
+        return True
+    return None
+
+
+def _find_cognizable_bailable_mismatches(response_text: str, variants: dict) -> list:
+    """CONFIRMED GAP (2026-09-01, Phase 2 of the chat-quality plan): the
+    grounding check above verifies a cited 'Section N' appears somewhere
+    in retrieved_text -- it never checks whether the model's CLAIM about
+    that section (cognizable? bailable?) matches the deterministic
+    BNS_SECTION_DATA fact that was actually fed to it. That table is the
+    SAME one the compliance engine uses; find_relevant_sections() already
+    computes it for every statute match. This closes the gap with the
+    identical discipline the grounding check established: Python
+    verifies, the LLM only phrases -- never trust a checkable legal fact
+    to model prose alone.
+
+    variants: sec_key ('318' or '318(4)') -> BNS_SECTION_DATA entry, from
+    _gather_offence_variants() over the SAME matches fed to the prompt.
+
+    Deliberately conservative to avoid false positives on genuinely
+    multi-condition sections -- e.g. 303(2): the general case is
+    cognizable/non-bailable, but the under-Rs.5,000-first-offence carve-
+    out is non-cognizable/bailable, and BOTH are real, correct answers
+    for 'Section 303(2)' depending on which condition the model is
+    describing at that point in the answer, which this function cannot
+    determine from a keyword window alone. A claim is flagged ONLY when
+    it matches NEITHER of the section's known valid values for that
+    field -- a genuine contradiction, not just a different condition
+    than the top-level default. This means multi-condition sections are
+    effectively unchecked (both values are 'valid'); the check still has
+    real teeth on the majority of BNS sections, which are single-
+    condition.
+
+    A bare 'Section 303' mention (no subsection) is only checked when
+    every subsection variant of that bare number agrees on the field in
+    question -- otherwise which one the model means is genuinely
+    ambiguous from the number alone, and this stays silent rather than
+    guessing.
+
+    Returns a list of {'section', 'field', 'claimed', 'valid'} dicts.
+    Empty list is the common, reassuring case -- and the immediate
+    return when variants is empty means this is a pure no-op for
+    judgment-only answers or matches with no BNS_SECTION_DATA entry."""
+    if not variants:
+        return []
+
+    problems = []
+    section_hits = list(_SECTION_WITH_SUBSECTION_PAT.finditer(response_text))
+    for i, m in enumerate(section_hits):
+        num, sub = m.group(1), m.group(2)
+        key = f"{num}({sub})" if sub else num
+        data = variants.get(key)
+        if data is None and not sub:
+            bare_family = [v for k, v in variants.items() if k == num or k.startswith(f"{num}(")]
+            if len(bare_family) == 1:
+                data = bare_family[0]
+        if data is None:
+            continue
+
+        window_end = section_hits[i + 1].start() if i + 1 < len(section_hits) else len(response_text)
+        window = response_text[m.end(): min(window_end, m.end() + 300)]
+
+        valid_cognizable = {data.get("cognizable")}
+        valid_bailable = {data.get("bailable")}
+        if data.get("has_multiple_conditions"):
+            for cond in data.get("all_conditions", []):
+                valid_cognizable.add(cond.get("cognizable"))
+                valid_bailable.add(cond.get("bailable"))
+
+        claimed_cog = _claimed_status(window, ["non-cognizable", "not cognizable"], "cognizable")
+        if claimed_cog is not None and claimed_cog not in valid_cognizable:
+            problems.append({"section": key, "field": "cognizable", "claimed": claimed_cog,
+                             "valid": sorted((v for v in valid_cognizable if v is not None), reverse=True)})
+
+        claimed_bail = _claimed_status(window, ["non-bailable", "not bailable"], "bailable")
+        if claimed_bail is not None and claimed_bail not in valid_bailable:
+            problems.append({"section": key, "field": "bailable", "claimed": claimed_bail,
+                             "valid": sorted((v for v in valid_bailable if v is not None), reverse=True)})
+
+    return problems
+
+
+def _format_mismatch(problem: dict) -> str:
+    """'Section 318(4) is cognizable, not non-cognizable as you wrote.'"""
+    field = problem["field"]
+    def word(v):
+        return field if v else f"non-{field}"
+    correct = " or ".join(word(v) for v in problem["valid"])
+    return f"Section {problem['section']} is {correct}, not {word(problem['claimed'])} as you wrote."
+
+
+def generate_grounded_response(question, retrieved_text, is_conflict=False, model=SONNET_MODEL, matches=None):
     """Generates a plain-language answer using ONLY the given retrieved
     text. Returns None if the generation call fails -- callers should
     fall back to showing the raw retrieved text directly rather than
@@ -339,12 +461,31 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
     via _find_ungrounded_sections() -- see that function's docstring for
     the confirmed real hallucination this guards against (a real,
     accurately-described BNSS section, but one that was never actually
-    retrieved for the query at hand). If ungrounded sections are found,
-    retries ONCE with an explicit correction naming them. If the retry
-    is still ungrounded, returns None -- the same "give up honestly"
-    signal already used for a failed API call, so callers fall back to
-    showing the raw retrieved text rather than ever displaying a claim
-    that could not be verified against what was actually retrieved."""
+    retrieved for the query at hand).
+
+    COGNIZABLE/BAILABLE VERIFICATION (added 2026-09-01, Phase 2 of the
+    chat-quality plan): separately, checks every claim the response makes
+    about a BNS offence section's cognizable/bailable status against the
+    real BNS_SECTION_DATA facts in `matches` (via
+    _find_cognizable_bailable_mismatches() -- see its docstring). The
+    grounding check alone only proves a section NUMBER was really
+    retrieved; it says nothing about whether the model's CLAIM about that
+    section is correct. This closes that gap with the same discipline:
+    the classification table is the deterministic source of truth, the
+    model only phrases it.
+
+    matches: the list of enriched match dicts fed into retrieved_text
+    (each may carry 'all_variants', the BNS_SECTION_DATA ground truth for
+    that section). Optional and defaults to None so every existing call
+    site that doesn't pass it (and every test that calls this with only
+    2 positional args) behaves exactly as before -- with no matches, the
+    mismatch check is a guaranteed no-op.
+
+    Either problem triggers ONE combined retry with an explicit
+    correction. If the retry still has either problem, returns None --
+    the same "give up honestly" signal already used for a failed API
+    call, so callers fall back to showing the raw retrieved text rather
+    than ever displaying a claim that could not be verified."""
     if client is None:
         return None
     try:
@@ -363,18 +504,26 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
         )
         response_text = _extract_text_from_response(response).strip()
 
+        variants = _gather_offence_variants(matches)
         ungrounded = _find_ungrounded_sections(response_text, retrieved_text)
-        if ungrounded:
-            retry_prompt = prompt + _UNGROUNDED_RETRY_INSTRUCTION.format(
-                sections=", ".join(ungrounded)
-            )
+        mismatches = _find_cognizable_bailable_mismatches(response_text, variants)
+
+        if ungrounded or mismatches:
+            retry_prompt = prompt
+            if ungrounded:
+                retry_prompt += _UNGROUNDED_RETRY_INSTRUCTION.format(sections=", ".join(ungrounded))
+            if mismatches:
+                retry_prompt += _MISMATCH_RETRY_INSTRUCTION.format(
+                    details=" ".join(_format_mismatch(p) for p in mismatches)
+                )
             retry_response = client.messages.create(
                 model=model,
                 max_tokens=2000,
                 messages=[{"role": "user", "content": retry_prompt}],
             )
             retry_text = _extract_text_from_response(retry_response).strip()
-            if _find_ungrounded_sections(retry_text, retrieved_text):
+            if (_find_ungrounded_sections(retry_text, retrieved_text)
+                    or _find_cognizable_bailable_mismatches(retry_text, variants)):
                 return None
             return retry_text
 
@@ -426,13 +575,49 @@ def _explicit_section_matches(question: str, max_sections: int = 2) -> list:
         for act in acts:
             data = get_statute_section(act, num)
             if data:
-                results.append({
+                match = {
                     "act": data["act"],
                     "section_number": data["section_number"],
                     "text": data["text"],
                     "source": "explicit_section_ref",
-                })
+                }
+                # PHASE 2 (2026-09-01): enrich with the same BNS_SECTION_DATA
+                # cognizable/bailable/max_years lookup semantic_retrieval's
+                # find_relevant_sections() already does for statute-search
+                # matches. Without this, an explicit "what is section 318"
+                # lookup fed the model raw statute TEXT ONLY -- which never
+                # states cognizability (that classification lives in the
+                # BNSS First Schedule, a separate document, confirmed in
+                # format_retrieved_text_for_prompt's docstring) -- so the
+                # model had nothing to answer the cognizable/bailable half
+                # of the question with, and the deterministic verification
+                # check below (_find_cognizable_bailable_mismatches) had no
+                # ground truth for these matches either.
+                if data["act"] == "BNS":
+                    match["all_variants"] = _bns_section_variants(data["section_number"])
+                results.append(match)
     return results
+
+
+def _bns_section_variants(sec_key: str) -> dict:
+    """Every BNS_SECTION_DATA entry for a bare section number, keyed by
+    subsection (e.g. '318' -> {'318(1)':..., '318(2)':..., '318(3)':...,
+    '318(4)':...}), plus the bare key itself if BNS_SECTION_DATA has a
+    genuine bare-key entry. Same lookup semantic_retrieval.
+    find_relevant_sections() does inline; factored out here so both the
+    real-time lookup and _find_cognizable_bailable_mismatches' ground
+    truth use the identical logic (no drift between what fed the prompt
+    and what verifies the answer)."""
+    try:
+        from main import BNS_SECTION_DATA
+    except ImportError:
+        return {}
+    exact = BNS_SECTION_DATA.get(sec_key)
+    variants = {k: v for k, v in BNS_SECTION_DATA.items()
+                if k == sec_key or k.startswith(f"{sec_key}(")}
+    if exact is not None and sec_key not in variants:
+        variants[sec_key] = exact
+    return variants
 
 
 def format_retrieved_text_for_prompt(matches):
@@ -738,7 +923,7 @@ def answer_question(question):
         # embedding-based path is down.
         if statute_overrides:
             retrieved_text = format_retrieved_text_for_prompt(statute_overrides)
-            response_text = generate_grounded_response(question, retrieved_text)
+            response_text = generate_grounded_response(question, retrieved_text, matches=statute_overrides)
             return {
                 "state": "single_match",
                 "matches": statute_overrides,
@@ -752,7 +937,7 @@ def answer_question(question):
         # this is the exact scenario the override exists for.
         if statute_overrides:
             retrieved_text = format_retrieved_text_for_prompt(statute_overrides)
-            response_text = generate_grounded_response(question, retrieved_text)
+            response_text = generate_grounded_response(question, retrieved_text, matches=statute_overrides)
             return {
                 "state": "single_match",
                 "matches": statute_overrides,
@@ -763,7 +948,7 @@ def answer_question(question):
     if result["state"] == "conflicting_matches":
         all_matches = result["matches"] + result.get("judgment_matches", []) + statute_overrides
         retrieved_text = format_retrieved_text_for_prompt(all_matches)
-        response_text = generate_grounded_response(question, retrieved_text, is_conflict=True)
+        response_text = generate_grounded_response(question, retrieved_text, is_conflict=True, matches=all_matches)
         return {
             "state": "conflicting_matches",
             "matches": all_matches,
@@ -779,7 +964,7 @@ def answer_question(question):
     # semantic results.
     all_matches = result["matches"] + result.get("judgment_matches", []) + statute_overrides
     retrieved_text = format_retrieved_text_for_prompt(all_matches)
-    response_text = generate_grounded_response(question, retrieved_text)
+    response_text = generate_grounded_response(question, retrieved_text, matches=all_matches)
     return {
         "state": "single_match",
         "matches": all_matches,

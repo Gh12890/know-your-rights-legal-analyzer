@@ -215,7 +215,7 @@ CASES = [
 
 _CLOSER_PAT = re.compile(
     r"what (you|to) (can|could) do next|what you can do|"
-    r"upload (it|the fir|the notice|any) |you can upload|"
+    r"upload .{0,60}\bhere\b|you can upload|"  # "upload it here", "upload the arrest memo or FIR here"
     r"describe (my|your) situation|option above will|"
     r"a lawyer (can|could|should)",
     re.IGNORECASE,
