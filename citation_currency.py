@@ -201,10 +201,31 @@ CITATION_CURRENCY_MAP = {
             "relatives, friends' -- direct textual match to the family/"
             "friend-notification safeguard. Since the constitutional "
             "holding doesn't depend on any single section's number, "
-            "GOOD_LAW regardless of the renumbering. Not yet checked "
-            "for adverse case-law treatment."
+            "GOOD_LAW regardless of the renumbering. "
+            "CASE-LAW-TREATMENT DIMENSION verified 2026-09-01 via "
+            "citation_currency_checker.py: 17 candidate citing judgments, "
+            "ZERO with adverse-treatment language (the D.K. Basu "
+            "safeguards are among the most entrenched in Indian criminal "
+            "procedure). One read in full: Sushrita Saren v State of West "
+            "Bengal (Calcutta HC, 22 Apr 2025, IK tid 183221162), which "
+            "cites D.K. Basu as a 'by now celebrated decision' on "
+            "custodial torture/death and applies it post-commencement. "
+            "CITATION NOTE: that citing judgment cites D.K. Basu as "
+            "'(1997) 1 SCC 416' -- matching ik_query_builder.CASE_METADATA, "
+            "NOT this project's corpus record, which has '(1997) 6 SCC "
+            "642'. The wild-standard citation appears to be (1997) 1 SCC "
+            "416; the corpus 'citation' field is likely wrong and should "
+            "be checked (may be confusing the main 1996 judgment with a "
+            "later order)."
         ),
-        "verified_note": "Statute cross-reference verified 2026-09-01. Case-law-treatment dimension not yet checked.",
+        "verified_note": (
+            "Both dimensions checked 2026-09-01. Statute: constitutional "
+            "holding, unaffected by renumbering; BNSS 48 is the codified "
+            "successor. Case-law treatment: verified via the checker + "
+            "Sushrita Saren v State of WB (Calcutta HC, 22 Apr 2025) -- "
+            "no adverse treatment. FLAG: corpus citation '(1997) 6 SCC "
+            "642' conflicts with the wild-standard '(1997) 1 SCC 416'."
+        ),
         "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
@@ -225,10 +246,38 @@ CITATION_CURRENCY_MAP = {
             "arrest') is the direct successor of the old grounds-of-"
             "arrest requirement this case's constitutional holding "
             "reinforces. GOOD_LAW since Article 22(1) itself is untouched "
-            "by statute renumbering. Not yet checked for adverse "
-            "case-law treatment."
+            "by statute renumbering. "
+            "CASE-LAW-TREATMENT DIMENSION checked 2026-09-01 via "
+            "citation_currency_checker.py: 9 candidate citing judgments, "
+            "all post-commencement, ZERO with adverse-treatment language "
+            "in the snippet. One read in full: Dr. Vaishali Jagannath "
+            "Jamdar v State of Maharashtra (Bombay HC, 12 Aug 2025, IK "
+            "tid 174603316), which relies on Vihaan Kumar (SLP (Crl) "
+            "13320/2024, decided 07.02.2025) for the Article 22(1) "
+            "holding that non-communication of grounds of arrest may "
+            "render the arrest illegal, and applies it. "
+            "IMPORTANT LIVE CAVEAT found in that same judgment (para 14): "
+            "'the issue whether such compliance is required in each and "
+            "every case is referred before the larger Bench, but at "
+            "present the observation of the Hon'ble Apex Court in Vihaan "
+            "Kumar... holds the field.' So the SCOPE of the written-"
+            "grounds requirement (every case vs. some) is under a pending "
+            "larger-bench reference as of mid-2025; the core holding is "
+            "still good law to apply now. The checker's snippet-only "
+            "adverse scan did NOT surface this ('larger bench' was in the "
+            "body, not the headline) -- caught by the human read. This is "
+            "a genuine watch item, not a downgrade."
         ),
-        "verified_note": "Statute cross-reference verified 2026-09-01. Case-law-treatment dimension not yet checked.",
+        "verified_note": (
+            "Both dimensions checked 2026-09-01. Statute: Article 22(1) "
+            "holding, unaffected by renumbering; BNSS 47 is the successor. "
+            "Case-law treatment: verified via the checker + Dr. Vaishali "
+            "Jamdar v State of Maharashtra (Bombay HC, 12 Aug 2025) -- no "
+            "adverse treatment, BUT a larger-bench reference is pending "
+            "on whether the requirement applies in every case. Core "
+            "holding 'holds the field' meanwhile. Re-check when the "
+            "larger Bench reports."
+        ),
         "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
@@ -240,9 +289,29 @@ CITATION_CURRENCY_MAP = {
         "successor_treatment": (
             "Article 21-based FIR-access guideline, not tied to a single "
             "repealed numbered section -- no statute-renumbering issue. "
-            "Not yet checked for adverse case-law treatment."
+            "CASE-LAW-TREATMENT DIMENSION: attempted 2026-09-01 via "
+            "citation_currency_checker.py, INCONCLUSIVE. The case-name "
+            "query ('Youth Bar Association of India vs Union of India') "
+            "is not distinctive enough for discovery -- that organisation "
+            "has filed many separate PILs, and all 6-10 hits were "
+            "follow-up monitoring orders in the SAME docket (2016-2023), "
+            "not external judgments applying the FIR-upload guideline. "
+            "No adverse treatment seen, but no positive external citing "
+            "treatment was located either. NEEDS a doctrine-anchored "
+            "search instead (e.g. 'FIR' + 'uploaded' + 'police website' + "
+            "'24 hours' / '72 hours'), which citation_currency_checker.py "
+            "cannot build today (it is case-name/citation anchored only). "
+            "The guideline is also now partly codified (BNSS 173 / FIR "
+            "publication practice), which reduces the risk but does not "
+            "substitute for the check."
         ),
-        "verified_note": "No repealed provision at the core of this holding; statute-supersession dimension not applicable.",
+        "verified_note": (
+            "Statute dimension: not applicable (no repealed provision at "
+            "the core). Case-law-treatment dimension: ATTEMPTED 2026-09-01, "
+            "inconclusive -- generic PIL name defeats case-name discovery; "
+            "needs a doctrine-phrase-anchored search. Not yet genuinely "
+            "verified."
+        ),
         "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
@@ -297,14 +366,35 @@ CITATION_CURRENCY_MAP = {
         "interpreted_provision": None,
         "successor_provision": None,
         "successor_treatment": (
-            "Argues purely from Article 21/proportionality; confirmed "
-            "(retrieval.py's own verified_note, and independently by grep "
-            "2026-09-01) that this judgment does NOT engage BNSS 106/107's "
-            "text at all. No statute-renumbering issue since no specific "
-            "repealed provision sits at the core of the holding. Not yet "
-            "checked for adverse case-law treatment."
+            "STATUTE DIMENSION: argues purely from Article 21/"
+            "proportionality; confirmed (retrieval.py's own verified_note, "
+            "and independently by grep 2026-09-01) that this judgment does "
+            "NOT engage BNSS 106/107's text at all. No statute-renumbering "
+            "issue since no specific repealed provision sits at the core. "
+            "CASE-LAW-TREATMENT DIMENSION verified 2026-09-01 via "
+            "citation_currency_checker.py: 10 candidate citing judgments, "
+            "all post-commencement (2025-2026), ZERO with adverse-"
+            "treatment language. One read in full: V-Mart Retail Limited "
+            "v Nodal Cyber Cell Officer (Madras HC, 3 Nov 2025, IK tid "
+            "36272070), which cites 'Neelkanth Pharma Logistics Private "
+            "Limited v. Union of India... reported in 2025 SCC Del 1055' "
+            "for the finding that account-freezing by banks at the "
+            "instance of investigating agencies is often done with 'no "
+            "proper system in place', and permits the petitioner to "
+            "operate the account -- positive applied treatment, and part "
+            "of a visible line of HC decisions (B. Seenivasan, and "
+            "others) doing the same. CITATION NOTE: a real reporter "
+            "citation surfaced -- '2025 SCC OnLine Del 1055' -- better "
+            "than this project's docket-only 'W.P.(C) 17905/2024'."
         ),
-        "verified_note": "No repealed provision at the core of this holding; statute-supersession dimension not applicable.",
+        "verified_note": (
+            "Both dimensions checked 2026-09-01. Statute: not applicable "
+            "(Article 21 proportionality holding). Case-law treatment: "
+            "verified via the checker + V-Mart Retail v Nodal Cyber Cell "
+            "(Madras HC, 3 Nov 2025) -- positive post-commencement "
+            "application, no adverse treatment. Citation upgrade "
+            "available: 2025 SCC OnLine Del 1055."
+        ),
         "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
@@ -314,16 +404,37 @@ CITATION_CURRENCY_MAP = {
         "interpreted_provision": {"act": "BNSS", "section": "106, 107"},
         "successor_provision": None,
         "successor_treatment": (
-            "Directly construes CURRENT BNSS 106/107 text (confirmed via "
-            "grep of the corpus file, which mentions 'Section 106' and "
-            "'Section 107' explicitly; decided 16 Jan 2026, well after "
-            "BNSS commencement). This IS the current law, not a holding "
-            "under a repealed provision -- no supersession question can "
-            "arise. Not yet checked for adverse case-law treatment (e.g. "
-            "whether any higher court has since reviewed this Delhi HC "
-            "ruling)."
+            "STATUTE DIMENSION: directly construes CURRENT BNSS 106/107 "
+            "text (confirmed via grep of the corpus file; decided 16 Jan "
+            "2026, well after BNSS commencement). This IS the current "
+            "law, not a holding under a repealed provision -- no "
+            "supersession question can arise. "
+            "CASE-LAW-TREATMENT DIMENSION verified 2026-09-01 via "
+            "citation_currency_checker.py: 10 candidate citing judgments, "
+            "all post-commencement (mostly 2026), ZERO with adverse-"
+            "treatment language. One read in full: M/S Lumicity "
+            "Semiconductor Pvt. Ltd. v State of Haryana (Punjab & Haryana "
+            "HC, 10 Jul 2026, IK tid 152086861), which cites 'Malabar "
+            "Gold and Diamond Ltd. & Ors. V/s Union of India & Ors., "
+            "2026 SCC OnLine Del 297', applies its directions on "
+            "defreezing where the S.107 BNSS procedure was not followed, "
+            "and lists it alongside a cross-High-Court line (Headstar "
+            "Global v State of Kerala, 2025 SCC OnLine Ker 3546; Geeta "
+            "Kampani v State of Maharashtra, 2026 SCC OnLine Bom 2937). "
+            "Malabar Gold is being treated as leading authority on the "
+            "BNSS 106/107 textual scheme, not doubted. CITATION NOTE: a "
+            "real reporter citation surfaced -- '2026 SCC OnLine Del "
+            "297' -- better than this project's docket-only 'W.P.(C) "
+            "4198/2025'. No higher-court review located."
         ),
-        "verified_note": "Constructs current statute text directly; supersession dimension not applicable by definition.",
+        "verified_note": (
+            "Both dimensions checked 2026-09-01. Statute: not applicable "
+            "(construes current BNSS text). Case-law treatment: verified "
+            "via the checker + M/S Lumicity Semiconductor v State of "
+            "Haryana (P&H HC, 10 Jul 2026) -- treated as leading "
+            "authority across multiple High Courts, no adverse treatment. "
+            "Citation upgrade available: 2026 SCC OnLine Del 297."
+        ),
         "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
@@ -377,8 +488,30 @@ CITATION_CURRENCY_MAP = {
         "status": "GOOD_LAW",
         "interpreted_provision": {"act": "Negotiable Instruments Act", "section": "139"},
         "successor_provision": None,
-        "successor_treatment": "Same reasoning as rangappa_section_139_presumption_mandatory -- NI Act citation, not touched by BNS/BNSS.",
-        "verified_note": "NI Act unaffected by BNS/BNSS/BSA; supersession dimension not applicable by definition.",
+        "successor_treatment": (
+            "STATUTE DIMENSION: NI Act not touched by the 2023 three-code "
+            "overhaul (see rangappa_section_139_presumption_mandatory). "
+            "CASE-LAW-TREATMENT DIMENSION verified 2026-09-01 via "
+            "citation_currency_checker.py: a live search on both query "
+            "variants returned a large candidate set, ~9 dated on/after "
+            "the 1 July 2024 commencement, ZERO with adverse-treatment "
+            "language. One read in full: Kanwar Negi v Rajesh Kumar "
+            "(Himachal Pradesh HC, 26 Sep 2024, IK tid 125730662, "
+            "2024:HHC:9138), which quotes Bir Singh v Mukesh Kumar paras "
+            "20/33/36 directly for the holdings that the S.139 "
+            "presumption is a presumption of law and that it 'takes "
+            "effect even in a situation where the accused contends that a "
+            "blank cheque leaf was voluntarily signed and handed over' -- "
+            "the exact doctrine this entry tracks, applied positively "
+            "post-commencement."
+        ),
+        "verified_note": (
+            "Both dimensions checked 2026-09-01. Statute: NI Act "
+            "unaffected. Case-law treatment: verified via the checker + "
+            "Kanwar Negi v Rajesh Kumar (HP HC, 26 Sep 2024) read in "
+            "full -- no adverse treatment, positive post-commencement HC "
+            "application confirmed."
+        ),
         "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
@@ -387,8 +520,28 @@ CITATION_CURRENCY_MAP = {
         "status": "GOOD_LAW",
         "interpreted_provision": {"act": "Negotiable Instruments Act", "section": "138, 147"},
         "successor_provision": None,
-        "successor_treatment": "Same reasoning as rangappa_section_139_presumption_mandatory -- NI Act citation, not touched by BNS/BNSS.",
-        "verified_note": "NI Act unaffected by BNS/BNSS/BSA; supersession dimension not applicable by definition.",
+        "successor_treatment": (
+            "STATUTE DIMENSION: NI Act not touched by the 2023 three-code "
+            "overhaul (see rangappa_section_139_presumption_mandatory). "
+            "CASE-LAW-TREATMENT DIMENSION verified 2026-09-01 via "
+            "citation_currency_checker.py: live search returned a large "
+            "candidate set, several dated on/after 1 July 2024, ZERO with "
+            "adverse-treatment language. One read in full: Balkrishan "
+            "Chibber v Shri Rup Ram (Himachal Pradesh HC, 9 Aug 2024, IK "
+            "tid 89600829), which quotes and applies Damodar S. Prabhu's "
+            "paras 18-19 compounding-cost guidelines ('The purpose of "
+            "laying down the Guidelines in Damodar S. Prabhu is explained "
+            "in the said judgment itself...') -- positive post-"
+            "commencement application of the graduated-cost scheme this "
+            "entry tracks."
+        ),
+        "verified_note": (
+            "Both dimensions checked 2026-09-01. Statute: NI Act "
+            "unaffected. Case-law treatment: verified via the checker + "
+            "Balkrishan Chibber v Shri Rup Ram (HP HC, 9 Aug 2024) read "
+            "in full -- no adverse treatment, positive post-commencement "
+            "HC application confirmed."
+        ),
         "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
@@ -397,8 +550,40 @@ CITATION_CURRENCY_MAP = {
         "status": "GOOD_LAW",
         "interpreted_provision": {"act": "Negotiable Instruments Act", "section": "138"},
         "successor_provision": None,
-        "successor_treatment": "Same reasoning as rangappa_section_139_presumption_mandatory -- NI Act citation, not touched by BNS/BNSS.",
-        "verified_note": "NI Act unaffected by BNS/BNSS/BSA; supersession dimension not applicable by definition.",
+        "successor_treatment": (
+            "STATUTE DIMENSION: NI Act not touched by the 2023 three-code "
+            "overhaul (see rangappa_section_139_presumption_mandatory). "
+            "CASE-LAW-TREATMENT DIMENSION verified 2026-09-01 via "
+            "citation_currency_checker.py: live search returned 10 "
+            "candidates, all 2025-2026 (the source SC judgment is Sept "
+            "2025), ZERO with adverse-treatment language in the snippet. "
+            "One read in full: Ms Pharmaceuticals v Nityam Pharma (Delhi "
+            "HC, 10 Jul 2026, IK tid 87610412), which engages the rule "
+            "substantively and DISTINGUISHES it on the facts -- Kaveri "
+            "Plastics concerned a notice demanding roughly double the "
+            "cheque amount via a typographical error, whereas a demand "
+            "for LESS than the cheque amount is not caught. Distinguishing "
+            "on facts is not adverse to the holding's validity; the rule "
+            "stands and its scope is being worked out. NOTE: the checker's "
+            "snippet-only adverse scan did not flag 'distinguishable' "
+            "because it appears in the body, not the headline -- a known "
+            "limitation, caught here by the human read the bundle is "
+            "designed to prompt. CITATION CLEANUP: this record's "
+            "'citation' field ('2025 INSC (Supreme Court, 19 September "
+            "2025)') is incomplete -- the real neutral citation is 2025 "
+            "INSC 1133 (Gavai CJI, Anjaria J.), affirming the Delhi HC "
+            "below (cited in the wild as Mahdoom Bawa Bahrudeen Noorul v "
+            "Kaveri Plastics, (2024) 02 Del CK 0095). Same litigation, "
+            "different stages -- not a contradiction."
+        ),
+        "verified_note": (
+            "Both dimensions checked 2026-09-01. Statute: NI Act "
+            "unaffected. Case-law treatment: verified via the checker + "
+            "Ms Pharmaceuticals v Nityam Pharma (Delhi HC, 10 Jul 2026) "
+            "read in full -- distinguished on facts, not doubted; holding "
+            "intact. Corpus 'citation' field should be corrected to "
+            "'2025 INSC 1133'."
+        ),
         "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
@@ -407,8 +592,32 @@ CITATION_CURRENCY_MAP = {
         "status": "GOOD_LAW",
         "interpreted_provision": {"act": "Negotiable Instruments Act", "section": "142(2)"},
         "successor_provision": None,
-        "successor_treatment": "Same reasoning as rangappa_section_139_presumption_mandatory -- NI Act citation, not touched by BNS/BNSS.",
-        "verified_note": "NI Act unaffected by BNS/BNSS/BSA; supersession dimension not applicable by definition.",
+        "successor_treatment": (
+            "STATUTE DIMENSION: NI Act not touched by the 2023 three-code "
+            "overhaul (see rangappa_section_139_presumption_mandatory). "
+            "CASE-LAW-TREATMENT DIMENSION verified 2026-09-01 via "
+            "citation_currency_checker.py: live search on both query "
+            "variants returned ~15 candidates, most dated on/after 1 July "
+            "2024, ZERO with adverse-treatment language. One read in "
+            "full: Rajinder Singh Gandhi v Kunal Arora (Delhi District "
+            "Court, 30 Oct 2025, IK tid 121787167), a S.138 territorial-"
+            "jurisdiction revision where the petitioner relies on "
+            "'Prakash Chimanlal Sheth v. Jagruti Keyur Rajpopat {2025 "
+            "INSC 897}' on exactly the S.142(2) point this entry tracks, "
+            "and the court engages it alongside M/s Shri Sendhur Agro "
+            "{2025 INSC 328}. Positive applied treatment; the neutral "
+            "citation '2025 INSC 897' is confirmed correct against this "
+            "citing judgment. (The checker also surfaced an earlier "
+            "Bombay HC judgment of 5 Mar 2024 and an SC order of 23 Jul "
+            "2024 in the same matter -- procedural history, not adverse.)"
+        ),
+        "verified_note": (
+            "Both dimensions checked 2026-09-01. Statute: NI Act "
+            "unaffected. Case-law treatment: verified via the checker + "
+            "Rajinder Singh Gandhi v Kunal Arora (Delhi DC, 30 Oct 2025) "
+            "read in full -- positive post-commencement application on "
+            "the S.142(2) jurisdiction point; '2025 INSC 897' confirmed."
+        ),
         "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },

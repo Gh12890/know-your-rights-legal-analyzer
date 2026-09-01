@@ -49,19 +49,33 @@ if __name__ == "__main__":
             f"caveat in the app but have had zero verification work done."
         )
 
-    superseded = by_status.get("SUPERSEDED_BY_STATUTE", [])
-    unconfirmed_treatment = [
-        k for k in superseded
-        if "NOT YET INDEPENDENTLY VERIFIED" in (get_citation_currency(k).get("successor_treatment") or "")
-    ]
-    if unconfirmed_treatment:
+    # Second, finer backlog: entries that DO have a curated record and a
+    # settled statute dimension, but whose CASE-LAW-TREATMENT dimension is
+    # not yet genuinely verified. Detected from the verified_note text --
+    # a verified entry says "Both dimensions checked"; an unverified or
+    # inconclusive one says "not yet checked" / "ATTEMPTED" / "inconclusive"
+    # / "not yet genuinely verified".
+    _DONE_MARKERS = ("both dimensions checked", "both dimensions verified")
+    _PENDING_MARKERS = (
+        "not yet checked", "not yet genuinely verified", "attempted",
+        "inconclusive", "not yet independently verified",
+    )
+    treatment_pending = []
+    for key in sorted(k for keys in by_status.values() for k in keys):
+        note = (get_citation_currency(key).get("verified_note") or "").lower()
+        if any(m in note for m in _DONE_MARKERS):
+            continue
+        if any(m in note for m in _PENDING_MARKERS):
+            treatment_pending.append(key)
+
+    if treatment_pending:
         print(
-            f"\nSTATUTE-MAPPING DONE, CASE-LAW TREATMENT NOT YET CHECKED "
-            f"({len(unconfirmed_treatment)}): renumbering is confirmed for "
-            f"these, but whether courts have actually carried the doctrine "
-            f"forward under the new section has not been verified via a "
-            f"real citing-case search (only tapas_d_neogy_bank_account_as_"
-            f"property has had that done so far):"
+            f"\nCASE-LAW-TREATMENT DIMENSION NOT YET VERIFIED "
+            f"({len(treatment_pending)}): these have a curated record and a "
+            f"settled statute dimension, but whether later courts have "
+            f"carried the doctrine forward (or doubted it) has not been "
+            f"confirmed against a real citing-case search + a primary-text "
+            f"read. Run: python citation_currency_checker.py <doctrine_key>"
         )
-        for key in unconfirmed_treatment:
+        for key in treatment_pending:
             print(f"  - {key}")
