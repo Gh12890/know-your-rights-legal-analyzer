@@ -63,7 +63,7 @@ import json
 import logging
 import os
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 logger = logging.getLogger("citation_currency_checker")
 
@@ -163,32 +163,63 @@ def _classify_court_tier(docsource):
     return "other"
 
 
+def _strip_html(text):
+    """IK's search results embed <b>...</b> highlight tags (and HTML
+    entities) in the title and snippet fields. Strip tags and unescape
+    entities so downstream text handling sees plain text. Not an
+    HTML-structure parse -- a flat tag strip is all that's needed for
+    these one-line fragments."""
+    if not text or not isinstance(text, str):
+        return ""
+    import html as _html
+
+    return _html.unescape(re.sub(r"<[^>]+>", "", text)).strip()
+
+
 def _normalise_title(text):
-    """Lowercase, strip punctuation, collapse whitespace, and drop the
-    trailing ' on <date>' that IK appends to search-result titles
-    ('Arnesh Kumar vs State Of Bihar on 2 July, 2014'). Used only for
-    the fuzzy source-case match -- deliberately lossy."""
+    """Lowercase, strip HTML, strip punctuation, collapse whitespace,
+    and drop the trailing ' on <date>' that IK appends to search-result
+    titles ('Arnesh Kumar vs State Of Bihar on 2 July, 2014'). Used only
+    for the fuzzy source-case match -- deliberately lossy."""
     if not text:
         return ""
+    text = _strip_html(text)
     text = re.sub(r"\bon\s+\d{1,2}\s+\w+,?\s+\d{4}\b", " ", text, flags=re.IGNORECASE)
     text = re.sub(r"[^a-z0-9\s]", " ", text.lower())
     text = re.sub(r"\bvs?\b|\bversus\b", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _looks_like_source_case(candidate_title, source_case_name):
-    """True when a search hit is (very likely) the source judgment
-    itself rather than a citing case. Token-overlap heuristic on the
-    normalised strings: every significant token of the source case name
-    present in the candidate title. Finding the source case ranked #1
-    is a useful sanity signal (ik_query_builder saw exactly this for
-    Arnesh Kumar), so these are KEPT in the bundle, just labelled and
-    excluded from the citing-progeny count."""
-    cand = set(_normalise_title(candidate_title).split())
-    src = [t for t in _normalise_title(source_case_name).split() if len(t) > 2]
-    if not src:
+def _looks_like_source_case(candidate_title, candidate_year, source_meta):
+    """True only when a search hit IS (very likely) the source judgment
+    itself, not a judgment that merely names it.
+
+    Two clauses, both required:
+      1. the normalised candidate title STARTS WITH the full normalised
+         source case name (a citing judgment's IK-derived title reads
+         '13. In Rangappa vs Sri Mohan (2010) 11 SCC 441 ...' -- it does
+         not start with the case name);
+      2. the candidate's publication year equals the source case's known
+         year from CASE_METADATA. If the candidate has no parseable
+         year, this clause fails closed -> not flagged as the source.
+
+    Clause 2 is what the first live run (2026-09-01, rangappa) proved
+    necessary: several Delhi District Court judgments from 2018-2023
+    carry titles that begin 'Rangappa vs Sri Mohan Reported In ...' yet
+    are obviously not the 2010 Supreme Court source case. Without the
+    year check, clause 1 alone still mislabelled them.
+
+    Source-case hits are KEPT in the bundle (finding the real source
+    is a useful sanity signal) but excluded from the citing count."""
+    src_norm = _normalise_title(source_meta.get("case_name", ""))
+    if not src_norm:
         return False
-    return all(tok in cand for tok in src)
+    if not _normalise_title(candidate_title).startswith(src_norm):
+        return False
+    source_year = source_meta.get("year")
+    if source_year is None:
+        return False
+    return candidate_year == source_year
 
 
 def _snippet_of(doc):
@@ -198,7 +229,7 @@ def _snippet_of(doc):
     for field in ("headline", "fragment", "doc", "snippet"):
         val = doc.get(field)
         if val and isinstance(val, str):
-            return val.strip()
+            return _strip_html(val)
     return ""
 
 
@@ -210,14 +241,14 @@ def _find_adverse_markers(*texts):
     return sorted(m for m in ADVERSE_TREATMENT_MARKERS if m in haystack)
 
 
-def _triage_candidate(doc, source_case_name, today):
+def _triage_candidate(doc, source_meta, today):
     """Attach the deterministic triage flags to one raw IK search hit.
-    Pure function of the hit plus the source case name plus 'today' --
-    no network, no judgment. Every 'is it X' flag is True / False /
-    None, where None means 'the data needed to decide is missing',
-    never a guess."""
+    Pure function of the hit plus the source case's CASE_METADATA plus
+    'today' -- no network, no judgment. Every 'is it X' flag is True /
+    False / None, where None means 'the data needed to decide is
+    missing', never a guess."""
     tid = doc.get("tid")
-    title = doc.get("title") or doc.get("doc_title") or ""
+    title = _strip_html(doc.get("title") or doc.get("doc_title") or "")
     pub_date = _parse_ik_date(doc.get("publishdate") or doc.get("date"))
     snippet = _snippet_of(doc)
 
@@ -233,7 +264,9 @@ def _triage_candidate(doc, source_case_name, today):
         "court": doc.get("docsource"),
         "court_tier": _classify_court_tier(doc.get("docsource")),
         "publish_date": pub_date.isoformat() if pub_date else None,
-        "is_source_case": _looks_like_source_case(title, source_case_name),
+        "is_source_case": _looks_like_source_case(
+            title, pub_date.year if pub_date else None, source_meta
+        ),
         "post_three_code_commencement": post_commencement,
         "adverse_treatment_markers": _find_adverse_markers(title, snippet),
         "snippet": snippet[:600],
@@ -288,6 +321,7 @@ def gather_treatment_evidence(
 
     metadata = CASE_METADATA[case_key]
     source_case_name = metadata["case_name"]
+    source_meta = {"case_name": source_case_name, "year": metadata.get("year")}
 
     try:
         queries = build_doctrine_queries(case_key)
@@ -320,7 +354,7 @@ def gather_treatment_evidence(
                 except Exception as exc:  # noqa: BLE001 - enrichment is best-effort
                     logger.info("enrich_fn failed for tid=%s: %s", tid, exc)
 
-            candidates.append(_triage_candidate(doc, source_case_name, today))
+            candidates.append(_triage_candidate(doc, source_meta, today))
 
     citing = [c for c in candidates if not c["is_source_case"]]
     post_commencement = [c for c in citing if c["post_three_code_commencement"] is True]
@@ -341,7 +375,7 @@ def gather_treatment_evidence(
         "case_key": case_key,
         "source_case_name": source_case_name,
         "source_citation": metadata.get("citation"),
-        "generated_utc": datetime.utcnow().isoformat() + "Z",
+        "generated_utc": datetime.now(timezone.utc).isoformat(),
         "today": today.isoformat(),
         "queries_run": queries_run,
         "counts": {

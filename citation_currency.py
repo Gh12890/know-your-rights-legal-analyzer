@@ -333,14 +333,42 @@ CITATION_CURRENCY_MAP = {
         "interpreted_provision": {"act": "Negotiable Instruments Act", "section": "139"},
         "successor_provision": None,
         "successor_treatment": (
-            "The Negotiable Instruments Act was NOT part of the 2023 "
-            "three-code overhaul (BNS replaces IPC, BNSS replaces CrPC, "
-            "BSA replaces the Evidence Act -- the NI Act is a separate "
-            "act, untouched). No statute-renumbering issue can arise for "
-            "any NI Act citation in this corpus. Not yet checked for "
-            "adverse case-law treatment."
+            "STATUTE DIMENSION: the Negotiable Instruments Act was NOT "
+            "part of the 2023 three-code overhaul (BNS replaces IPC, BNSS "
+            "replaces CrPC, BSA replaces the Evidence Act -- the NI Act "
+            "is a separate act, untouched). No statute-renumbering issue "
+            "can arise for any NI Act citation in this corpus. "
+            "CASE-LAW-TREATMENT DIMENSION verified 2026-09-01 via "
+            "citation_currency_checker.py (first doctrine run through it "
+            "end-to-end): a live Indian Kanoon discovery search on both "
+            "query variants ('Rangappa v Sri Mohan' and '(2010) 11 SCC "
+            "441') returned 19 candidate citing judgments, 10 of them "
+            "dated on/after the 1 July 2024 three-code commencement, and "
+            "ZERO with any adverse-treatment language (overruled / per "
+            "incuriam / doubted / larger bench / distinguished) in the "
+            "snippet. One was fetched and read in full: M/S S.S. "
+            "Production v Tr. Pavithran Prasanth (Supreme Court, 1 Oct "
+            "2024, IK tid 125822205, https://indiankanoon.org/doc/125822205/) "
+            "-- decided ~3 months post-commencement -- which applies "
+            "Rangappa's paragraphs 39-40 (preponderance-of-probabilities "
+            "rebuttal standard for the S.139 presumption), cites it again "
+            "alongside Basalingappa v Mudibasappa on the post-evidence "
+            "burden, and dismisses the complainant's SLP on that basis. "
+            "This is real, sourced, post-commencement positive citing "
+            "treatment by the Supreme Court itself. The other post-"
+            "commencement hits (mainly Himachal Pradesh and Delhi High "
+            "Court, 2024-2025) were not individually fetched; the older "
+            "District Court hits from the citation-string query are "
+            "routine applications, not adverse."
         ),
-        "verified_note": "NI Act unaffected by BNS/BNSS/BSA; supersession dimension not applicable by definition.",
+        "verified_note": (
+            "Both dimensions checked 2026-09-01. Statute: NI Act "
+            "unaffected by BNS/BNSS/BSA, supersession not applicable by "
+            "definition. Case-law treatment: verified via "
+            "citation_currency_checker.py + one SC judgment read in full "
+            "(S.S. Production, 1 Oct 2024) -- no adverse treatment found, "
+            "active post-commencement SC application confirmed."
+        ),
         "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },

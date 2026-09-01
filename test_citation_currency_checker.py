@@ -68,22 +68,46 @@ check(_classify_court_tier(None) == "unknown", "missing docsource -> unknown")
 
 
 # ---------------------------------------------------------------------------
-# _looks_like_source_case
+# _looks_like_source_case  (title starts with the name AND year matches)
 # ---------------------------------------------------------------------------
 
+RANGAPPA_META = {"case_name": "Rangappa v Sri Mohan", "year": 2010}
+
 check(
-    _looks_like_source_case("Rangappa vs Sri Mohan on 7 May, 2010", "Rangappa v Sri Mohan"),
-    "source-case title (with IK 'on <date>' suffix) is recognised as the source case",
+    _looks_like_source_case("Rangappa vs Sri Mohan on 7 May, 2010", 2010, RANGAPPA_META),
+    "the real source-case title + matching year is recognised as the source case",
 )
 check(
     not _looks_like_source_case(
-        "Sudhir Kumar vs State Of Haryana on 3 March, 2021", "Rangappa v Sri Mohan"
+        "Sudhir Kumar vs State Of Haryana on 3 March, 2021", 2021, RANGAPPA_META
     ),
     "an unrelated citing case is NOT flagged as the source case",
 )
 check(
-    not _looks_like_source_case("", "Rangappa v Sri Mohan"),
+    not _looks_like_source_case(
+        "13. In Rangappa vs Sri Mohan (2010) 11 SCC 441, It Was ... on 12 May, 2022",
+        2022,
+        RANGAPPA_META,
+    ),
+    "REAL FALSE-POSITIVE CLASS (live run 2026-09-01): a citing judgment whose IK title merely "
+    "begins with a paragraph number then names the case is NOT flagged (title doesn't start with the name)",
+)
+check(
+    not _looks_like_source_case(
+        "Rangappa vs Sri Mohan Reported In (2010) 11 SCC 441 ... on 3 September, 2019",
+        2019,
+        RANGAPPA_META,
+    ),
+    "a 2019 hit whose title DOES start with the case name is still NOT flagged -- its year (2019) "
+    "is not the source year (2010)",
+)
+check(
+    not _looks_like_source_case("", None, RANGAPPA_META),
     "empty candidate title -> not the source case, no crash",
+)
+check(
+    not _looks_like_source_case("Rangappa vs Sri Mohan", None, RANGAPPA_META),
+    "a title match with no parseable candidate year fails closed -> not the source case",
 )
 
 
@@ -112,6 +136,7 @@ check(_find_adverse_markers(None, "") == [], "None / empty inputs -> [], no cras
 # ---------------------------------------------------------------------------
 
 TODAY = date(2026, 9, 1)
+SRC_META = {"case_name": "Rangappa v Sri Mohan", "year": 2010}
 
 triaged = _triage_candidate(
     {
@@ -119,10 +144,10 @@ triaged = _triage_candidate(
         "title": "ABC Traders vs State on 10 January, 2025",
         "publishdate": "2025-01-10",
         "docsource": "Karnataka High Court",
-        "headline": "Following Rangappa v Sri Mohan, the presumption was upheld.",
+        "headline": "Following <b>Rangappa</b> v Sri Mohan, the presumption was upheld.",
     },
-    source_case_name="Rangappa v Sri Mohan",
-    today=TODAY,
+    SRC_META,
+    TODAY,
 )
 check(triaged["tid"] == 12345, "triage keeps the tid")
 check(triaged["url"] == "https://indiankanoon.org/doc/12345/", "triage builds the IK doc URL from the tid")
@@ -130,17 +155,19 @@ check(triaged["court_tier"] == "high_court", "triage classifies the court tier")
 check(triaged["post_three_code_commencement"] is True, "a 2025-01-10 hit is flagged post-commencement (True)")
 check(triaged["is_source_case"] is False, "a citing hit is not flagged as the source case")
 check(triaged["adverse_treatment_markers"] == [], "a positive-citing hit has no adverse markers")
+check("<b>" not in triaged["snippet"] and "Rangappa" in triaged["snippet"],
+      "HTML highlight tags are stripped from the stored snippet")
 
 triaged_old = _triage_candidate(
     {"tid": 1, "title": "Old Case vs State", "publishdate": "2012-06-01", "docsource": "Supreme Court of India"},
-    "Rangappa v Sri Mohan",
+    SRC_META,
     TODAY,
 )
 check(triaged_old["post_three_code_commencement"] is False, "a 2012 hit is flagged NOT post-commencement (False)")
 
 triaged_undated = _triage_candidate(
     {"tid": 2, "title": "Undated Case vs State", "docsource": "Supreme Court of India"},
-    "Rangappa v Sri Mohan",
+    SRC_META,
     TODAY,
 )
 check(
