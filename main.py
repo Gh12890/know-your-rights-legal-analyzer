@@ -2083,7 +2083,17 @@ def _extract_text_from_response(response):
     'ThinkingBlock' object has no attribute 'text' -- for a
     sufficiently complex prompt, the model can return a ThinkingBlock
     as the first content item, followed by the actual TextBlock.
-    Applied defensively across every extraction call in this file."""
+
+    CORRECTION (2026-09-01): this docstring claimed the fix was
+    "applied defensively across every extraction call in this file" --
+    that was FALSE. All 11 real call sites in this file (run_police_
+    pipeline x2, analyze_document x4 across its classification/
+    extraction/missing-info/deadline steps) still did raw
+    `response.content[0].text` immediately below this very function,
+    never calling it. Found while chasing a live user-reported chat
+    failure that traced back to the exact same unfixed pattern in
+    chat_assistant.py (which had made the identical false claim about
+    itself). Now actually wired into all 11 call sites."""
     text_block = next((block for block in response.content if hasattr(block, "text")), None)
     if text_block is None:
         raise ValueError("No text block found in response.content -- only non-text blocks returned.")
@@ -2098,8 +2108,12 @@ def run_police_pipeline(document_text):
         temperature=0,
         messages=[{"role": "user", "content": POLICE_SUBTYPE_PROMPT.format(document_text=document_text)}]
     )
-    try :
-        subtype_obj = parse_json_response(r.content[0].text)
+    try:
+        raw_text = _extract_text_from_response(r)
+    except ValueError:
+        raw_text = ""
+    try:
+        subtype_obj = parse_json_response(raw_text)
         subtype = subtype_obj.get("police_subtype", "Other")
     except json.JSONDecodeError:
         subtype="Other"
@@ -2119,9 +2133,13 @@ def run_police_pipeline(document_text):
         messages=[{"role": "user", "content": extraction_prompt.format(document_text=document_text)}]
     )
     try:
-        extracted = parse_json_response(r.content[0].text)
+        raw_text = _extract_text_from_response(r)
+    except ValueError:
+        raw_text = ""
+    try:
+        extracted = parse_json_response(raw_text)
     except json.JSONDecodeError:
-        extracted = {"error": "Failed to parse extraction", "raw": r.content[0].text}
+        extracted = {"error": "Failed to parse extraction", "raw": raw_text}
     return {
         "police_subtype": subtype,
         "extracted_fields": extracted,
@@ -2156,9 +2174,13 @@ Document text:
         messages=[{"role": "user", "content": classification_prompt}]
     )
     try:
-        classification_result = parse_json_response(response.content[0].text)
+        raw_text = _extract_text_from_response(response)
+    except ValueError:
+        raw_text = ""
+    try:
+        classification_result = parse_json_response(raw_text)
     except json.JSONDecodeError:
-        classification_result = {"error": "Failed to parse model response", "raw": response.content[0].text}
+        classification_result = {"error": "Failed to parse model response", "raw": raw_text}
 
     # ---- Category-aware compliance routing now happens FIRST, before missing_info ----
     top_category = classification_result.get("document_type", "")
@@ -2179,9 +2201,13 @@ Document text:
             messages=[{"role": "user", "content": EXTRACTION_PROMPT.format(document_text=document_text)}]
         )
         try:
-            extracted_fields = parse_json_response(response.content[0].text)
+            raw_text = _extract_text_from_response(response)
+        except ValueError:
+            raw_text = ""
+        try:
+            extracted_fields = parse_json_response(raw_text)
         except json.JSONDecodeError:
-            extracted_fields = {"error": "Failed to parse extraction response", "raw": response.content[0].text}
+            extracted_fields = {"error": "Failed to parse extraction response", "raw": raw_text}
         compliance_result = run_compliance_checks(extracted_fields)
     else:
         compliance_result = {
@@ -2221,9 +2247,13 @@ Document text:
         messages=[{"role": "user", "content": missing_info_prompt}]
     )
     try:
-        missing_info_result = parse_json_response(response.content[0].text)
+        raw_text = _extract_text_from_response(response)
+    except ValueError:
+        raw_text = ""
+    try:
+        missing_info_result = parse_json_response(raw_text)
     except json.JSONDecodeError:
-        missing_info_result = {"error": "Failed to parse model response", "raw": response.content[0].text}
+        missing_info_result = {"error": "Failed to parse model response", "raw": raw_text}
 
     # ---- deadline extraction and urgency, unchanged ----
     deadline_extraction_prompt = f"""...same as before..."""
@@ -2234,9 +2264,13 @@ Document text:
         messages=[{"role": "user", "content": deadline_extraction_prompt}]
     )
     try:
-        deadline_fields = parse_json_response(response.content[0].text)
+        raw_text = _extract_text_from_response(response)
+    except ValueError:
+        raw_text = ""
+    try:
+        deadline_fields = parse_json_response(raw_text)
     except json.JSONDecodeError:
-        deadline_fields = {"error": "Failed to parse deadline extraction", "raw": response.content[0].text}
+        deadline_fields = {"error": "Failed to parse deadline extraction", "raw": raw_text}
 
     days_remaining = calculate_days_remaining(deadline_fields, deadline_fields.get("notice_date"))
     if days_remaining is None:

@@ -63,7 +63,35 @@ SIMILARITY_THRESHOLD = 0.40
 
 
 
-TOP_MATCHES_TO_CONSIDER = 10
+# CONFIRMED REAL BUG (2026-09-01), found via live testing on "police came
+# to my house and arrested me directly saying that i stole a goat": BNS
+# Section 303 (theft) never appeared in the answer at all, even though it
+# scored 0.3619 -- comfortably above STATUTE_SIMILARITY_THRESHOLD (0.34).
+# Root cause: semantic_search() ranks statute AND judgment chunks
+# TOGETHER in one combined pool, sorted by raw score, THEN slices to the
+# top TOP_MATCHES_TO_CONSIDER BEFORE find_relevant_sections() ever splits
+# them by type and applies the (deliberately different) per-type
+# thresholds. For this exact query, all top 10 combined-ranked results
+# were judgment paragraphs (arrest-procedure judgments score consistently
+# higher than statute text on arrest-flavoured questions) -- direct
+# verification found 13 real statute candidates clearing 0.34, but the
+# last of them only appears at rank 39 in the combined list, so 12 of 13
+# (including Section 303 itself) were silently discarded before the
+# threshold filter ever ran. The SAME bug independently affects
+# interview_flow.py's offence-identification path (semantic_search() at
+# line ~562 there), which also filters `type == "statute"` out of this
+# same shared, prematurely-truncated pool.
+# FIX: raised from 10 to 50. This is a pure widening of the candidate
+# pool, not a threshold change -- STATUTE_SIMILARITY_THRESHOLD/
+# JUDGMENT_SIMILARITY_THRESHOLD still do the actual relevance filtering
+# downstream, so nothing that would have failed the threshold before can
+# pass now. 50 comfortably covers the confirmed real case (last
+# qualifying statute candidate at rank 39) with margin, at negligible
+# cost -- the expensive step (the full corpus @ query-vector matrix
+# multiply, computed once per query regardless of top_k) is unchanged;
+# only the post-hoc argsort/slice grows, which is microseconds even at
+# this corpus's full ~1595-chunk size.
+TOP_MATCHES_TO_CONSIDER = 50
 
 _corpus_cache = None
 

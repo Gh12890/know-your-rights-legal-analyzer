@@ -32,6 +32,13 @@ Flow, and why each step exists:
      is instructed never to go beyond it. This keeps the same
      deterministic-grounding guarantee the rest of this project relies on:
      the LLM explains and phrases, it does not decide or invent.
+     CONFIRMED (2026-09-01) the instruction alone is not a hard
+     guarantee -- a real, low-frequency (~1/10 trials) case slipped
+     through where the model named a real BNSS section it was never
+     actually given for that query. generate_grounded_response() now
+     deterministically checks its own output against retrieved_text
+     (see _find_ungrounded_sections) and retries once before ever
+     showing an unverified claim -- the LLM proposes, Python verifies.
 
 Every response also carries a plain-language "what to do next" pointer,
 per the explicit design goal that this tool should act as a guide/advisor
@@ -81,8 +88,10 @@ Classify the user's question into exactly one category:
 
 "unrelated" -- not a legal question at all, small talk, or about something with no connection to Indian law (e.g. "what's the weather", "who are you", general chit-chat).
 
+If (and only if) the category is "covered_elsewhere_in_tool", also decide which specific domain: "freeze" (bank account freezing) or "cheque_bounce" (Section 138 NI Act cheque dishonour). For every other category, redirect_domain must be null.
+
 Respond with ONLY a JSON object, no other text:
-{{"category": "in_scope" | "covered_elsewhere_in_tool" | "adjacent_uncovered" | "unrelated", "reasoning": "one short sentence"}}
+{{"category": "in_scope" | "covered_elsewhere_in_tool" | "adjacent_uncovered" | "unrelated", "redirect_domain": "freeze" | "cheque_bounce" | null, "reasoning": "one short sentence"}}
 
 User's question: {question}"""
 
@@ -97,10 +106,20 @@ def _extract_text_from_response(response):
     same bug class, same session): 'ThinkingBlock' object has no
     attribute 'text' -- for a sufficiently complex prompt, the model
     can return a ThinkingBlock as the first content item, followed by
-    the actual TextBlock. Applied here defensively to both call sites
-    in this file (classify_scope now runs on SONNET_MODEL specifically,
-    which is more likely to trigger extended thinking than the
-    original Haiku default this file used to have)."""
+    the actual TextBlock.
+
+    CORRECTION (2026-09-01): this docstring already claimed the helper
+    was "applied here defensively to both call sites in this file" --
+    that was FALSE. All three real call sites in this file
+    (classify_scope, and both the original + retry calls in
+    generate_grounded_response) still did raw `.content[0].text.strip()`
+    right below this very function, never actually calling it. CONFIRMED
+    REAL FAILURE, found via live user testing: exactly this crash
+    ('ThinkingBlock' object has no attribute 'text') fired inside
+    generate_grounded_response's try/except, was silently swallowed,
+    and returned None -- which the caller correctly falls back on, but
+    the actual cause (a client bug, not "generation genuinely failed")
+    was invisible. Now actually wired into all three call sites."""
     text_block = next((block for block in response.content if hasattr(block, "text")), None)
     if text_block is None:
         raise ValueError("No text block found in response.content -- only non-text blocks returned.")
@@ -108,21 +127,33 @@ def _extract_text_from_response(response):
 
 
 def classify_scope(question):
-    """Returns ('in_scope' | 'covered_elsewhere_in_tool' | 'adjacent_uncovered' | 'unrelated', reasoning)
-    or (None, None) if the classifier call itself fails -- callers must
-    treat None as an honest 'could not determine', not assume in_scope or
+    """Returns ('in_scope' | 'covered_elsewhere_in_tool' | 'adjacent_uncovered' | 'unrelated',
+    reasoning, redirect_domain) or (None, None, None) if the classifier call itself fails --
+    callers must treat None as an honest 'could not determine', not assume in_scope or
     unrelated by default, since guessing either way here risks either
     wasting a retrieval call on something clearly out of scope, or
-    wrongly turning away a genuinely answerable question."""
+    wrongly turning away a genuinely answerable question.
+
+    redirect_domain: ADDED 2026-09-01, only meaningful when category is
+    'covered_elsewhere_in_tool' -- 'freeze' or 'cheque_bounce', naming
+    which of the two dedicated free-text interview flows
+    (freeze_interview_flow.py / cheque_bounce_interview_flow.py) the
+    question actually belongs to, so the app can hand the user's
+    already-typed question straight to the RIGHT flow with one click
+    instead of a generic 'go upload a document' dead end. None for
+    every other category, and None (not a guess) if the model omits it
+    or returns something unrecognised for a covered_elsewhere_in_tool
+    response -- the app must be able to fall back to a domain-less
+    redirect rather than launching the wrong interview flow."""
     if client is None:
-        return None, None
+        return None, None, None
     try:
         response = client.messages.create(
             model=SONNET_MODEL,
             max_tokens=1500,
             messages=[{"role": "user", "content": SCOPE_CLASSIFIER_PROMPT.format(question=question)}],
         )
-        raw = response.content[0].text.strip()
+        raw = _extract_text_from_response(response).strip()
         # Defensive: strip markdown code fences if the model adds them
         # despite the "ONLY a JSON object" instruction.
         if raw.startswith("```"):
@@ -133,10 +164,13 @@ def classify_scope(question):
         parsed = json.loads(raw)
         category = parsed.get("category")
         if category not in ("in_scope", "covered_elsewhere_in_tool", "adjacent_uncovered", "unrelated"):
-            return None, None
-        return category, parsed.get("reasoning", "")
+            return None, None, None
+        redirect_domain = parsed.get("redirect_domain")
+        if category != "covered_elsewhere_in_tool" or redirect_domain not in ("freeze", "cheque_bounce"):
+            redirect_domain = None
+        return category, parsed.get("reasoning", ""), redirect_domain
     except Exception:
-        return None, None
+        return None, None, None
 
 RESPONSE_GENERATION_PROMPT = """You are a careful, warm legal guide helping a layperson understand Indian criminal procedure (BNS/BNSS). You are NOT a lawyer and must not give legal advice -- you explain what the law and courts have said, in plain language, and always point the person toward a concrete next step.
 
@@ -176,6 +210,57 @@ _CONFLICT_INSTRUCTION = """- IMPORTANT: the sections below genuinely DISAGREE wi
 # change answer_question's calls, which this does NOT do.
 # ---
 
+_SECTION_REFERENCE_PATTERN = re.compile(r"\bSection\s+(\d+)", re.IGNORECASE)
+
+
+def _extract_section_numbers(text: str) -> set:
+    """Returns the set of base section numbers (e.g. '274' from 'Section
+    274(2)') referenced anywhere in text. Base number only -- subsection
+    suffixes are stripped since retrieved_text's own labels are also
+    base-number-only (see get_statute_section's docstring)."""
+    return {m.group(1) for m in _SECTION_REFERENCE_PATTERN.finditer(text or "")}
+
+
+def _find_ungrounded_sections(response_text: str, retrieved_text: str) -> list:
+    """CONFIRMED REAL BUG (2026-09-01), found via live user testing: asked
+    'police came to my house and arrested me directly saying that i stole
+    a goat', the model's answer confidently named 'Section 274 of the
+    BNSS' (summons-case procedure) with an accurate description of its
+    real text -- but Section 274 never appeared anywhere in retrieved_text
+    for that query. Reproduced the exact same question+retrieved_text
+    pair 9 more times: 0/9 repeated the hallucination, confirming this is
+    a real but LOW-FREQUENCY, STOCHASTIC failure of the "use ONLY the
+    information provided" instruction in RESPONSE_GENERATION_PROMPT, not
+    a deterministic bug -- explicitly ruled out citation_currency.py's
+    prompt injection as the cause (identical hallucination rate with and
+    without it, across the same trials). The section named was REAL and
+    accurately described (confirmed via retrieval.get_statute_section)
+    -- this is the model drawing on its own training knowledge of actual
+    Indian law, not inventing fiction, which makes it MORE dangerous to
+    silently trust, not less: a fabricated-sounding claim is easier to
+    doubt than a lucid, textually-perfect, but ungrounded-for-THIS-query
+    one. Since no prompt wording can be proven to eliminate a stochastic
+    LLM failure, this is a deterministic Python safety net instead --
+    the same discipline as the rest of this project: verify the claim
+    against real source text before it reaches the user, never trust
+    confidence alone. A false positive here (a real section mentioned in
+    retrieved_text but phrased differently, e.g. digits embedded in a
+    citation like '(2000) 2 SCC 380') is possible but rare and safe --
+    it only triggers one retry, not a hard failure.
+
+    Returns the sorted list of section numbers response_text references
+    that do not appear anywhere (as a plain substring) in retrieved_text.
+    Empty list means nothing to worry about -- the common case."""
+    referenced = _extract_section_numbers(response_text)
+    if not referenced:
+        return []
+    return sorted(num for num in referenced if num not in retrieved_text)
+
+
+_UNGROUNDED_RETRY_INSTRUCTION = """
+IMPORTANT CORRECTION: your previous answer to this exact question referenced Section(s) {sections}, but none of those section numbers appear anywhere in the information provided above. Do not mention Section(s) {sections} at all in your new answer, even if you are confident they are real and relevant -- only use section numbers that literally appear in the information above. Write a new, complete answer from scratch, following all the same rules."""
+
+
 def generate_grounded_response(question, retrieved_text, is_conflict=False, model=SONNET_MODEL):
     """Generates a plain-language answer using ONLY the given retrieved
     text. Returns None if the generation call fails -- callers should
@@ -192,29 +277,56 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
     conflicting_matches state exists specifically to surface.
  
     model: ADDED 2026-08-28 for a deliberate, evidence-gated Haiku-vs-
-    Sonnet comparison, per this project's own Aug 27 handoff note that
-    a model upgrade should be considered "only if real misclassifications
-    are observed, not upgraded pre-emptively" -- a real one was (see
-    RESPONSE_GENERATION_PROMPT's confirmed-failure comment, the goat/
-    theft case). Defaults to HAIKU_MODEL so this parameter is 100%
-    backward compatible; no existing call site changes behavior unless
-    it explicitly passes a different model."""
+    Sonnet comparison. CORRECTION (2026-09-01): this docstring previously
+    claimed the default was HAIKU_MODEL "so this parameter is 100%
+    backward compatible" -- that was already false when written: line 64
+    has HAIKU_MODEL commented out entirely, and the actual default
+    parameter value above is SONNET_MODEL. Every call site (answer_question
+    never passes model) has been running on Sonnet, not Haiku. Corrected
+    here rather than left stale.
+
+    GROUNDING VERIFICATION (added 2026-09-01): after generating a
+    response, checks every "Section N" it names against retrieved_text
+    via _find_ungrounded_sections() -- see that function's docstring for
+    the confirmed real hallucination this guards against (a real,
+    accurately-described BNSS section, but one that was never actually
+    retrieved for the query at hand). If ungrounded sections are found,
+    retries ONCE with an explicit correction naming them. If the retry
+    is still ungrounded, returns None -- the same "give up honestly"
+    signal already used for a failed API call, so callers fall back to
+    showing the raw retrieved text rather than ever displaying a claim
+    that could not be verified against what was actually retrieved."""
     if client is None:
         return None
     try:
         conflict_instruction = _CONFLICT_INSTRUCTION if is_conflict else ""
+        prompt = RESPONSE_GENERATION_PROMPT.format(
+            question=question, retrieved_text=retrieved_text,
+            conflict_instruction=conflict_instruction,
+        )
         response = client.messages.create(
             model=model,
             max_tokens=1500,
-            messages=[{
-                "role": "user",
-                "content": RESPONSE_GENERATION_PROMPT.format(
-                    question=question, retrieved_text=retrieved_text,
-                    conflict_instruction=conflict_instruction,
-                ),
-            }],
+            messages=[{"role": "user", "content": prompt}],
         )
-        return response.content[0].text.strip()
+        response_text = _extract_text_from_response(response).strip()
+
+        ungrounded = _find_ungrounded_sections(response_text, retrieved_text)
+        if ungrounded:
+            retry_prompt = prompt + _UNGROUNDED_RETRY_INSTRUCTION.format(
+                sections=", ".join(ungrounded)
+            )
+            retry_response = client.messages.create(
+                model=model,
+                max_tokens=1500,
+                messages=[{"role": "user", "content": retry_prompt}],
+            )
+            retry_text = _extract_text_from_response(retry_response).strip()
+            if _find_ungrounded_sections(retry_text, retrieved_text):
+                return None
+            return retry_text
+
+        return response_text
     except Exception:
         return None
 
@@ -474,7 +586,7 @@ def answer_question(question):
     from semantic_retrieval import find_relevant_sections
     from statute_doctrine_map import get_statute_doctrine_override
 
-    category, reasoning = classify_scope(question)
+    category, reasoning, redirect_domain = classify_scope(question)
 
     if category is None:
         return {"state": "classifier_unavailable"}
@@ -483,7 +595,7 @@ def answer_question(question):
         return {"state": "unrelated"}
 
     if category == "covered_elsewhere_in_tool":
-        return {"state": "covered_elsewhere_in_tool", "reasoning": reasoning}
+        return {"state": "covered_elsewhere_in_tool", "reasoning": reasoning, "redirect_domain": redirect_domain}
 
     if category == "adjacent_uncovered":
         return {"state": "adjacent_uncovered", "reasoning": reasoning}

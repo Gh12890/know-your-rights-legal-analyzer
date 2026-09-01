@@ -59,7 +59,8 @@ mode = st.radio(
      "I have several documents to triage", "I just want to ask something in my own words",
      "I want to describe my situation and get a real assessment",
      "My bank account was frozen and I want to describe what happened",
-     "I have a bounced cheque situation and want to describe what happened"]
+     "I have a bounced cheque situation and want to describe what happened"],
+    key="mode",
 )
 
 
@@ -146,6 +147,105 @@ def _render_chat_match_currency_caveat(m):
     from citation_currency import get_citation_currency_for_case_name
     for record in get_citation_currency_for_case_name(m["case_name"]):
         _render_citation_currency_caveat(record)
+
+
+# Chat-to-domain-flow handoff (added 2026-09-01): when the chat feature's
+# classifier recognises a freeze or cheque-bounce question, the dedicated
+# free-text interview flows (freeze_interview_flow.py /
+# cheque_bounce_interview_flow.py) already give a BETTER answer than the
+# chat feature ever could -- they ask smart follow-ups and produce an
+# actual Compliant/Non-Compliant verdict, something chat_assistant.py's
+# answer_question() is explicitly barred from doing (RESPONSE_GENERATION_
+# PROMPT: "Never state a compliance verdict"). Rather than building a
+# second semantic-search corpus so chat could merely EXPLAIN these
+# domains (strictly worse than a real verdict), this hands the person's
+# already-typed question straight to the real flow, processed as its
+# first real turn immediately, so they never have to repeat themselves.
+_DOMAIN_FLOW_CONFIG = {
+    "freeze": {
+        "mode_label": "My bank account was frozen and I want to describe what happened",
+        "history_key": "freeze_chat_history",
+        "state_key": "freeze_state_obj",
+        "results_key": "freeze_chat_results",
+        "module": "freeze_interview_flow",
+        "state_class_name": "FreezeInterviewState",
+        "button_label": "🏦 Continue in the bank-freeze assistant →",
+    },
+    "cheque_bounce": {
+        "mode_label": "I have a bounced cheque situation and want to describe what happened",
+        "history_key": "cheque_chat_history",
+        "state_key": "cheque_state_obj",
+        "results_key": "cheque_chat_results",
+        "module": "cheque_bounce_interview_flow",
+        "state_class_name": "ChequeBounceInterviewState",
+        "button_label": "🧾 Continue in the cheque-bounce assistant →",
+    },
+}
+
+
+def _handoff_to_domain_flow(domain, question):
+    """MUST be used as a widget's on_click callback, never called from
+    the normal script body. CONFIRMED via live testing (2026-09-01):
+    calling this directly from the script body raises
+    StreamlitAPIException ('st.session_state.mode cannot be modified
+    after the widget with key "mode" is instantiated') -- the mode
+    radio (key="mode") has ALREADY rendered earlier in the same script
+    pass by the time run_chat_flow() reaches this point, and Streamlit
+    locks a keyed widget's session_state for the rest of that run once
+    it's been instantiated. on_click callbacks run in a separate phase
+    BEFORE the next script pass's widgets are instantiated, which is
+    exactly why Streamlit provides them for this pattern. No st.rerun()
+    call here -- one happens automatically after any on_click callback
+    returns.
+
+    Switches mode to the dedicated interview flow for `domain` and
+    immediately processes `question` (the user's original, already-typed
+    chat message) as that flow's first real turn -- mirrors exactly the
+    turn-handling logic each flow's own run_*_chat_flow() uses (asking_
+    field -> show the question; ready_for_results -> stash the verdict;
+    anything else -> the same honest "couldn't understand that" fallback),
+    so behavior stays identical whether a person starts in that flow
+    directly or arrives here via handoff. Does NOT touch chat_history --
+    CONFIRMED via live AppTest tracing (2026-09-01) that run_chat_flow()
+    already appends the chat reply on the SAME script pass that renders
+    the handoff button, before any click can happen. An earlier version
+    of this function re-appended it here too, producing a duplicate
+    identical assistant turn in chat_history every time this button was
+    clicked."""
+    import importlib
+
+    config = _DOMAIN_FLOW_CONFIG[domain]
+    module = importlib.import_module(config["module"])
+    state_class = getattr(module, config["state_class_name"])
+    process_turn = getattr(module, "process_turn")
+
+    st.session_state[config["history_key"]] = [{"role": "user", "content": question}]
+    st.session_state[config["state_key"]] = state_class()
+    state_obj = st.session_state[config["state_key"]]
+    try:
+        result = process_turn(state_obj, question)
+    except Exception:
+        result = {"state": "extraction_unavailable", "field_name": None}
+
+    turn_state = result["state"]
+    if turn_state == "asking_field":
+        flow_reply = result["question"]
+    elif turn_state == "ready_for_results":
+        results_payload = {
+            "compliance_result": result["compliance_result"],
+            "severity": result["severity"],
+            "fields_known": result["fields_known"],
+        }
+        for optional_key in ("presumption_info", "settlement_info"):
+            if optional_key in result:
+                results_payload[optional_key] = result[optional_key]
+        st.session_state[config["results_key"]] = results_payload
+        flow_reply = "Thanks -- I have enough to give you a real assessment now. I've put it together below."
+    else:
+        flow_reply = "Sorry, I had trouble understanding that -- could you try rephrasing your answer?"
+
+    st.session_state[config["history_key"]].append({"role": "assistant", "content": flow_reply})
+    st.session_state["mode"] = config["mode_label"]
 
 
 def render_compliance_ui_main(result):
@@ -1135,6 +1235,7 @@ def run_chat_flow():
             result = answer_question(question)
 
         state = result["state"]
+        handoff_domain = None
 
         if state == "unrelated":
             reply = (
@@ -1145,15 +1246,28 @@ def run_chat_flow():
             )
 
         elif state == "covered_elsewhere_in_tool":
-            reply = (
-                "This sounds like it's about a **bank account freeze** or a **cheque bounce case** — "
-                "and good news, this tool does handle those, just not through this chat yet.\n\n"
-                "**What you can do next:** switch to **\"I have a document to upload\"** above, and "
-                "upload the freeze letter, cheque return memo, or legal notice you have. That feature "
-                "has detailed, working checks specifically built for these situations — it can tell "
-                "you things like whether the notice timing was correct, whether the demand amount "
-                "matches the cheque, and more."
-            )
+            redirect_domain = result.get("redirect_domain")
+            handoff_domain = redirect_domain if redirect_domain in _DOMAIN_FLOW_CONFIG else None
+            if handoff_domain:
+                domain_label = "bank account freeze" if redirect_domain == "freeze" else "cheque bounce"
+                reply = (
+                    f"This sounds like it's about a **{domain_label}** — good news, this tool has a "
+                    f"dedicated assistant for exactly this, and it can give you a real assessment, not "
+                    f"just an explanation. No document needed; it'll ask you a few questions directly.\n\n"
+                    f"Click below and I'll carry over what you already told me, so you won't have to "
+                    f"repeat yourself."
+                )
+            else:
+                # Classifier recognised the domain but couldn't confidently
+                # say WHICH one -- fall back to the older, domain-less
+                # redirect rather than guessing and launching the wrong flow.
+                reply = (
+                    "This sounds like it's about a **bank account freeze** or a **cheque bounce case** — "
+                    "and good news, this tool does handle those, just not through this chat yet.\n\n"
+                    "**What you can do next:** switch to **\"My bank account was frozen...\"** or "
+                    "**\"I have a bounced cheque situation...\"** above (no document needed), or "
+                    "**\"I have a document to upload\"** if you have the actual notice."
+                )
 
         elif state == "adjacent_uncovered":
             reply = (
@@ -1227,6 +1341,16 @@ def run_chat_flow():
             reply = "Something unexpected happened on my end — please try rephrasing your question."
 
         st.markdown(reply)
+        if handoff_domain:
+            # MUST use on_click, not `if st.button(...):` -- see
+            # _handoff_to_domain_flow's docstring for the confirmed
+            # StreamlitAPIException this avoids.
+            st.button(
+                _DOMAIN_FLOW_CONFIG[handoff_domain]["button_label"],
+                key="chat_domain_handoff",
+                on_click=_handoff_to_domain_flow,
+                args=(handoff_domain, question),
+            )
 
     st.session_state["chat_history"].append({"role": "assistant", "content": reply})
 
