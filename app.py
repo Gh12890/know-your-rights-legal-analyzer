@@ -52,12 +52,17 @@ st.write(
 )
 
 
+
 mode = st.radio(
     "What would you like to do?",
     ["I have a document to upload", "I don't have any paper — ask me questions instead",
      "I have several documents to triage", "I just want to ask something in my own words",
-     "I want to describe my situation and get a real assessment"]
+     "I want to describe my situation and get a real assessment",
+     "My bank account was frozen and I want to describe what happened",
+     "I have a bounced cheque situation and want to describe what happened"]
 )
+
+
 
 
 
@@ -1188,7 +1193,220 @@ def run_chat_flow():
     
     
 
-
+def run_freeze_interview_chat_flow():
+    """Free-text conversational compliance-check flow for bank-account
+    freezing. Mirrors run_interview_chat_flow()'s (arrest) structure,
+    but has NO offence/section-identification step -- per explicit user
+    confirmation, a person whose account is frozen typically does not
+    know which BNSS section was invoked. Instead asks about observable
+    facts and feeds them into check_freeze_authorization_inferred, a
+    function specifically built to never silently convert an inferred
+    fact into a confident section citation the person never stated.
+ 
+    Every verdict still comes from the SAME check_freeze_section_and_scope,
+    check_freeze_holder_intimation, and check_freeze_authorization_inferred
+    functions main.py already has.
+    """
+    from freeze_interview_flow import FreezeInterviewState, process_turn
+ 
+    st.write(
+        "Describe what happened with your frozen account, in your own words -- no document needed. "
+        "I'll ask a few follow-up questions, then give you a real assessment of whether proper "
+        "procedure was followed."
+    )
+ 
+    st.session_state.setdefault("freeze_chat_history", [])
+    st.session_state.setdefault("freeze_state_obj", FreezeInterviewState())
+ 
+    for turn in st.session_state["freeze_chat_history"]:
+        with st.chat_message(turn["role"]):
+            st.markdown(turn["content"])
+ 
+    if st.session_state.get("freeze_chat_results") is not None:
+        results = st.session_state["freeze_chat_results"]
+        st.divider()
+ 
+        severity = results.get("severity", {})
+        if severity.get("severity_color") in ("orange", "red"):
+            st.warning(
+                f"WARNING: {severity.get('severity_label', 'Concerns found')} -- "
+                f"see the summary below for what was found."
+            )
+ 
+        st.markdown("### What was found")
+        for check_result in results["compliance_result"]["compliance_checks"]:
+            icon = {"Compliant": "OK", "Non-Compliant": "X", "May be Non-Compliant": "!",
+                    "Cannot Determine": "?"}.get(check_result["status"], "?")
+            st.markdown(f"**{check_result['requirement']}**")
+            st.write(f"{check_result['status']}: {check_result['explanation']}")
+            st.divider()
+ 
+        st.markdown(f"**Overall:** {results['compliance_result']['overall_assessment']}")
+ 
+        if st.button("Start over", key="restart_freeze_chat"):
+            st.session_state["freeze_chat_history"] = []
+            st.session_state["freeze_state_obj"] = FreezeInterviewState()
+            st.session_state.pop("freeze_chat_results", None)
+            st.rerun()
+        return
+ 
+    user_message = st.chat_input("Describe what happened, or answer the question above...")
+    if not user_message:
+        return
+ 
+    st.session_state["freeze_chat_history"].append({"role": "user", "content": user_message})
+    with st.chat_message("user"):
+        st.markdown(user_message)
+ 
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            state = st.session_state["freeze_state_obj"]
+            try:
+                result = process_turn(state, user_message)
+            except Exception:
+                result = {"state": "extraction_unavailable", "field_name": None}
+ 
+        turn_state = result["state"]
+ 
+        if turn_state == "asking_field":
+            reply = result["question"]
+ 
+        elif turn_state == "extraction_unavailable":
+            reply = "Sorry, I had trouble understanding that -- could you try rephrasing your answer?"
+ 
+        elif turn_state == "ready_for_results":
+            st.session_state["freeze_chat_results"] = {
+                "compliance_result": result["compliance_result"],
+                "severity": result["severity"],
+                "fields_known": result["fields_known"],
+            }
+            reply = "Thanks -- I have enough to give you a real assessment now. I've put it together below."
+ 
+        else:
+            reply = "Something unexpected happened on my end -- please try rephrasing."
+ 
+        st.markdown(reply)
+ 
+    st.session_state["freeze_chat_history"].append({"role": "assistant", "content": reply})
+ 
+    if st.session_state.get("freeze_chat_results") is not None:
+        st.rerun()
+ 
+    st.caption(
+        "This is general information based on Indian law and court judgments, not legal advice. "
+        "For guidance on your specific situation, please consult a qualified lawyer."
+    )
+def run_cheque_interview_chat_flow():
+    """Free-text conversational compliance-check flow for cheque-bounce
+    (Section 138 NI Act) cases. Same architecture as
+    run_interview_chat_flow (arrest) and run_freeze_interview_chat_flow
+    (bank freezing). No offence/section-identification step -- every
+    conversation here is automatically a Section 138 matter.
+ 
+    Renders BOTH informational sidebars (debt presumption explanation,
+    settlement cost incentive) alongside the 4 hard compliance checks.
+    """
+    from cheque_bounce_interview_flow import ChequeBounceInterviewState, process_turn
+ 
+    st.write(
+        "Describe your bounced-cheque situation, in your own words -- no document needed. I'll ask "
+        "a few follow-up questions, then give you a real assessment of whether proper procedure was "
+        "followed."
+    )
+ 
+    st.session_state.setdefault("cheque_chat_history", [])
+    st.session_state.setdefault("cheque_state_obj", ChequeBounceInterviewState())
+ 
+    for turn in st.session_state["cheque_chat_history"]:
+        with st.chat_message(turn["role"]):
+            st.markdown(turn["content"])
+ 
+    if st.session_state.get("cheque_chat_results") is not None:
+        results = st.session_state["cheque_chat_results"]
+        st.divider()
+ 
+        severity = results.get("severity", {})
+        if severity.get("severity_color") in ("orange", "red"):
+            st.warning(
+                f"WARNING: {severity.get('severity_label', 'Concerns found')} -- "
+                f"see the summary below for what was found."
+            )
+ 
+        st.markdown("### What was found")
+        for check_result in results["compliance_result"]["compliance_checks"]:
+            st.markdown(f"**{check_result['requirement']}**")
+            st.write(f"{check_result['status']}: {check_result['explanation']}")
+            st.divider()
+ 
+        st.markdown(f"**Overall:** {results['compliance_result']['overall_assessment']}")
+ 
+        presumption_info = results.get("presumption_info")
+        if presumption_info:
+            st.subheader("About the Debt Presumption")
+            st.write(presumption_info["explanation"])
+            st.caption(presumption_info["note"])
+ 
+        settlement_info = results.get("settlement_info")
+        if settlement_info:
+            st.subheader("If You Are Considering Settlement")
+            st.write(settlement_info["message"])
+ 
+        if st.button("Start over", key="restart_cheque_chat"):
+            st.session_state["cheque_chat_history"] = []
+            st.session_state["cheque_state_obj"] = ChequeBounceInterviewState()
+            st.session_state.pop("cheque_chat_results", None)
+            st.rerun()
+        return
+ 
+    user_message = st.chat_input("Describe what happened, or answer the question above...")
+    if not user_message:
+        return
+ 
+    st.session_state["cheque_chat_history"].append({"role": "user", "content": user_message})
+    with st.chat_message("user"):
+        st.markdown(user_message)
+ 
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            state = st.session_state["cheque_state_obj"]
+            try:
+                result = process_turn(state, user_message)
+            except Exception:
+                result = {"state": "extraction_unavailable", "field_name": None}
+ 
+        turn_state = result["state"]
+ 
+        if turn_state == "asking_field":
+            reply = result["question"]
+ 
+        elif turn_state == "extraction_unavailable":
+            reply = "Sorry, I had trouble understanding that -- could you try rephrasing your answer?"
+ 
+        elif turn_state == "ready_for_results":
+            st.session_state["cheque_chat_results"] = {
+                "compliance_result": result["compliance_result"],
+                "presumption_info": result["presumption_info"],
+                "settlement_info": result["settlement_info"],
+                "severity": result["severity"],
+                "fields_known": result["fields_known"],
+            }
+            reply = "Thanks -- I have enough to give you a real assessment now. I've put it together below."
+ 
+        else:
+            reply = "Something unexpected happened on my end -- please try rephrasing."
+ 
+        st.markdown(reply)
+ 
+    st.session_state["cheque_chat_history"].append({"role": "assistant", "content": reply})
+ 
+    if st.session_state.get("cheque_chat_results") is not None:
+        st.rerun()
+ 
+    st.caption(
+        "This is general information based on Indian law and court judgments, not legal advice. "
+        "For guidance on your specific situation, please consult a qualified lawyer."
+    )
+    
 
 def run_interview_chat_flow():
     """Free-text conversational compliance-check flow, for a person with
@@ -1379,5 +1597,9 @@ elif mode == "I just want to ask something in my own words":
     run_chat_flow()
 elif mode == "I want to describe my situation and get a real assessment":
     run_interview_chat_flow()
+elif mode == "My bank account was frozen and I want to describe what happened":
+    run_freeze_interview_chat_flow()
+elif mode == "I have a bounced cheque situation and want to describe what happened":
+    run_cheque_interview_chat_flow()
 else:
     run_batch_triage_flow()

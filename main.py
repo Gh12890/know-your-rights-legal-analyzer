@@ -1568,7 +1568,20 @@ def check_freeze_section_and_scope(f):
             "its entirety.")
  
     if scope == "entire account":
-        if specific_amount is not None and specific_amount != "":
+        # FIXED 2026-08-30: was `if specific_amount is not None and
+        # specific_amount != ""`, which treated the literal string
+        # "unclear" as if it were a real known amount. CONFIRMED REAL
+        # BUG: freeze_interview_flow.py's extraction correctly returns
+        # the string "unclear" when the person genuinely doesn't know
+        # the disputed amount -- this is a NEW input shape the
+        # button-based UI never produced (its number_optional widget
+        # only ever yields a real number or None/"SKIPPED"). The old
+        # check silently interpolated "unclear" into the explanation
+        # text, producing the nonsensical "Rs. unclear" in a live
+        # conversation. Fixed by explicitly excluding "unclear" (and
+        # "SKIPPED", the button-flow's equivalent placeholder) from
+        # being treated as a real value.
+        if specific_amount not in (None, "", "unclear", "SKIPPED"):
             return _result(req, "Non-Compliant",
                 f"Entire account frozen, despite a specific disputed amount (Rs. {specific_amount}) "
                 f"being identifiable. Per Neelkanth Pharma Logistics Pvt. Ltd. v Union of India (Delhi "
@@ -1700,6 +1713,67 @@ def check_freeze_holder_intimation(f):
             "absence of any intimation AFTER the fact, which the account holder can raise directly with "
             "the investigating authority or bank.")
     return _result(req, "Cannot Determine", "Account holder intimation status unclear.")
+
+def check_freeze_authorization_inferred(fields):
+    """NEW 2026-08-30: honest, free-text-specific alternative to
+    check_freeze_107_court_order. NEVER used interchangeably with that
+    function -- this one is for cases where the person does NOT know
+    which BNSS section was invoked (the realistic case for someone
+    whose only knowledge is "my account got frozen"), and infers
+    authorization status from OBSERVABLE FACTS (was a court/Magistrate
+    mentioned, was a written order shown) rather than asking the
+    person to name a section they were never told.
+
+    ARCHITECTURAL PRINCIPLE: an inferred fact must NEVER be silently
+    converted into the same field/confidence level as a directly-
+    stated fact. If a free-text flow inferred section_invoked from
+    indirect signals and fed it into check_freeze_107_court_order, a
+    wrong inference would produce a confidently wrong verdict, not an
+    honest Cannot Determine. This function instead reads the raw
+    observable facts directly and caps its own confidence
+    accordingly -- it never claims certainty about which section was
+    invoked, since the person genuinely may never have been told.
+
+    Args:
+        fields: expects court_or_magistrate_mentioned, written_order_shown,
+            written_order_mentions_court (each True/False/"unclear").
+    """
+    req = "Some indication of Magistrate/court authorization for the freeze [Malabar Gold (2026) / Tapas D. Neogy (1999)]"
+
+    court_mentioned = fields.get("court_or_magistrate_mentioned")
+    order_shown = fields.get("written_order_shown")
+    order_mentions_court = fields.get("written_order_mentions_court")
+
+    if order_shown is True and order_mentions_court is True:
+        return _result(req, "Compliant",
+            "You mentioned receiving a written order that referred to a court, which is broadly "
+            "consistent with the requirement in Malabar Gold and Diamond Limited v Union of India "
+            "(Delhi High Court, 2026) that freezing/attaching a bank account requires the order of a "
+            "competent Magistrate. This is based on what you described, not a direct reading of the "
+            "document itself -- if you can get a copy of the order, it's worth having a lawyer confirm "
+            "it genuinely reflects a Magistrate's authorization.")
+
+    if court_mentioned is True:
+        return _result(req, "Cannot Determine",
+            "You mentioned a court or Magistrate being involved in some way, but it's not clear "
+            "whether a specific written order was shown to you or what it said. Per Malabar Gold and "
+            "Diamond Limited v Union of India (Delhi High Court, 2026), freezing a bank account "
+            "requires a competent Magistrate's order -- it would help to get a copy of any such order "
+            "and have it checked directly.")
+
+    if court_mentioned is False and (order_shown is False or order_mentions_court is False):
+        return _result(req, "May be Non-Compliant",
+            "Based on what you've described, there's no indication that a court or Magistrate was "
+            "involved in authorizing this freeze. Per Malabar Gold and Diamond Limited v Union of "
+            "India (Delhi High Court, 2026), freezing or attaching a bank account requires the order "
+            "of a competent Magistrate -- ordinary evidentiary seizure under Section 106 BNSS does "
+            "NOT, by itself, authorise a full freeze. This is worth raising directly with the "
+            "investigating authority or a lawyer.")
+
+    return _result(req, "Cannot Determine",
+        "There isn't enough information here to say whether this freeze was properly authorised by a "
+        "court. If you're able to find out whether any written order exists, and what it says, that "
+        "would help establish this.")
 
 
 
