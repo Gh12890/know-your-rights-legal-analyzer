@@ -203,10 +203,13 @@ SAME deterministic compliance functions.
      Core holding "holds the field" meanwhile; the arrest module's
      written-grounds check still stands, but re-check when the larger
      Bench reports.
-   - The corpus embeddings were NOT regenerated after these metadata
-     edits. Not needed (no chunk TEXT changed, only header citation
-     fields), but embed_corpus.py should be re-run before the next
-     release regardless, for cleanliness.
+   - The corpus embeddings were NOT regenerated (no chunk TEXT changed,
+     only citation metadata). The stale 'citation' field that
+     load_judgment_chunks copies into each embedded record WAS patched
+     in place (85 records) so embeddings/corpus_embeddings.json stays
+     internally consistent. Nothing in the retrieval path surfaces that
+     field anyway (chat uses case_name + para number). No embed_corpus.py
+     re-run needed.
 7. Item 2 above (Kaveri Plastics security/maturity doctrine): the real
    Kaveri Plastics judgment is 2025 INSC 1133 (SC affirming Delhi HC),
    about NOTICE-AMOUNT MISMATCH, not security/maturity. Later HCs
