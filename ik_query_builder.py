@@ -136,6 +136,95 @@ CASE_METADATA = {
         # See citation_currency.py's tapas_d_neogy_bank_account_as_property
         # entry for the full verification record.
     },
+
+    # -----------------------------------------------------------------
+    # ADDED 2026-09-01 (Project 2, citation_currency_checker.py): the
+    # remaining case_keys in retrieval.JUDGMENT_CITATION_MAP, so the
+    # case-law-treatment checker can build a query for every curated
+    # doctrine, not just the original five.
+    #
+    # PROVENANCE: case_name and citation for each were taken from that
+    # case's own corpus/*.json record's fields as of 2026-09-01 (the
+    # project's own sourced primary), NOT independently re-derived. They
+    # inherit exactly the confidence those records carry -- which is not
+    # absolute: the corpus record for D.K. Basu gives "(1997) 6 SCC 642"
+    # while this file's older, separately-sourced dk_basu entry above
+    # gives "(1997) 1 SCC 416". That discrepancy is unresolved and left
+    # visible on purpose rather than papered over. Where the corpus
+    # record had no clean reporter/neutral citation (the two Delhi HC
+    # writ petitions), citation is None and the case-name query carries
+    # the search on its own.
+    # -----------------------------------------------------------------
+    "rangappa": {
+        "case_name": "Rangappa v Sri Mohan",
+        "citation": "(2010) 11 SCC 441",
+        "court": "Supreme Court",
+        "year": 2010,
+        "doctrine_short": "S.139 NI Act presumption is mandatory and covers debt existence",
+    },
+    "bir_singh": {
+        "case_name": "Bir Singh v Mukesh Kumar",
+        "citation": "(2019) 4 SCC 197",
+        "court": "Supreme Court",
+        "year": 2019,
+        "doctrine_short": "S.139 NI Act presumption attaches even to a blank / undated cheque",
+    },
+    "damodar_s_prabhu": {
+        "case_name": "Damodar S. Prabhu v Sayed Babalal H",
+        "citation": "(2010) 5 SCC 663",
+        "court": "Supreme Court",
+        "year": 2010,
+        "doctrine_short": "graduated compounding-cost scheme for S.138 NI Act settlement",
+    },
+    "kaveri_plastics": {
+        "case_name": "Kaveri Plastics v Mahdoom Bawa Bahrudeen Noorul",
+        "citation": None,  # corpus record has only "2025 INSC (Supreme
+                            # Court, 19 September 2025)" -- not a clean
+                            # neutral citation, so no citation-anchored
+                            # query. Distinctive case name carries it.
+        "court": "Supreme Court",
+        "year": 2025,
+        "doctrine_short": "S.138 demand notice must specifically and severably state the cheque amount",
+    },
+    "prakash_chimanlal_sheth": {
+        "case_name": "Prakash Chimanlal Sheth v Jagruti Keyur Rajpopat",
+        "citation": "2025 INSC 897",
+        "court": "Supreme Court",
+        "year": 2025,
+        "doctrine_short": "territorial jurisdiction for a S.138 complaint (S.142(2) NI Act)",
+    },
+    "neelkanth_pharma_logistics": {
+        "case_name": "Neelkanth Pharma Logistics Pvt. Ltd. v Union of India",
+        "citation": None,  # corpus record has only the docket
+                            # "W.P.(C) 17905/2024, decided 20 February
+                            # 2025". Case-name query only.
+        "court": "Delhi High Court",
+        "year": 2025,
+        "doctrine_short": "proportionality limit on blanket account freezes (Article 21)",
+    },
+    "malabar_gold": {
+        "case_name": "Malabar Gold and Diamond Limited v Union of India",
+        "citation": None,  # corpus record has only the docket
+                            # "W.P.(C) 4198/2025, decided 16 January
+                            # 2026". Case-name query only.
+        "court": "Delhi High Court",
+        "year": 2026,
+        "doctrine_short": "Sections 106/107 BNSS textual scheme for police freezing of accounts",
+    },
+    "rakhi_mitra": {
+        "case_name": "Rakhi Mitra and Anr v State of West Bengal",
+        "citation": "2025:CHC-AS:1826",
+        "court": "Calcutta High Court",
+        "year": 2025,
+        "doctrine_short": "restates Arnesh Kumar's S.41A non-compliance consequences",
+    },
+    "sri_manjunath_mp": {
+        "case_name": "Sri Manjunath M P v State of Karnataka",
+        "citation": "2026:KHC:2726",
+        "court": "Karnataka High Court",
+        "year": 2026,
+        "doctrine_short": "applies Arnesh Kumar arrest-notice guidelines to specific facts",
+    },
 }
 
 
