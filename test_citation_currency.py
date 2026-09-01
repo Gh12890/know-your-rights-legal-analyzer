@@ -238,16 +238,22 @@ check(bool(arnesh_by_name[0].get("user_facing_note")), "case-name lookup for Arn
 prompt_text = format_retrieved_text_for_prompt([
     {"case_name": "Arnesh Kumar v State of Bihar", "paragraph_number": "fallback_12", "text": "sample text"},
 ])
+_arnesh_ufn = get_citation_currency("arnesh_kumar_checklist")["user_facing_note"]
 check(
-    "Citation currency note" in prompt_text and "SUPERSEDED_BY_STATUTE" in prompt_text,
-    "format_retrieved_text_for_prompt injects a currency note for a non-GOOD_LAW judgment match",
+    "Currency note" in prompt_text and _arnesh_ufn in prompt_text,
+    "format_retrieved_text_for_prompt injects the PLAIN user_facing_note for a non-GOOD_LAW judgment match",
+)
+check(
+    "successor_treatment" not in prompt_text and "IK tid" not in prompt_text
+    and "SUPERSEDED_BY_STATUTE" not in prompt_text,
+    "the auditor-trail text (successor_treatment / status codes / IK tids) is NOT fed to the model",
 )
 
 prompt_text_good_law = format_retrieved_text_for_prompt([
     {"case_name": "Malabar Gold and Diamond Limited v Union of India", "paragraph_number": "fallback_22", "text": "sample text"},
 ])
 check(
-    "Citation currency note" not in prompt_text_good_law,
+    "Currency note" not in prompt_text_good_law,
     "format_retrieved_text_for_prompt adds no currency note for a GOOD_LAW judgment match",
 )
 
@@ -255,7 +261,7 @@ prompt_text_statute_only = format_retrieved_text_for_prompt([
     {"section_number": "106", "act": "BNSS", "text": "sample statute text"},
 ])
 check(
-    "Citation currency note" not in prompt_text_statute_only,
+    "Currency note" not in prompt_text_statute_only,
     "format_retrieved_text_for_prompt is a no-op for a statute match with no case_name",
 )
 

@@ -13,3 +13,7 @@ test_brief.pdf
 # CITATION_CURRENCY_MAP entry by hand -- the bundle itself is a working
 # artifact, not a source of truth, so it is not tracked.
 citation_currency_review/
+
+# eval_chat_answers.py output: regenerable run reports (each run makes
+# live API calls). Keep locally for before/after comparison; not tracked.
+eval_out/

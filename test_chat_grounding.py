@@ -173,6 +173,31 @@ with patch("chat_assistant.client") as mock_client:
     check(result is None, "returns None (honest give-up) when even the retry is still ungrounded, never a second wrong answer")
 
 
+# ---- _explicit_section_matches: "what is section N" lookup (real get_statute_section, no API) ----
+
+from chat_assistant import _explicit_section_matches
+
+m = _explicit_section_matches("what is section 318 of BNS")
+check(len(m) == 1 and (m[0]["act"], m[0]["section_number"]) == ("BNS", "318"),
+      "'section 318 of BNS' resolves to BNS 318 with real statute text")
+check(bool(m[0].get("text")) and m[0]["source"] == "explicit_section_ref",
+      "the resolved match carries real text and the explicit_section_ref source tag")
+
+check(_explicit_section_matches("police said i violated section 420") == [],
+      "'section 420' (a famous old IPC number, not in BNS) resolves to nothing -- no fabricated section")
+
+mb = _explicit_section_matches("does BNSS 35 require a notice")
+check(len(mb) == 1 and mb[0]["act"] == "BNSS" and mb[0]["section_number"] == "35",
+      "an explicit 'BNSS 35' is looked up in BNSS, not BNS")
+
+check(_explicit_section_matches("what are my rights if arrested") == [],
+      "a question naming no section number yields no explicit match")
+
+multi = _explicit_section_matches("compare section 303 and section 316 of BNS")
+check({(x["act"], x["section_number"]) for x in multi} == {("BNS", "303"), ("BNS", "316")},
+      "two explicitly named sections both resolve (capped at 2)")
+
+
 print("\n" + "=" * 70)
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILURE(S)")

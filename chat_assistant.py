@@ -172,26 +172,75 @@ def classify_scope(question):
     except Exception:
         return None, None, None
 
-RESPONSE_GENERATION_PROMPT = """You are a careful, warm legal guide helping a layperson understand Indian criminal procedure (BNS/BNSS). You are NOT a lawyer and must not give legal advice -- you explain what the law and courts have said, in plain language, and always point the person toward a concrete next step.
+# ---------------------------------------------------------------------------
+# RESPONSE_GENERATION_PROMPT -- design notes / failure history.
+#
+# Every rule below is load-bearing; each traces to a real observed
+# failure. The war-story detail lives here (as a comment, never sent to
+# the model) so the prompt itself stays short -- a ~1100-word prompt
+# stuffed with inline "CONFIRMED REAL FAILURE" digressions was itself
+# degrading answers (2026-09-01 eval: answers ran 500-800 words, cited
+# up to 17 sections, buried the actionable step).
+#
+#  - No "Indian Penal Code" / "IPC": a past answer called BNS 318
+#    "Section 318 of the Indian Penal Code (BNS)". The IPC is the OLD law
+#    BNS replaced; this corpus never mentions it.
+#  - No "retrieved text" / "the information below": a layperson under
+#    stress must never see the machinery.
+#  - No compliance verdict: the chat feature EXPLAINS; the deterministic
+#    engine (document upload / guided interviews) DECIDES. Hard line.
+#  - Subsection precision: an answer described 318(4)'s punishment
+#    without ever naming it "318(4)".
+#  - Don't hedge after answering: given Section 109(1)'s two punishment
+#    conditions -- both stated correctly -- an answer THEN added a false
+#    "a real exception exists that couldn't be extracted" caveat.
+#  - Lead with the practical, cap the section list, keep it short
+#    (2026-09-01 eval): the old "MANDATORY name and describe EVERY
+#    retrieved section" rule (added to stop judgments crowding out
+#    statute) overcorrected into laundry lists behind a "these don't
+#    seem to fit" hedge. Replaced with: prioritise, cap at 4, omit the
+#    rest entirely; offence section before procedure sections keeps the
+#    original intent.
+#  - One currency clause, not a paragraph (2026-09-01 eval): answers
+#    surfaced citation_currency NOT_YET_VERIFIED notes as hand-wringing
+#    "treat this judgment with caution" paragraphs -- internal metadata
+#    language, not for a layperson.
+#  - "Right now" block for situations: a competitor tool's answer to the
+#    goat-theft query led with concrete custody actions ("ask for the
+#    FIR number, don't sign blank papers") and read far better for
+#    someone actually in that moment; ours led with statutory exposition.
+# ---------------------------------------------------------------------------
+RESPONSE_GENERATION_PROMPT = """You are a warm, careful guide helping a layperson understand Indian criminal law and procedure (BNS / BNSS). You are NOT a lawyer and do NOT give legal advice -- you explain what the law and the courts say, in plain words, and point to one concrete next step.
 
-CRITICAL RULES, never break these:
-- Use ONLY the information provided below. Do not add facts, section numbers, case holdings, or law/act NAMES from your own general knowledge, even if you're confident they're correct.
-- Do NOT refer to the "Indian Penal Code" or "IPC" unless those exact words appear in the information below. Confirmed real failure: a past response called BNS Section 318 "Section 318 of the Indian Penal Code (BNS)" -- the IPC is a DIFFERENT, older law that BNS replaced; conflating them is factually wrong and this corpus never mentions the IPC. Refer only to the act named in the information below (BNS or BNSS).
-- NEVER use the words "retrieved text", "the text I have", "the retrieved information", "the classification table", "the compliance table", or any other phrase describing WHERE this information came from. The person reading this is a layperson, often under real stress -- they should never see the internal machinery behind the answer. Just state the law directly: write "Section 303 covers..." not "the retrieved text shows Section 303 covers...". If something isn't covered, say "I don't have information on..." not "the retrieved text doesn't include...".
-- If the information below doesn't fully answer the question, say so honestly rather than filling the gap -- but ONLY flag genuine gaps. CONFIRMED REAL FAILURE (2026-08-28): given Section 109(1) where the underlying data showed a general punishment (10 years) versus an enhanced one (life imprisonment, if the act causes hurt) -- both of which were correctly and specifically stated in the answer -- the response THEN added an extra, confusing caveat calling this a "flagged exception... that couldn't be cleanly extracted," implying missing information that did not actually exist. If you have already stated the specific facts clearly (e.g. "the punishment is X, or Y if Z happens"), do NOT also add a vaguer follow-up caveat suggesting the details are incomplete or that "a lawyer should confirm the exact condition" -- you already stated the exact condition. Only flag genuine uncertainty when you are ACTUALLY missing a specific fact you cannot state, not as a reflexive hedge after already answering completely.
-- Never state a compliance verdict (like "this is legal" or "this is illegal") -- you can explain what the law says, but whether it applies to the person's specific situation requires facts you don't have.
-- Always end with a short, concrete "what you can do next" suggestion (e.g. "if you have a copy of the FIR, you could upload it here for a full check", or "a lawyer could confirm which of these applies to your situation"). Include this only ONCE, at the very end -- do not repeat a "what you can do next" section twice.
-- Keep the tone warm and plain -- avoid legal jargon where you can, and explain any term you must use.
-- When you name a section, ALWAYS include its exact subsection number if the information distinguishes between subsections (e.g. write "Section 318(4)", not just "Section 318") -- confirmed real failure: describing 318(4)'s punishment without ever naming it as 318(4) specifically, making it impossible for the reader to verify which provision was meant.
-- MANDATORY: if ANY statute section (BNS or BNSS) appears in the information below, you MUST explicitly name and briefly describe every single one of them in your answer, even if a court judgment is also present and even if the statute text seems less directly relevant than the judgment. Do not let a rich, narrative judgment crowd out plainer statute text -- the statute sections are usually the MOST directly relevant answer to "what does the law say about my situation," since they define the actual offence, while judgments typically speak to arrest PROCEDURE more generally. Address the statute sections FIRST, by name, before discussing any judgment. EXCEPTION: if a section is clearly not relevant to the person's actual question (e.g. a general procedural section about how a Magistrate frames charges, when the person is asking about the threshold for filing a charge), you may briefly note it doesn't seem to apply rather than describing it in full -- do not force an irrelevant section into the main explanation just because it was among the retrieved candidates.
+## Hard rules (never break)
+- Use ONLY the legal information given below. Never add a section number, case holding, punishment, or the NAME of any act/law from your own knowledge -- even if you are sure it is right.
+- Never write "the Indian Penal Code" or "IPC" unless those exact words appear below. Refer only to the act named below (BNS or BNSS).
+- Never reveal the machinery: no "the retrieved text", "the information I have", "the material below", "the classification table". State the law directly ("Section 303 covers..."); if something genuinely isn't covered, say "I don't have information on...".
+- Never give a compliance verdict about the person's own situation ("your arrest was illegal", "this was lawful"). Explain what the law requires and what would matter; whether it was followed needs facts you don't have.
+- When you name a section that has subsections in the material below, always include the exact subsection ("Section 318(4)", not "Section 318").
+- If you have already stated a condition clearly ("the punishment is X, or Y if Z"), do NOT then add a vaguer caveat implying the detail is incomplete. Only flag a gap when you are genuinely missing a specific fact you cannot state.
+
+## What to include, what to leave out
+- The material below is roughly in order of relevance. Pick the 2-4 provisions (plus any one case) that actually answer the question and build the answer around those.
+- Cite AT MOST 4 distinct section numbers. If a retrieved section only tangentially relates, OMIT IT ENTIRELY -- do not describe it and do not explain why it doesn't apply.
+- Address the section(s) defining the OFFENCE the person asks about before general arrest-procedure sections -- the offence is usually the most direct answer.
+- If a provision or case below carries a note about its legal currency, fold it in as ONE short plain clause ("...though the exact scope of this is under review by a larger bench"). Never write a separate paragraph about verification status or "treat this with caution".
+
+## Shape and length
+- If the question describes something that HAS ALREADY HAPPENED to the person or someone close to them (an arrest, a search, an FIR, a frozen account), open with a short **"Right now"** part: 2-3 concrete things they can do or ask for immediately. Then the relevant law. Then what key facts are still unclear. Then the closing line.
+- If it is a general question ("what is Section X", "what are my rights if..."), skip "Right now" -- just explain clearly in short labelled parts.
+- Keep the whole answer under about 300 words (400 only for a genuinely multi-part question). Someone may be reading this in a police station -- brevity helps them.
+- Warm, plain tone; explain any legal term you must use.
+- End with exactly ONE "what you can do next" line (e.g. "if you have the FIR or arrest memo, you can upload it here for a full check", or "the 'describe my situation' option above will take you through this step by step"). Never repeat it.
 {conflict_instruction}
 
-The person's question: {question}
+The person's question:
+{question}
 
-Here is the real legal information relevant to this question (statute text and court judgments) -- use only this, and present it as your own direct knowledge of the law, never as something you were "given" or "retrieved":
+The legal information relevant to it (statute text and court judgments) -- present this as your own direct knowledge of the law:
 {retrieved_text}
 
-Write a short, clear, warm answer, followed by a single "What you can do next" line at the end."""
+Write the answer now, following the shape and length rules above."""
 
 
 _CONFLICT_INSTRUCTION = """- IMPORTANT: the sections below genuinely DISAGREE with each other on a key point (e.g. some are arrestable without a warrant, others are not). Do NOT blend them into one narrative paragraph. Structure your answer as clearly separated scenarios, each labeled with its exact section number, e.g.:
@@ -306,7 +355,10 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
         )
         response = client.messages.create(
             model=model,
-            max_tokens=1500,
+            # Headroom only -- the prompt targets 300-400 words. 1500 was
+            # truncating long answers mid-sentence and silently dropping
+            # the closing "what you can do next" line (2026-09-01 eval).
+            max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         )
         response_text = _extract_text_from_response(response).strip()
@@ -318,7 +370,7 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
             )
             retry_response = client.messages.create(
                 model=model,
-                max_tokens=1500,
+                max_tokens=2000,
                 messages=[{"role": "user", "content": retry_prompt}],
             )
             retry_text = _extract_text_from_response(retry_response).strip()
@@ -329,6 +381,58 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
         return response_text
     except Exception:
         return None
+
+
+# "section 318", "sec 318", "s.318", "318 of BNS", "BNS 318", "BNSS 35(3)"
+_EXPLICIT_SECTION_PAT = re.compile(
+    r"\b(?:section|sec\.?|s\.?)\s*(\d{1,3})(?:\s*\(\d+[a-z]?\))?\s*(?:of\s+the\s+|of\s+|,\s*)?(bnss|bns)?\b"
+    r"|\b(bnss|bns)\s*(?:section\s*)?(\d{1,3})(?:\s*\(\d+[a-z]?\))?\b",
+    re.IGNORECASE,
+)
+
+
+def _explicit_section_matches(question: str, max_sections: int = 2) -> list:
+    """If the question literally names one or more section numbers, return
+    a match dict per section with that section's real statute text pulled
+    directly via retrieval.get_statute_section -- shaped like a
+    statute_doctrine_map override so it flows through the same downstream
+    handling.
+
+    Act resolution: if the question says "BNS" or "BNSS" next to the
+    number, trust that. Otherwise default to BNS -- a bare section number
+    almost always means a substantive offence, and BNS has only 358
+    sections, so a famous old IPC number like 420 (cheating) or 302
+    (murder) simply doesn't resolve and yields nothing rather than
+    pulling an unrelated BNSS procedural section of the same number.
+    Someone genuinely asking about a BNSS procedure section by number is
+    rare and will be caught by normal semantic retrieval anyway."""
+    from retrieval import get_statute_section
+
+    found = []  # list of (num_str, act_hint_or_None), in question order, deduped
+    seen = set()
+    for m in _EXPLICIT_SECTION_PAT.finditer(question or ""):
+        num = m.group(1) or m.group(4)
+        act_hint = (m.group(2) or m.group(3) or "").upper() or None
+        if not num or num in seen:
+            continue
+        seen.add(num)
+        found.append((num, act_hint))
+        if len(found) >= max_sections:
+            break
+
+    results = []
+    for num, act_hint in found:
+        acts = [act_hint] if act_hint in ("BNS", "BNSS") else ["BNS"]
+        for act in acts:
+            data = get_statute_section(act, num)
+            if data:
+                results.append({
+                    "act": data["act"],
+                    "section_number": data["section_number"],
+                    "text": data["text"],
+                    "source": "explicit_section_ref",
+                })
+    return results
 
 
 def format_retrieved_text_for_prompt(matches):
@@ -433,18 +537,21 @@ def format_retrieved_text_for_prompt(matches):
         if m.get("case_name"):
             from citation_currency import get_citation_currency_for_case_name
             currency_records = get_citation_currency_for_case_name(m["case_name"])
-            non_good_law = [r for r in currency_records if r["status"] != "GOOD_LAW"]
-            if non_good_law:
-                lines = []
-                for r in non_good_law:
-                    lines.append(f"Status: {r['status']}.")
-                    if r.get("successor_treatment"):
-                        lines.append(r["successor_treatment"])
-                    elif r.get("verified_note"):
-                        lines.append(r["verified_note"])
+            # Only the PLAIN-LANGUAGE user_facing_note reaches the model
+            # here. 'successor_treatment'/'verified_note' are auditor
+            # trails (dates, IK tids, "worked example") -- feeding those
+            # in produced hand-wringing "treat this judgment with
+            # caution" paragraphs in real answers (2026-09-01 eval).
+            # GOOD_LAW entries have user_facing_note=None and are skipped.
+            notes = [
+                r["user_facing_note"] for r in currency_records
+                if r["status"] != "GOOD_LAW" and r.get("user_facing_note")
+            ]
+            if notes:
                 block += (
-                    "\n\n[Citation currency note -- state this plainly, do not soften or omit it]\n"
-                    + "\n".join(lines)
+                    "\n\n[Currency note -- if this case is central to your answer, work this "
+                    "in as ONE short plain clause; if the case is only a minor mention, you "
+                    "may leave it out]\n" + "\n".join(dict.fromkeys(notes))
                 )
 
         variants = m.get("all_variants") or {}
@@ -608,6 +715,20 @@ def answer_question(question):
     # clear SIMILARITY_THRESHOLD. This does NOT replace semantic
     # search -- both run, and both sets of results get combined below.
     statute_overrides = get_statute_doctrine_override(question)
+
+    # Explicit-section lookup: if the person literally names a section
+    # ("what is section 318 of BNS", "does BNS 303 apply"), pull that
+    # section's real text directly. Confirmed real gap (2026-09-01 eval):
+    # "what is section 318 of BNS" scored below threshold on every
+    # embedded chunk and returned no_match -- a plainly answerable
+    # question producing an empty answer. Merged into statute_overrides
+    # so it flows through the same combine-and-fallback logic below.
+    explicit = _explicit_section_matches(question)
+    if explicit:
+        seen = {(o.get("act"), o.get("section_number")) for o in statute_overrides}
+        statute_overrides = statute_overrides + [
+            e for e in explicit if (e["act"], e["section_number"]) not in seen
+        ]
 
     result = find_relevant_sections(question)
 
