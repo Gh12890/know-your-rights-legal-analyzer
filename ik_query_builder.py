@@ -122,6 +122,20 @@ CASE_METADATA = {
                         # before final disposal.
         "doctrine_short": "FIR copy upload and accused FIR copy right",
     },
+    "tapas_d_neogy": {
+        "case_name": "State of Maharashtra vs Tapas D. Neogy",
+        "citation": "(1999) 7 SCC 685",
+        "court": "Supreme Court",
+        "year": 1999,
+        "doctrine_short": "bank account as 'property' under old CrPC S.102 / BNSS S.106",
+        # ADDED 2026-09-01 (Project 2, citation_currency.py worked example):
+        # a real search using this case_name + "106 107 BNSS" surfaced
+        # Khilji Mohsinahmed Mustakali v Assistant Director of
+        # Enforcement (Bombay HC, 5 Dec 2025, IK tid 30125115), which
+        # cites this case's paragraph 12 as continuing good law post-BNSS.
+        # See citation_currency.py's tapas_d_neogy_bank_account_as_property
+        # entry for the full verification record.
+    },
 }
 
 

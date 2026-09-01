@@ -154,7 +154,14 @@ def _result(requirement: str, status: str, explanation: str, doctrine_key: str =
     inspect court metadata at render time.
 
     Both parameters are safe to omit; existing call sites using only
-    doctrine_key (or neither) are unaffected."""
+    doctrine_key (or neither) are unaffected.
+
+    PROJECT 2 (citation_currency.py): whenever doctrine_key or
+    applying_precedent_key is resolved, this also attaches
+    'citation_currency' / 'applying_precedent_currency' -- a lookup
+    only, same as source_paragraphs, never used to influence status or
+    explanation above this line. Absence of a curated currency record
+    surfaces as an explicit NOT_YET_VERIFIED status, never silence."""
     result = {"requirement": requirement, "status": status, "explanation": explanation}
     if doctrine_key is not None and _retrieval_available:
         try:
@@ -164,12 +171,22 @@ def _result(requirement: str, status: str, explanation: str, doctrine_key: str =
                 result["source_paragraphs"] = paragraphs
         except Exception:
             pass
+        try:
+            from citation_currency import get_citation_currency
+            result["citation_currency"] = get_citation_currency(doctrine_key)
+        except Exception:
+            pass
     if applying_precedent_key is not None and _retrieval_available:
         try:
             from retrieval import get_judgment_doctrine
             applying_paragraphs = get_judgment_doctrine(applying_precedent_key)
             if applying_paragraphs:
                 result["applying_precedent_paragraphs"] = applying_paragraphs
+        except Exception:
+            pass
+        try:
+            from citation_currency import get_citation_currency
+            result["applying_precedent_currency"] = get_citation_currency(applying_precedent_key)
         except Exception:
             pass
     return result

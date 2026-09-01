@@ -312,6 +312,29 @@ def format_retrieved_text_for_prompt(matches):
         if m.get("context_note"):
             block += "\n\n[Important legal context for this section]\n" + m["context_note"]
 
+        # PROJECT 2 (citation_currency.py): judgment matches (identified by
+        # case_name) get a currency check the same way statute matches get
+        # all_variants/context_note enrichment below. This is a lookup only
+        # -- the LLM is told the already-decided currency fact and asked to
+        # phrase it, exactly like context_note, never asked to judge
+        # currency itself.
+        if m.get("case_name"):
+            from citation_currency import get_citation_currency_for_case_name
+            currency_records = get_citation_currency_for_case_name(m["case_name"])
+            non_good_law = [r for r in currency_records if r["status"] != "GOOD_LAW"]
+            if non_good_law:
+                lines = []
+                for r in non_good_law:
+                    lines.append(f"Status: {r['status']}.")
+                    if r.get("successor_treatment"):
+                        lines.append(r["successor_treatment"])
+                    elif r.get("verified_note"):
+                        lines.append(r["verified_note"])
+                block += (
+                    "\n\n[Citation currency note -- state this plainly, do not soften or omit it]\n"
+                    + "\n".join(lines)
+                )
+
         variants = m.get("all_variants") or {}
         if variants:
             variant_lines = []

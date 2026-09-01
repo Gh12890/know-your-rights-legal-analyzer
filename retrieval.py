@@ -44,6 +44,27 @@ _JUDGMENT_CHUNK_FILES = {
     "youth_bar_association": "chunks/youth_bar_association_v_union_of_india_chunks.json",
     "rakhi_mitra": "chunks/rakhi_mitra_and_anr_v_state_of_west_bengal_chunks.json",
     "sri_manjunath_mp": "chunks/sri_manjunath_m_p_v_state_of_karnataka_chunks.json",
+    # ADDED 2026-09-01 (Project 2 currency-check discovery): these 8
+    # case_keys are referenced by JUDGMENT_CITATION_MAP (freeze and
+    # cheque-bounce domains) and their chunk files exist on disk, but
+    # were NEVER registered here. CONFIRMED REAL BUG: get_judgment_doctrine()
+    # silently returned None/empty for all 8 of these doctrine_keys --
+    # no exception (main.py's _result() swallows exceptions around this
+    # call, but there wasn't even one to swallow -- _load_judgment_chunks
+    # just returned None for an unregistered case_key, and the "if
+    # paragraphs:" check in _result() silently skipped attaching
+    # source_paragraphs). Practical effect: every "Read the source"
+    # expander for these 8 doctrines has been empty/absent in the app
+    # this entire session, even though the compliance checks themselves
+    # cite these cases correctly by name in their explanation text.
+    "tapas_d_neogy": "chunks/state_of_maharashtra_v_tapas_d_neogy_chunks.json",
+    "malabar_gold": "chunks/malabar_gold_and_diamond_limited_v_union_of_india_chunks.json",
+    "neelkanth_pharma_logistics": "chunks/neelkanth_pharma_logistics_pvt_ltd_v_union_of_india_chunks.json",
+    "rangappa": "chunks/rangappa_v_sri_mohan_chunks.json",
+    "bir_singh": "chunks/bir_singh_v_mukesh_kumar_chunks.json",
+    "damodar_s_prabhu": "chunks/damodar_s_prabhu_v_sayed_babalal_h_chunks.json",
+    "kaveri_plastics": "chunks/kaveri_plastics_v_mahdoom_bawa_bahrudeen_noorul_chunks.json",
+    "prakash_chimanlal_sheth": "chunks/prakash_chimanlal_sheth_v_jagruti_keyur_rajpopat_chunks.json",
 }
 
 _statute_cache = {}
@@ -404,94 +425,139 @@ JUDGMENT_CITATION_MAP = {
     
     "rangappa_section_139_presumption_mandatory": {
         "case_key": "rangappa",
-        "paragraph_numbers": [],
+        "paragraph_numbers": ["14", "34"],
         "opinion_author": None,
         "verified_note": (
-            "Case read in full 2026-08-30. Vital holding confirmed: Section "
-            "139's presumption of a legally enforceable debt is mandatory, "
-            "covers the debt's existence itself (not just signature), and "
-            "shifts the burden to the accused to rebut on a preponderance of "
-            "probabilities. EXACT PARAGRAPH NUMBERS NOT YET CONFIRMED via "
-            "direct chunk inspection -- must be located before this entry is "
-            "considered complete, same discipline already applied to every "
-            "other entry in this map."
+            "PARAGRAPH NUMBERS CONFIRMED 2026-09-01 (Project 2 backlog "
+            "close-out) via direct chunk inspection of chunks/rangappa_v_"
+            "sri_mohan_chunks.json: paragraph 14 states 'the presumption "
+            "mandated by Section 139 of the Act does indeed include the "
+            "existence of a legally enforceable debt or liability'; "
+            "paragraph 34 states the rebuttal standard is 'preponderance "
+            "of probabilities', not proof beyond reasonable doubt. Both "
+            "confirmed as clean, unambiguous single chunks -- no "
+            "duplicate-paragraph-number collision for either. NOTE: this "
+            "chunk file also contains 'paragraphs' numbered 118, 138, 139 "
+            "-- these are statute section numbers quoted within the "
+            "judgment text, mis-parsed as paragraph markers by "
+            "chunk_judgments.py's regex, not real paragraph numbers; "
+            "confirmed not relevant here and not used."
         ),
     },
     "bir_singh_blank_cheque_and_informal_loan": {
         "case_key": "bir_singh",
-        "paragraph_numbers": [],
+        "paragraph_numbers": ["40"],
         "opinion_author": None,
         "verified_note": (
-            "Case read in full 2026-08-30. Vital holding confirmed: a blank "
-            "cheque voluntarily signed and later filled in still attracts "
-            "the Section 139 presumption; an informal/'friendly loan' does "
-            "not defeat the presumption. EXACT PARAGRAPH NUMBERS NOT YET "
-            "CONFIRMED -- must be located before this entry is complete."
+            "PARAGRAPH NUMBER CONFIRMED 2026-09-01 (Project 2 backlog "
+            "close-out) via direct chunk inspection of chunks/bir_singh_v_"
+            "mukesh_kumar_chunks.json: paragraph 40 states 'Even a blank "
+            "cheque leaf, voluntarily signed and handed over by the "
+            "accused, which is towards some payment, would attract "
+            "presumption under Section 139... in the absence of any "
+            "cogent evidence to show that the cheque was not issued in "
+            "discharge of a debt.' Confirmed as a clean, unambiguous "
+            "single chunk -- no duplicate-paragraph-number collision. "
+            "CORRECTION (2026-09-01): this verified_note previously still "
+            "restated the retracted 'informal/friendly loan does not "
+            "defeat the presumption' claim as a 'Vital holding confirmed' "
+            "-- despite HANDOFF_PROJECT2.md and main.py's own "
+            "explain_debt_presumption_status docstring already stating "
+            "this claim was found wrong and retracted (the 'friendly "
+            "loan' phrase appears only in Bir Singh's facts recitation, "
+            "never as a Court holding). This was a documentation-only "
+            "inconsistency, not a live bug -- get_judgment_doctrine only "
+            "ever returns paragraph text, never this verified_note field, "
+            "to callers, so the stale claim never reached the app or any "
+            "user-facing output. Removed here for consistency; this "
+            "doctrine_key now documents only the real, confirmed "
+            "blank-cheque holding."
         ),
     },
     "damodar_prabhu_compounding_cost_scheme": {
         "case_key": "damodar_s_prabhu",
-        "paragraph_numbers": [],
+        "paragraph_numbers": ["15"],
         "opinion_author": None,
         "verified_note": (
-            "Case read in full 2026-08-30. Vital holding confirmed: "
-            "graduated cost scheme for compounding (roughly 10%/15%/20% of "
-            "cheque amount at trial court post-conviction / High Court / "
-            "Supreme Court stages), payable to legal aid fund; compounding "
-            "remains available at any stage. EXACT PARAGRAPH NUMBERS NOT "
-            "YET CONFIRMED -- must be located before this entry is "
-            "complete, specifically the paragraph(s) stating the actual "
-            "percentage figures, since those are the operative numbers "
-            "compute_settlement_cost_incentive needs to cite precisely."
-        ),
-    },
-    "kaveri_plastics_security_cheque_maturity": {
-        "case_key": "kaveri_plastics",
-        "paragraph_numbers": [],
-        "opinion_author": None,
-        "verified_note": (
-            "Case read in full 2026-08-30. Vital holding confirmed (first "
-            "of two holdings in this judgment): a cheque given as security "
-            "for a future/contingent liability does not attract Section "
-            "138 if dishonoured before the liability matures; the "
-            "'security cheque' label is not itself determinative -- what "
-            "matters is whether the debt was due and payable at the time "
-            "of dishonour. EXACT PARAGRAPH NUMBERS NOT YET CONFIRMED -- "
-            "must be located before this entry is complete."
+            "PARAGRAPH NUMBER CONFIRMED 2026-09-01 (Project 2 backlog "
+            "close-out) via direct chunk inspection of chunks/damodar_s_"
+            "prabhu_v_sayed_babalal_h_chunks.json: paragraph 15 IS 'THE "
+            "GUIDELINES' section itself and states the exact operative "
+            "figures -- (b) 10% of the cheque amount if compounding is "
+            "sought before the Magistrate after the first/second hearing; "
+            "(c) 15% before the Sessions Court or High Court; (d) 20% "
+            "before the Supreme Court -- confirming the 10/15/20% figures "
+            "compute_settlement_cost_incentive needs precisely, not just "
+            "approximately. Confirmed as a clean, unambiguous single "
+            "chunk (2798 chars) -- no duplicate-paragraph-number "
+            "collision (note: this chunk file separately contains a "
+            "spurious 'paragraph 147' -- a Section 147 statute reference "
+            "mis-parsed as a paragraph marker, and a genuine duplicate "
+            "'12' -- neither is paragraph 15, not relevant here)."
         ),
     },
     "kaveri_plastics_amount_specifically_demanded": {
         "case_key": "kaveri_plastics",
-        "paragraph_numbers": ["14"],
+        "paragraph_numbers": ["5"],
         "opinion_author": None,
         "verified_note": (
-            "Case read in full 2026-08-30, paragraph 14 SPECIFICALLY "
-            "CONFIRMED via direct reading: this paragraph quotes Suman "
-            "Sethi v Ajay K. Churiwal, (2000) 2 SCC 380, verbatim -- "
-            "'demand has to be made for the said amount i.e. the cheque "
-            "amount... Where in addition to the said amount there is also "
-            "a claim by way of interest, cost etc.' Establishes that a "
-            "demand notice must specifically demand the cheque amount "
-            "itself; additional amounts (interest, costs) mentioned "
-            "alongside it do NOT by themselves invalidate the notice, "
-            "provided the cheque amount remains specifically and severably "
-            "demanded. Suman Sethi's own separate judgment was NOT "
-            "independently fetched -- this project cites its holding via "
-            "this verbatim quotation, per explicit 2026-08-30 decision."
+            "CORRECTION (2026-09-01, Project 2 discovery), then RESOLVED "
+            "same day: the previous version of this entry claimed "
+            "paragraph_numbers=['14'], with a verified_note asserting "
+            "paragraph 14 was 'SPECIFICALLY CONFIRMED via direct "
+            "reading.' That was WRONG -- the real Suman Sethi quote ('We "
+            "have to ascertain the meaning of the words the said amount "
+            "of money...') sits at paragraph 5.2.1, not 14, per direct "
+            "text search of corpus/kaveri_plastics_v_mahdoom_bawa_"
+            "bahrudeen_noorul.json. This document's decimal-style "
+            "numbering (4.1, 5.2, 5.2.1, 6.3...) was never captured as "
+            "separate chunks by chunk_judgments.py's regex -- but "
+            "confirmed via direct chunk inspection that the text WASN'T "
+            "lost: chunks/kaveri_plastics_v_mahdoom_bawa_bahrudeen_"
+            "noorul_chunks.json's paragraph '5' chunk (2798+ chars, "
+            "spanning the whole Section 138 'said amount' analysis from "
+            "5. through immediately before 6.) contains the full 5.2.1 "
+            "text verbatim, including the exact Suman Sethi quote. Fixed "
+            "by citing the coarser but real and complete paragraph '5', "
+            "not by re-chunking. TRADEOFF, stated plainly: paragraph 5 is "
+            "a large chunk (~17,000 chars) covering more than just the "
+            "5.2.1 holding -- a renderer showing this will show the "
+            "surrounding analysis too, not an isolated quote. This is "
+            "honest and complete, just coarser-grained than the other "
+            "entries in this map. A future re-chunk with decimal-aware "
+            "paragraph boundaries (not done here) could tighten this to "
+            "just 5.2.1 -- not required for this citation to be usable "
+            "and accurate now. IMPORTANT -- CONFIRMED REAL DUPLICATE, same "
+            "honest-collision pattern as Neelkanth's paragraph 12 above: "
+            "paragraph '5' appears TWICE in this chunk file. The FIRST "
+            "occurrence (119 chars, 'That you the noticees assured my "
+            "client that the aforesaid cheque shall be honoured on "
+            "presentation') is from the quoted DEMAND NOTICE text in the "
+            "facts recitation, NOT the Court's own reasoning -- do not "
+            "cite this one. Only the SECOND occurrence (16912 chars, "
+            "opening 'Having gathered the compass of the controversy...') "
+            "is the Court's own analysis and contains the real Suman "
+            "Sethi quote. get_judgment_doctrine returns both by design; "
+            "any renderer surfacing this doctrine must make clear which "
+            "fragment is being shown, or use only the second."
         ),
     },
     "prakash_chimanlal_sheth_jurisdiction": {
         "case_key": "prakash_chimanlal_sheth",
-        "paragraph_numbers": [],
+        "paragraph_numbers": ["7", "8"],
         "opinion_author": None,
         "verified_note": (
-            "Case read in full 2026-08-30. Vital holding confirmed: a "
-            "Section 138 complaint must be filed where the cheque was "
-            "presented for collection and dishonoured, per Section 142(2) "
-            "NI Act and the Constitution Bench framework in Dashrath "
-            "Rupsingh Rathod v State of Maharashtra (2014). EXACT "
-            "PARAGRAPH NUMBERS NOT YET CONFIRMED -- must be located before "
-            "this entry is complete."
+            "PARAGRAPH NUMBERS CONFIRMED 2026-09-01 (Project 2 backlog "
+            "close-out) via direct chunk inspection of chunks/prakash_"
+            "chimanlal_sheth_v_jagruti_keyur_rajpopat_chunks.json: "
+            "paragraph 7 states the Section 142(2)(a) rule itself (a "
+            "complaint must be tried 'only by a Court within whose local "
+            "jurisdiction... the branch of the bank where the payee... "
+            "maintains the account, is situated'); paragraph 8 applies it "
+            "to this case's own facts (complaint properly filed at "
+            "Mangalore, where the appellant's account was held). Both "
+            "confirmed as clean, unambiguous single chunks -- no "
+            "duplicate-paragraph-number collision for either."
         ),
     },
 }

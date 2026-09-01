@@ -108,6 +108,46 @@ def find_sections_by_crime_name(typed_name):
 def yn(v):
     return {True: True, False: False, "unclear": "unclear"}.get(v, "unclear")
 
+
+_CITATION_CURRENCY_CAVEATS = {
+    "NOT_YET_VERIFIED": ("❔", "This citation's legal currency has not yet been independently verified — it has not been checked for renumbering or later overruling."),
+    "SUPERSEDED_BY_STATUTE": ("⚠️", "The specific provision this case interpreted has since been renumbered under BNS/BNSS. See the successor-provision note below for whether the holding itself has been carried forward."),
+    "OVERRULED": ("🚫", "A later, binding court has held this specific holding no longer applies."),
+    "DISTINGUISHED": ("⚠️", "A later court has narrowed how this holding applies — it remains good law, but not without limits."),
+}
+
+
+def _render_citation_currency_caveat(currency):
+    """Project 2 (citation_currency.py): renders a visible caveat next to
+    a citation whenever its currency status is anything other than
+    GOOD_LAW, including the honest NOT_YET_VERIFIED default. Lookup-only
+    display -- never changes the compliance verdict shown elsewhere."""
+    if not currency:
+        return
+    status = currency.get("status", "NOT_YET_VERIFIED")
+    if status == "GOOD_LAW":
+        return
+    icon, message = _CITATION_CURRENCY_CAVEATS.get(status, ("❔", "Currency status unrecognised."))
+    st.warning(f"{icon} {message}")
+    successor_treatment = currency.get("successor_treatment")
+    if successor_treatment:
+        st.caption(successor_treatment)
+
+
+def _render_chat_match_currency_caveat(m):
+    """Project 2 (citation_currency.py): same caveat as
+    _render_citation_currency_caveat, but for a raw semantic-search match
+    dict (chat path) rather than a compliance-check result -- these carry
+    a case_name, not a doctrine_key, so currency is resolved via
+    citation_currency.get_citation_currency_for_case_name(). A statute
+    match (no case_name) is a no-op here."""
+    if not m.get("case_name"):
+        return
+    from citation_currency import get_citation_currency_for_case_name
+    for record in get_citation_currency_for_case_name(m["case_name"]):
+        _render_citation_currency_caveat(record)
+
+
 def render_compliance_ui_main(result):
     """Replaces raw st.json() calls with a readable, structured display."""
 
@@ -182,6 +222,7 @@ def render_compliance_ui_main(result):
                 case_name = source_paragraphs[0].get("case_name", "")
                 citation = source_paragraphs[0].get("citation", "")
                 with st.expander(f"📖 Read the source: {case_name} ({citation})"):
+                    _render_citation_currency_caveat(check.get("citation_currency"))
                     for para in source_paragraphs:
                         para_label = para.get("paragraph_number", "")
                         author = para.get("opinion_author")
@@ -193,6 +234,7 @@ def render_compliance_ui_main(result):
                 case_name = applying_precedent_paragraphs[0].get("case_name", "")
                 citation = applying_precedent_paragraphs[0].get("citation", "")
                 with st.expander(f"⚖️ How a court has applied this: {case_name} ({citation})"):
+                    _render_citation_currency_caveat(check.get("applying_precedent_currency"))
                     for para in applying_precedent_paragraphs:
                         para_label = para.get("paragraph_number", "")
                         author = para.get("opinion_author")
@@ -1155,6 +1197,7 @@ def run_chat_flow():
                     label = m.get("section_number") or m.get("paragraph_number")
                     source = m.get("case_name") or "BNS/BNSS"
                     st.markdown(f"**{source}, Section/Para {label}** (relevance: {m['score']:.2f})")
+                    _render_chat_match_currency_caveat(m)
                     st.caption(m["text"][:500])
             reply += (
                 "\n\n**What you can do next:** if you have a document (like an FIR or arrest memo), "
@@ -1177,6 +1220,7 @@ def run_chat_flow():
                     label = m.get("section_number") or m.get("paragraph_number")
                     source = m.get("case_name") or "BNS/BNSS"
                     st.markdown(f"**{source}, Section/Para {label}**")
+                    _render_chat_match_currency_caveat(m)
                     st.caption(m["text"][:800])
 
         else:
