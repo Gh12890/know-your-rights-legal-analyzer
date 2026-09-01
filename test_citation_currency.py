@@ -37,6 +37,23 @@ record = get_citation_currency("this_key_does_not_exist")
 check(record is not None, "unknown doctrine_key returns a dict, not None")
 check(record["status"] == NOT_YET_VERIFIED, "unknown doctrine_key returns NOT_YET_VERIFIED status")
 check(record["verified_note"] is not None, "unknown doctrine_key still returns a non-empty verified_note")
+check(record.get("user_facing_note"), "unknown doctrine_key returns a non-empty user_facing_note")
+
+# ---- Every entry has BOTH note fields, and the user-facing one stays plain ----
+# (real bug caught via live testing 2026-09-01: the UI was rendering the
+# full technical successor_treatment text -- dates, IK tid numbers, URLs,
+# internal jargon like "worked example" -- directly to end users)
+
+JARGON_MARKERS = ["IK tid", "worked example", "2026-09-01", "indiankanoon.org", "CONFIRMED", "retrieval.get_statute_section"]
+for key, entry in CITATION_CURRENCY_MAP.items():
+    check("user_facing_note" in entry, f"'{key}' has a user_facing_note field")
+    note = entry.get("user_facing_note")
+    if entry["status"] == "GOOD_LAW":
+        check(note is None, f"'{key}' (GOOD_LAW, caveat never rendered) leaves user_facing_note as None")
+    else:
+        check(bool(note), f"'{key}' ({entry['status']}, caveat IS rendered) has a real user_facing_note")
+        for marker in JARGON_MARKERS:
+            check(marker not in (note or ""), f"'{key}' user_facing_note has no internal jargon ({marker!r})")
 
 # ---- Every entry in CITATION_CURRENCY_MAP has a real doctrine_key ----
 # (catches typos that would silently create an orphaned currency record
@@ -211,6 +228,10 @@ check(
     nonexistent_case[0]["status"] == NOT_YET_VERIFIED,
     "a case_name that isn't in the corpus at all still returns an explicit NOT_YET_VERIFIED record, never a crash",
 )
+
+check(bool(unmapped_case[0].get("user_facing_note")), "unmapped-case-name record has a real user_facing_note")
+check(bool(nonexistent_case[0].get("user_facing_note")), "nonexistent-case-name record has a real user_facing_note")
+check(bool(arnesh_by_name[0].get("user_facing_note")), "case-name lookup for Arnesh Kumar carries a user_facing_note")
 
 # ---- Chat-path wiring: format_retrieved_text_for_prompt injects the currency note ----
 

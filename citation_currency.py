@@ -61,6 +61,25 @@ sets -- it is the default get_citation_currency() returns for any
 doctrine_key with no entry at all, so that "nobody has checked this
 yet" is always visible and never silently indistinguishable from
 "checked and found fine."
+
+TWO AUDIENCES, TWO FIELDS (added 2026-09-01, after real UI testing):
+'successor_treatment' is a detailed VERIFICATION TRAIL -- dates, IK tid
+numbers, source URLs, phrases like "worked example" -- written for a
+developer auditing this record, or for an LLM to read and paraphrase
+(chat_assistant.py's prompt injection feeds it to the model, which has
+already been observed producing good plain-language phrasing from it).
+It is NOT meant to be shown to an end user of this "Know Your Rights"
+tool verbatim -- confirmed a real problem via live testing: the app's
+UI caveat was rendering this whole technical writeup directly in a
+st.caption, which reads as internal audit notes, not something a
+layperson asking about their arrest should see.
+'user_facing_note' is the fix: one or two plain sentences, no
+jargon, no internal identifiers (IK tids, dates-of-work, doctrine_key
+names), safe to render directly to a user. app.py's caveat renderers
+use this field; chat_assistant.py's LLM-prompt injection keeps using
+successor_treatment, since the model already does its own (observed
+good) paraphrasing there. GOOD_LAW entries set this to None since
+their caveat is never rendered at all.
 """
 
 import logging
@@ -115,6 +134,12 @@ CITATION_CURRENCY_MAP = {
             "done 2026-09-01 -- second entry in this map with both "
             "dimensions checked."
         ),
+        "user_facing_note": (
+            "This guideline was issued under an older section of the law "
+            "that has since been renumbered as BNSS Section 35. Courts "
+            "are still applying it under the new numbering — a July 2026 "
+            "High Court order directed police to follow it."
+        ),
         "last_checked_date": "2026-09-01",
     },
 
@@ -132,6 +157,12 @@ CITATION_CURRENCY_MAP = {
             "its own case name."
         ),
         "verified_note": "Inherits arnesh_kumar_checklist's full verification, 2026-09-01.",
+        "user_facing_note": (
+            "This case restates a Supreme Court rule (from Arnesh Kumar v "
+            "State of Bihar) issued under an older section of the law, "
+            "since renumbered as BNSS Section 35 — courts continue to "
+            "apply it under the new numbering."
+        ),
         "last_checked_date": "2026-09-01",
     },
 
@@ -147,6 +178,12 @@ CITATION_CURRENCY_MAP = {
             "independently re-searched under its own case name."
         ),
         "verified_note": "Inherits arnesh_kumar_checklist's full verification, 2026-09-01.",
+        "user_facing_note": (
+            "This case applies a Supreme Court rule (from Arnesh Kumar v "
+            "State of Bihar) issued under an older section of the law, "
+            "since renumbered as BNSS Section 35 — courts continue to "
+            "apply it under the new numbering."
+        ),
         "last_checked_date": "2026-09-01",
     },
 
@@ -168,6 +205,7 @@ CITATION_CURRENCY_MAP = {
             "for adverse case-law treatment."
         ),
         "verified_note": "Statute cross-reference verified 2026-09-01. Case-law-treatment dimension not yet checked.",
+        "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
 
@@ -191,6 +229,7 @@ CITATION_CURRENCY_MAP = {
             "case-law treatment."
         ),
         "verified_note": "Statute cross-reference verified 2026-09-01. Case-law-treatment dimension not yet checked.",
+        "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
 
@@ -204,6 +243,7 @@ CITATION_CURRENCY_MAP = {
             "Not yet checked for adverse case-law treatment."
         ),
         "verified_note": "No repealed provision at the core of this holding; statute-supersession dimension not applicable.",
+        "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
 
@@ -243,6 +283,12 @@ CITATION_CURRENCY_MAP = {
             "done 2026-09-01 -- the only entry in this map with both "
             "dimensions checked, as the Project 2 worked example."
         ),
+        "user_facing_note": (
+            "This case was decided under an older section of the law "
+            "that has since been renumbered as BNSS Section 106. A "
+            "December 2025 High Court ruling confirms it is still being "
+            "cited as good law under the current provision."
+        ),
         "last_checked_date": "2026-09-01",
     },
 
@@ -259,6 +305,7 @@ CITATION_CURRENCY_MAP = {
             "checked for adverse case-law treatment."
         ),
         "verified_note": "No repealed provision at the core of this holding; statute-supersession dimension not applicable.",
+        "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
 
@@ -277,6 +324,7 @@ CITATION_CURRENCY_MAP = {
             "ruling)."
         ),
         "verified_note": "Constructs current statute text directly; supersession dimension not applicable by definition.",
+        "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
 
@@ -293,6 +341,7 @@ CITATION_CURRENCY_MAP = {
             "adverse case-law treatment."
         ),
         "verified_note": "NI Act unaffected by BNS/BNSS/BSA; supersession dimension not applicable by definition.",
+        "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
 
@@ -302,6 +351,7 @@ CITATION_CURRENCY_MAP = {
         "successor_provision": None,
         "successor_treatment": "Same reasoning as rangappa_section_139_presumption_mandatory -- NI Act citation, not touched by BNS/BNSS.",
         "verified_note": "NI Act unaffected by BNS/BNSS/BSA; supersession dimension not applicable by definition.",
+        "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
 
@@ -311,6 +361,7 @@ CITATION_CURRENCY_MAP = {
         "successor_provision": None,
         "successor_treatment": "Same reasoning as rangappa_section_139_presumption_mandatory -- NI Act citation, not touched by BNS/BNSS.",
         "verified_note": "NI Act unaffected by BNS/BNSS/BSA; supersession dimension not applicable by definition.",
+        "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
 
@@ -320,6 +371,7 @@ CITATION_CURRENCY_MAP = {
         "successor_provision": None,
         "successor_treatment": "Same reasoning as rangappa_section_139_presumption_mandatory -- NI Act citation, not touched by BNS/BNSS.",
         "verified_note": "NI Act unaffected by BNS/BNSS/BSA; supersession dimension not applicable by definition.",
+        "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
 
@@ -329,6 +381,7 @@ CITATION_CURRENCY_MAP = {
         "successor_provision": None,
         "successor_treatment": "Same reasoning as rangappa_section_139_presumption_mandatory -- NI Act citation, not touched by BNS/BNSS.",
         "verified_note": "NI Act unaffected by BNS/BNSS/BSA; supersession dimension not applicable by definition.",
+        "user_facing_note": None,
         "last_checked_date": "2026-09-01",
     },
 }
@@ -398,6 +451,7 @@ def get_citation_currency_for_case_name(case_name: str) -> list:
                 f"judgment may be embedded in the corpus without ever "
                 f"having been given a curated doctrine entry at all."
             ),
+            "user_facing_note": "This case hasn't been checked for legal currency yet.",
             "last_checked_date": None,
         }]
 
@@ -419,6 +473,7 @@ def get_citation_currency_for_case_name(case_name: str) -> list:
                 f"'{case_name}' resolves to case_key '{case_key}' but no "
                 f"JUDGMENT_CITATION_MAP entry currently uses that case_key."
             ),
+            "user_facing_note": "This case hasn't been checked for legal currency yet.",
             "last_checked_date": None,
         }]
 
@@ -455,6 +510,7 @@ def get_citation_currency(doctrine_key: str) -> dict:
                 "No currency verification has been performed yet for "
                 "this citation."
             ),
+            "user_facing_note": "This citation's legal currency hasn't been independently checked yet.",
             "last_checked_date": None,
         }
     return entry

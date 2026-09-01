@@ -130,9 +130,15 @@ def _render_citation_currency_caveat(currency):
         return
     icon, message = _CITATION_CURRENCY_CAVEATS.get(status, ("❔", "Currency status unrecognised."))
     st.warning(f"{icon} {message}")
-    successor_treatment = currency.get("successor_treatment")
-    if successor_treatment:
-        st.caption(successor_treatment)
+    # Plain-language only -- 'successor_treatment' is a detailed
+    # verification trail (dates, IK tid numbers, source URLs) meant for
+    # an auditor or for the chat LLM to paraphrase, not for direct
+    # display. Confirmed a real problem via live testing 2026-09-01:
+    # showing it raw here read as internal audit notes, not something a
+    # layperson using this tool should see.
+    user_facing_note = currency.get("user_facing_note")
+    if user_facing_note:
+        st.caption(user_facing_note)
 
 
 def _render_chat_match_currency_caveat(m):
