@@ -25,12 +25,25 @@ chat_history, which run_chat_flow() had already appended on the same
 pass that rendered the button -- producing a duplicate identical
 assistant turn every time the button was clicked.
 
+ADDED 2026-09-01 (chat-quality plan Phase 3/4): a third handoff domain,
+"arrest". Unlike freeze/cheque, an arrest question stays classified
+in_scope and STILL gets a full chat answer -- the handoff button is
+offered ALONGSIDE it, driven by answer_question()'s new
+situation_detected flag (True when the answer opens with the "Right
+now" block the prompt uses for questions describing something that
+already happened). interview_flow.py's process_turn has a richer state
+machine than freeze/cheque's, so _handoff_to_domain_flow special-cases
+this domain via the shared _arrest_turn_reply() helper -- this suite's
+arrest case is the regression guard for that path and for the
+_handoff_to_domain_flow refactor that introduced the branch.
+
 COST NOTE: unlike this project's other test_*.py suites, the AppTest
-cases below make REAL LLM calls (classify_scope, and process_turn's
-own extraction) -- there is no way to test the actual handoff wiring
-without exercising the real chat pipeline. Kept deliberately small (2
-end-to-end cases) to bound cost. The classify_scope unit checks below
-also cost real API calls, one per question.
+cases below make REAL LLM calls (classify_scope, process_turn's
+extraction, and -- for the arrest case -- the full chat answer +
+offence identification) -- there is no way to test the actual handoff
+wiring without exercising the real chat pipeline. Kept deliberately
+small (3 end-to-end cases) to bound cost. The classify_scope unit
+checks below also cost real API calls, one per question.
 
 Run with: python test_chat_domain_handoff.py
 """
@@ -77,6 +90,18 @@ check(redirect_domain is None, "redirect_domain is None for an in_scope question
 result = answer_question("my bank account got frozen by the police and nobody told me why")
 check(result["state"] == "covered_elsewhere_in_tool", "answer_question returns covered_elsewhere_in_tool for a freeze question")
 check(result.get("redirect_domain") == "freeze", "answer_question propagates redirect_domain='freeze'")
+
+# ---- answer_question: situation_detected drives the arrest handoff ----
+
+result = answer_question("the police took me to the station this morning without telling me what i had done")
+check(result["state"] in ("single_match", "conflicting_matches"),
+      "an arrest-situation question is answered in-scope (not routed away)")
+check(result.get("situation_detected") is True,
+      "answer_question flags situation_detected=True when the answer leads with a 'Right now' block")
+
+result = answer_question("what is section 318 of BNS")
+check(result.get("situation_detected") is not True,
+      "a general 'what is section X' question is NOT flagged as a situation")
 
 
 # ---- End-to-end AppTest: the actual button click switches mode and seeds the flow ----
@@ -130,6 +155,21 @@ if result:
         "cheque flow's first turn is the user's original, verbatim question",
     )
     check(len(result["chat_history"]) == 2, "chat_history has exactly 2 turns, NOT duplicated by the handoff callback")
+
+_arrest_q = "the police took me to the station this morning without telling me what i had done"
+result, errors = run_handoff_case(_arrest_q, "interview_chat_history")
+check(not errors, f"arrest handoff runs with no exceptions ({errors})")
+if result:
+    check("describe my situation and get a real assessment" in result["mode"],
+          "arrest handoff switches mode to the free-text arrest interview")
+    check(len(result["domain_history"]) == 2,
+          "arrest flow history has 2 turns (seeded question + the flow's own first question)")
+    check(result["domain_history"][0]["content"] == _arrest_q,
+          "arrest flow's first turn is the user's original, verbatim question")
+    check(result["domain_history"][1]["role"] == "assistant" and result["domain_history"][1]["content"].strip(),
+          "arrest flow's second turn is a non-empty assistant question (process_turn ran on the seed)")
+    check(len(result["chat_history"]) == 2,
+          "chat_history has exactly 2 turns -- arrest answer NOT duplicated by the handoff callback")
 
 
 print("\n" + "=" * 70)

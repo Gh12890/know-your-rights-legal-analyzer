@@ -423,6 +423,35 @@ def _find_cognizable_bailable_mismatches(response_text: str, variants: dict) -> 
     return problems
 
 
+def _looks_like_situation(response_text: str) -> bool:
+    """PHASE 3 (2026-09-01, chat-quality plan): True when the answer
+    opens with the '**Right now**' block RESPONSE_GENERATION_PROMPT
+    instructs the model to lead with for a question describing something
+    that ALREADY HAPPENED to the person or someone close to them (an
+    arrest, a search, an FIR, a frozen account) -- see the prompt's
+    'Shape and length' section.
+
+    Deliberately reuses this already-generated signal instead of a
+    second classifier call: zero extra API cost or latency, and it is
+    already reliable in practice -- across the Phase 1/2 eval set, every
+    situation-shaped answer opened with this heading and no general-
+    question answer did (e.g. 'what is section 318', 'what are my
+    rights if arrested' correctly do NOT trigger it; 'the police took me
+    without telling me why' correctly does).
+
+    Used by app.py to decide whether to additionally offer a one-click
+    handoff into the real arrest interview (interview_flow.py) below an
+    otherwise-unchanged chat answer -- unlike the freeze/cheque handoff,
+    which REPLACES the chat answer (chat has no case-law corpus for
+    those domains at all), this is ADDITIVE: the chat corpus for arrest/
+    FIR/police-procedure is good post-Phase-1/2, so the explanation
+    stays, and the handoff is offered as a faster path to a real verdict
+    for someone who's already living the situation, not a replacement."""
+    if not response_text:
+        return False
+    return "right now" in response_text.lstrip()[:50].lower()
+
+
 def _format_mismatch(problem: dict) -> str:
     """'Section 318(4) is cognizable, not non-cognizable as you wrote.'"""
     field = problem["field"]
@@ -953,6 +982,7 @@ def answer_question(question):
             "state": "conflicting_matches",
             "matches": all_matches,
             "response_text": response_text,
+            "situation_detected": _looks_like_situation(response_text),
         }
 
     # single_match -- combine statute matches with judgment matches
@@ -969,4 +999,5 @@ def answer_question(question):
         "state": "single_match",
         "matches": all_matches,
         "response_text": response_text,
+        "situation_detected": _looks_like_situation(response_text),
     }

@@ -186,7 +186,100 @@ _DOMAIN_FLOW_CONFIG = {
         "state_class_name": "ChequeBounceInterviewState",
         "button_label": "🧾 Continue in the cheque-bounce assistant →",
     },
+    # ADDED 2026-09-01 (chat-quality plan Phase 4). Unlike freeze/cheque,
+    # the arrest handoff is offered ALONGSIDE the chat answer, not
+    # instead of it -- the chat corpus DOES cover arrest/FIR/police
+    # procedure well (post Phase 1/2), so the explanation stays and this
+    # is just a faster route to a real Compliant/Non-Compliant verdict.
+    # interview_flow.py's process_turn has a richer state machine than
+    # freeze/cheque's (an offence-identification + confirmation gate) and
+    # a differently-shaped results payload, so _handoff_to_domain_flow
+    # special-cases this domain via _arrest_turn_reply() rather than the
+    # generic module-lookup path.
+    "arrest": {
+        "mode_label": "I want to describe my situation and get a real assessment",
+        "history_key": "interview_chat_history",
+        "state_key": "interview_state_obj",
+        "results_key": "interview_chat_results",
+        "module": "interview_flow",
+        "state_class_name": "InterviewState",
+        "button_label": "📝 Get a real compliance assessment of what happened →",
+    },
 }
+
+
+def _arrest_turn_reply(state_obj, user_message):
+    """Turn-processing for interview_flow.py's arrest free-text flow,
+    factored out (2026-09-01) so run_interview_chat_flow() -- someone
+    typing directly into that mode -- and _handoff_to_domain_flow() --
+    someone arriving via the chat handoff button -- call the SAME code
+    and can never drift apart.
+
+    interview_flow.process_turn() returns a richer set of states than
+    freeze/cheque's (awaiting_offence / offence_unclear /
+    confirming_offence / asking_field / ready_for_results, vs. their
+    plain asking_field / ready_for_results) and, on ready_for_results,
+    a different payload (compliance_result + bail_pathway + severity +
+    fields_known + layman_summary, assembled here into the
+    full_analysis dict run_interview_chat_flow's renderer expects) --
+    which is why the generic _handoff_to_domain_flow path can't handle
+    it and this exists.
+
+    Returns (reply, results_payload_or_None). The caller stores
+    results_payload into st.session_state itself (kept out of here so
+    this stays a pure function). The process_turn() call is wrapped in
+    the same diagnostic try/except run_interview_chat_flow used inline
+    before this was extracted."""
+    from interview_flow import process_turn
+
+    try:
+        result = process_turn(state_obj, user_message)
+    except Exception:
+        import traceback
+        print(f"=== process_turn DIAGNOSTIC, user_message={user_message!r} ===")
+        traceback.print_exc()
+        print("=== END DIAGNOSTIC ===")
+        result = {"state": "extraction_unavailable", "field_name": None}
+
+    turn_state = result["state"]
+
+    if turn_state in ("awaiting_offence", "offence_unclear", "asking_field"):
+        acknowledgment = result.get("acknowledgment")
+        reply = f"{acknowledgment} {result['question']}" if acknowledgment else result["question"]
+        return reply, None
+
+    if turn_state == "confirming_offence":
+        return result["question"], None
+
+    if turn_state == "extraction_unavailable":
+        return "Sorry, I had trouble understanding that -- could you try rephrasing your answer?", None
+
+    if turn_state == "ready_for_results":
+        full_analysis = {
+            "classification": {
+                "document_type": "Police & Criminal Process",
+                "sub_type": "Arrest — reported via free-text conversation (no document)",
+                "reasoning": "Built from your answers in this conversation, since no document was available.",
+            },
+            "missing_info": {
+                "missing_or_unclear": [],
+                "completeness_assessment": "Based on conversational answers only -- not a document review.",
+            },
+            "compliance": result["compliance_result"],
+            "checklist": get_document_checklist("Police & Criminal Process"),
+            "urgency": {"urgency_level": "Cannot Determine", "deadline_message": "N/A for this mode", "days_remaining": None},
+            "severity": result["severity"],
+            "bail_pathway": result["bail_pathway"],
+            "extracted_fields": result["fields_known"],
+        }
+        results_payload = {
+            "full_analysis": full_analysis,
+            "layman_summary": result.get("layman_summary"),
+            "tier_shown": result.get("tier_shown"),
+        }
+        return "Thanks -- I have enough to give you a real assessment now. I've put it together below.", results_payload
+
+    return "Something unexpected happened on my end -- please try rephrasing.", None
 
 
 def _handoff_to_domain_flow(domain, question):
@@ -217,38 +310,54 @@ def _handoff_to_domain_flow(domain, question):
     the handoff button, before any click can happen. An earlier version
     of this function re-appended it here too, producing a duplicate
     identical assistant turn in chat_history every time this button was
-    clicked."""
-    import importlib
+    clicked.
 
+    domain == "arrest" (added 2026-09-01) is special-cased: it goes
+    through _arrest_turn_reply() because interview_flow.py's process_turn
+    has a richer state machine and results shape than freeze/cheque's
+    (see that helper's docstring). freeze/cheque keep the generic
+    module-lookup path below, completely unchanged."""
     config = _DOMAIN_FLOW_CONFIG[domain]
-    module = importlib.import_module(config["module"])
-    state_class = getattr(module, config["state_class_name"])
-    process_turn = getattr(module, "process_turn")
-
     st.session_state[config["history_key"]] = [{"role": "user", "content": question}]
-    st.session_state[config["state_key"]] = state_class()
-    state_obj = st.session_state[config["state_key"]]
-    try:
-        result = process_turn(state_obj, question)
-    except Exception:
-        result = {"state": "extraction_unavailable", "field_name": None}
 
-    turn_state = result["state"]
-    if turn_state == "asking_field":
-        flow_reply = result["question"]
-    elif turn_state == "ready_for_results":
-        results_payload = {
-            "compliance_result": result["compliance_result"],
-            "severity": result["severity"],
-            "fields_known": result["fields_known"],
-        }
-        for optional_key in ("presumption_info", "settlement_info"):
-            if optional_key in result:
-                results_payload[optional_key] = result[optional_key]
-        st.session_state[config["results_key"]] = results_payload
-        flow_reply = "Thanks -- I have enough to give you a real assessment now. I've put it together below."
+    if domain == "arrest":
+        from interview_flow import InterviewState
+
+        st.session_state[config["state_key"]] = InterviewState()
+        state_obj = st.session_state[config["state_key"]]
+        flow_reply, results_payload = _arrest_turn_reply(state_obj, question)
+        if results_payload is not None:
+            st.session_state[config["results_key"]] = results_payload
     else:
-        flow_reply = "Sorry, I had trouble understanding that -- could you try rephrasing your answer?"
+        import importlib
+
+        module = importlib.import_module(config["module"])
+        state_class = getattr(module, config["state_class_name"])
+        process_turn = getattr(module, "process_turn")
+
+        st.session_state[config["state_key"]] = state_class()
+        state_obj = st.session_state[config["state_key"]]
+        try:
+            result = process_turn(state_obj, question)
+        except Exception:
+            result = {"state": "extraction_unavailable", "field_name": None}
+
+        turn_state = result["state"]
+        if turn_state == "asking_field":
+            flow_reply = result["question"]
+        elif turn_state == "ready_for_results":
+            results_payload = {
+                "compliance_result": result["compliance_result"],
+                "severity": result["severity"],
+                "fields_known": result["fields_known"],
+            }
+            for optional_key in ("presumption_info", "settlement_info"):
+                if optional_key in result:
+                    results_payload[optional_key] = result[optional_key]
+            st.session_state[config["results_key"]] = results_payload
+            flow_reply = "Thanks -- I have enough to give you a real assessment now. I've put it together below."
+        else:
+            flow_reply = "Sorry, I had trouble understanding that -- could you try rephrasing your answer?"
 
     st.session_state[config["history_key"]].append({"role": "assistant", "content": flow_reply})
     st.session_state["mode"] = config["mode_label"]
@@ -1324,10 +1433,14 @@ def run_chat_flow():
                 "uploading it here would let me check exactly which provision applies to your situation, "
                 "instead of guessing between them."
             )
+            if result.get("situation_detected"):
+                handoff_domain = "arrest"
 
         elif state == "single_match":
             if result.get("response_text"):
                 reply = result["response_text"]
+                if result.get("situation_detected"):
+                    handoff_domain = "arrest"
             else:
                 # Generation failed but retrieval succeeded -- fall back
                 # to showing the real retrieved text directly rather than
@@ -1348,6 +1461,14 @@ def run_chat_flow():
 
         st.markdown(reply)
         if handoff_domain:
+            # For freeze/cheque the reply IS the handoff pitch (chat has
+            # no corpus for those). For arrest the reply is a full answer,
+            # so the button needs its own one-line lead-in.
+            if handoff_domain == "arrest":
+                st.caption(
+                    "Want more than an explanation? I can take what you've already told me and run a "
+                    "full procedural-compliance check on it — the same one used for uploaded documents."
+                )
             # MUST use on_click, not `if st.button(...):` -- see
             # _handoff_to_domain_flow's docstring for the confirmed
             # StreamlitAPIException this avoids.
@@ -1606,7 +1727,7 @@ def run_interview_chat_flow():
 
     Scope: arrest cases only, matching Interview_flow.py's current scope.
     """
-    from interview_flow import InterviewState, process_turn
+    from interview_flow import InterviewState  # process_turn now goes via _arrest_turn_reply
 
     st.write(
         "Describe what happened, in your own words -- no document needed. "
@@ -1690,62 +1811,11 @@ def run_interview_chat_flow():
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             state = st.session_state["interview_state_obj"]
-            try:
-                result = process_turn(state, user_message)
-            except Exception as e:
-                import traceback
-                print(f"=== process_turn DIAGNOSTIC, user_message={user_message!r} ===")
-                traceback.print_exc()
-                print("=== END DIAGNOSTIC ===")
-                result = {"state": "extraction_unavailable", "field_name": None}
-
-        turn_state = result["state"]
-
-        if turn_state in ("awaiting_offence", "offence_unclear", "asking_field"):
-            acknowledgment = result.get("acknowledgment")
-            if acknowledgment:
-                reply = f"{acknowledgment} {result['question']}"
-            else:
-                reply = result["question"]
-                
-        elif turn_state == "confirming_offence":
-            reply = result["question"]
-
-        elif turn_state == "extraction_unavailable":
-            reply = "Sorry, I had trouble understanding that -- could you try rephrasing your answer?"
-
-        elif turn_state == "ready_for_results":
-            compliance_result = result["compliance_result"]
-            bail_pathway = result["bail_pathway"]
-            severity = result["severity"]
-            fields = result["fields_known"]
-            layman_text = result.get("layman_summary")
-
-            full_analysis = {
-                "classification": {
-                    "document_type": "Police & Criminal Process",
-                    "sub_type": "Arrest — reported via free-text conversation (no document)",
-                    "reasoning": "Built from your answers in this conversation, since no document was available.",
-                },
-                "missing_info": {
-                    "missing_or_unclear": [],
-                    "completeness_assessment": "Based on conversational answers only -- not a document review.",
-                },
-                "compliance": compliance_result,
-                "checklist": get_document_checklist("Police & Criminal Process"),
-                "urgency": {"urgency_level": "Cannot Determine", "deadline_message": "N/A for this mode", "days_remaining": None},
-                "severity": severity,
-                "bail_pathway": bail_pathway,
-                "extracted_fields": fields,
-            }
-            st.session_state["interview_chat_results"] = {
-                "full_analysis": full_analysis,
-                "layman_summary": layman_text,
-                "tier_shown": result.get("tier_shown"),
-            }
-            reply = "Thanks -- I have enough to give you a real assessment now. I've put it together below."
-        else:
-            reply = "Something unexpected happened on my end -- please try rephrasing."
+            # Shared with the chat-handoff button (_handoff_to_domain_flow,
+            # domain="arrest") so both entry points behave identically.
+            reply, results_payload = _arrest_turn_reply(state, user_message)
+            if results_payload is not None:
+                st.session_state["interview_chat_results"] = results_payload
 
         st.markdown(reply)
 
