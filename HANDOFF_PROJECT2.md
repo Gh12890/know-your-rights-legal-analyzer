@@ -166,6 +166,35 @@ SAME deterministic compliance functions.
    instruction: "remind me to complete it after project 2 and project
    3 are completed. Currently we are out of time." Do NOT raise this
    again until the user confirms Projects 2 and 3 are done.
+6. citation_currency_checker.py (Project 2 Step 3) built and run against
+   all 14 doctrine_keys 2026-09-01. Case-law-treatment dimension now
+   verified for 13 of 14. STILL OPEN:
+   - youth_bar_association_fir_copy_guidelines: case-law treatment
+     INCONCLUSIVE. The PIL name is too generic for case-name discovery
+     (every hit was that docket's own monitoring orders). Needs a
+     doctrine-phrase-anchored search ('FIR' + 'uploaded' + 'police
+     website' + '24 hours'), which the checker cannot build today
+     (case-name/citation anchored only). Building that is the natural
+     next Step-2 extension.
+   - D.K. Basu citation conflict: corpus record says "(1997) 6 SCC
+     642"; a real 2025 citing judgment and ik_query_builder.CASE_METADATA
+     both say "(1997) 1 SCC 416". Corpus 'citation' field is probably
+     wrong -- verify and fix.
+   - Vihaan Kumar: a larger-bench reference is pending (as of mid-2025)
+     on whether written grounds of arrest are required in EVERY case.
+     Core holding "holds the field" meanwhile; the arrest module's
+     written-grounds check still stands, but re-check when the larger
+     Bench reports.
+   - Citation upgrades available (not yet applied to the corpus
+     records): Neelkanth = 2025 SCC OnLine Del 1055; Malabar Gold =
+     2026 SCC OnLine Del 297; Kaveri Plastics = 2025 INSC 1133.
+7. Item 2 above (Kaveri Plastics security/maturity doctrine) --
+   partial progress 2026-09-01: the real Kaveri Plastics judgment is
+   2025 INSC 1133 (SC affirming Delhi HC), and it is about NOTICE-
+   AMOUNT MISMATCH, not security/maturity. Later HCs distinguish it on
+   facts (demand less than vs. more than the cheque). The separate
+   security-cheque/contingent-liability holding the retracted
+   attribution claimed still has NO located source.
 
 ## What Project 2 actually is
 
