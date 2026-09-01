@@ -63,7 +63,12 @@ BANK_FREEZE_JUDGMENTS = [
     {
         "tid": "131354096",
         "case_name": "Neelkanth Pharma Logistics Pvt. Ltd. v Union of India",
-        "citation": "W.P.(C) 17905/2024, decided 20 February 2025",
+        "citation": "2025 SCC OnLine Del 1055",
+        "source_document_citation": "W.P.(C) 17905/2024, decided 20 February 2025",
+        # Reporter citation added 2026-09-01: a real citing judgment
+        # (V-Mart Retail Ltd v Nodal Cyber Cell Officer, Madras HC, 3 Nov
+        # 2025) cites this as "2025 SCC Del 1055"; rendered here in the
+        # standard SCC OnLine form. Docket remains the unambiguous id.
         "court": "High Court of Delhi",
         "source_url": "https://indiankanoon.org/doc/131354096/",
         "output": "corpus/neelkanth_pharma_logistics_v_union_of_india.json",
@@ -95,7 +100,11 @@ BANK_FREEZE_JUDGMENTS = [
     {
         "tid": "31367852",
         "case_name": "Malabar Gold and Diamond Limited v Union of India",
-        "citation": "W.P.(C) 4198/2025, decided 16 January 2026",
+        "citation": "2026 SCC OnLine Del 297",
+        "source_document_citation": "W.P.(C) 4198/2025, decided 16 January 2026",
+        # Reporter citation confirmed 2026-09-01 against a real citing
+        # judgment (M/S Lumicity Semiconductor Pvt Ltd v State of Haryana,
+        # P&H HC, 10 Jul 2026), which cites it as "2026 SCC OnLine Del 297".
         "court": "High Court of Delhi",
         "source_url": "https://indiankanoon.org/doc/31367852/",
         "output": "corpus/malabar_gold_and_diamond_v_union_of_india.json",

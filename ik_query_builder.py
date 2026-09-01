@@ -81,13 +81,16 @@ CASE_METADATA = {
     },
     "dk_basu": {
         "case_name": "D.K. Basu vs State of West Bengal",
-        "citation": "(1997) 1 SCC 416",  # [Certain] — confirmed via web
-                                          # search 2026-08-28. Decided
-                                          # 18 Dec 1996; reported in the
-                                          # 1997 SCC volume (normal for
-                                          # Indian citations — decision
-                                          # year and reporter-volume
-                                          # year often differ by one).
+        "citation": "(1997) 1 SCC 416",  # [Certain] — the standard
+                                          # citation for the D.K. Basu
+                                          # safeguards. Decided 18 Dec
+                                          # 1996, reported in the 1997
+                                          # SCC volume. As of 2026-09-01
+                                          # the corpus record agrees
+                                          # (it previously carried the
+                                          # 1 Aug 1997 monitoring order's
+                                          # "(1997) 6 SCC 642" -- see
+                                          # that record's notes).
         "court": "Supreme Court",
         "year": 1996,  # decision year, not citation-volume year
         "doctrine_short": "arrest and detention safeguards",

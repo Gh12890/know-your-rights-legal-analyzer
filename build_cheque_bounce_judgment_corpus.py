@@ -92,31 +92,42 @@ CHEQUE_BOUNCE_JUDGMENTS = [
     {
         "tid": "175356438",
         "case_name": "Kaveri Plastics v Mahdoom Bawa Bahrudeen Noorul",
-        "citation": "2025 INSC (Supreme Court, 19 September 2025)",
+        "citation": "2025 INSC 1133",
         "court": "Supreme Court of India",
         "source_url": "https://indiankanoon.org/doc/175356438/",
         "output": "corpus/kaveri_plastics_v_mahdoom_bawa_bahrudeen_noorul.json",
         "notes": (
-            "Read in full, 2026-08-30. TWO SEPARATE VITAL HOLDINGS in this "
-            "one judgment. "
-            "(1) SECURITY/MATURITY HOLDING: a cheque given as security for a "
-            "FUTURE OR CONTINGENT liability does NOT attract Section 138 if "
-            "dishonoured before the liability matures. The label 'security "
-            "cheque' is NOT itself determinative -- what matters is whether "
-            "the debt had actually become due and payable AT THE TIME OF "
-            "DISHONOUR. FEEDS INTO: check_debt_maturity_status (new "
-            "function) -- replaces the old flat 'debt vs security' binary. "
-            "(2) AMOUNT-MATCHING HOLDING (paragraph 14, quoting Suman Sethi "
-            "v Ajay K. Churiwal, (2000) 2 SCC 380, VERBATIM -- cited via this "
-            "quotation rather than a separate fetch, per explicit 2026-08-30 "
-            "decision): the demand notice must clearly and specifically "
-            "demand the CHEQUE AMOUNT itself. ADDITIONAL amounts (interest, "
-            "costs) mentioned ALONGSIDE the cheque amount do NOT by "
-            "themselves invalidate the notice, PROVIDED the cheque amount "
-            "remains specifically and severably demanded. This directly "
-            "corrects the previous check_amount_match, which treated ANY "
-            "co-mention of interest as an automatic defect regardless of "
-            "severability. FEEDS INTO: corrected check_amount_match."
+            "Read in full, 2026-08-30. Real neutral citation 2025 INSC "
+            "1133 (Gavai CJI, Anjaria J.; decided 19 Sep 2025), affirming "
+            "the Delhi HC below (cited in the wild as Mahdoom Bawa "
+            "Bahrudeen Noorul v Kaveri Plastics, (2024) 02 Del CK 0095). "
+            "citation field corrected 2026-09-01 from the vague '2025 "
+            "INSC (Supreme Court, 19 September 2025)'. "
+            "VITAL HOLDING -- AMOUNT-MATCHING (paragraph 14, quoting Suman "
+            "Sethi v Ajay K. Churiwal, (2000) 2 SCC 380, VERBATIM -- "
+            "cited via this quotation rather than a separate fetch, per "
+            "explicit 2026-08-30 decision): the demand notice must "
+            "clearly and specifically demand the CHEQUE AMOUNT itself. "
+            "ADDITIONAL amounts (interest, costs) mentioned ALONGSIDE the "
+            "cheque amount do NOT by themselves invalidate the notice, "
+            "PROVIDED the cheque amount remains specifically and severably "
+            "demanded. This directly corrects the previous "
+            "check_amount_match, which treated ANY co-mention of interest "
+            "as an automatic defect regardless of severability. FEEDS "
+            "INTO: corrected check_amount_match. "
+            "RETRACTED 2026-09-01 (was listed here as holding (1)): a "
+            "'SECURITY/MATURITY HOLDING' -- 'a cheque given as security "
+            "for a future or contingent liability does not attract "
+            "Section 138 if dishonoured before the liability matures', "
+            "said to feed a check_debt_maturity_status function. This was "
+            "a FABRICATION. The judgment text (40,710 chars) contains "
+            "ZERO occurrences of 'security', 'matured', 'maturity', "
+            "'contingent', or 'future liability' (confirmed by grep "
+            "2026-09-01, re-confirming the retraction first recorded in "
+            "HANDOFF_PROJECT2.md). check_debt_maturity_status was never "
+            "built. No real replacement source for a security/maturity "
+            "doctrine has been located -- see HANDOFF_PROJECT2.md open "
+            "item 2."
         ),
     },
     {

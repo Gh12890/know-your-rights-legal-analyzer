@@ -242,7 +242,15 @@ JUDGMENT_CITATION_MAP = {
             "(memo of arrest, witness attestation, right to inform family, "
             "medical exam, etc.), matching check_dk_basu_memo's checks "
             "one-to-one -- e.g. para 2 = witness-attested memo, para 5 = "
-            "family/friend informed, paras 7-8 = medical examination."
+            "family/friend informed, paras 7-8 = medical examination. "
+            "PROVENANCE (corrected 2026-09-01): the sourced text is the "
+            "1 Aug 1997 monitoring order, which quotes these requirements "
+            "VERBATIM from the substantive 18 Dec 1996 judgment, D.K. Basu "
+            "v State of West Bengal, (1997) 1 SCC 416 -- the standard "
+            "citation for these safeguards. Requirement wording is "
+            "verbatim-faithful; the consequences passage in the sourced "
+            "text is the 1997 bench's paraphrase. See the corpus record's "
+            "'notes' field for the full account."
         ),
     },
     "vihaan_kumar_written_grounds": {

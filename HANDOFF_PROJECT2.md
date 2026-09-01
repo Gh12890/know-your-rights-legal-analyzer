@@ -155,7 +155,9 @@ SAME deterministic compliance functions.
    "mere presence vs. actual participation." Needs sourcing.
 2. Security/maturity doctrine for cheque bounce is NOT resolved -- the
    false Kaveri Plastics attribution was retracted, not replaced. A
-   real case may exist but has not been located/verified.
+   real case may exist but has not been located/verified. (2026-09-01:
+   the false attribution was still lingering in two corpus/builder
+   notes fields; now fully scrubbed -- see item 7.)
 3. The Pawan Kumar Rai / Sajir / Saifullah citation chain, referenced
    inside Neelkanth Pharma Logistics' own text, was never independently
    sourced/verified.
@@ -168,33 +170,51 @@ SAME deterministic compliance functions.
    again until the user confirms Projects 2 and 3 are done.
 6. citation_currency_checker.py (Project 2 Step 3) built and run against
    all 14 doctrine_keys 2026-09-01. Case-law-treatment dimension now
-   verified for 13 of 14. STILL OPEN:
-   - youth_bar_association_fir_copy_guidelines: case-law treatment
-     INCONCLUSIVE. The PIL name is too generic for case-name discovery
-     (every hit was that docket's own monitoring orders). Needs a
-     doctrine-phrase-anchored search ('FIR' + 'uploaded' + 'police
-     website' + '24 hours'), which the checker cannot build today
-     (case-name/citation anchored only). Building that is the natural
-     next Step-2 extension.
-   - D.K. Basu citation conflict: corpus record says "(1997) 6 SCC
-     642"; a real 2025 citing judgment and ik_query_builder.CASE_METADATA
-     both say "(1997) 1 SCC 416". Corpus 'citation' field is probably
-     wrong -- verify and fix.
+   verified for ALL 14 (youth_bar closed by adding doctrine-phrase
+   queries: ik_query_builder.CASE_METADATA entries now support an
+   'extra_search_queries' list; build_doctrine_queries pools them).
+   RESOLVED this session:
+   - D.K. Basu citation conflict: the sourced corpus text (IK doc
+     235756) is the SHORT 1 Aug 1997 monitoring order, (1997) 6 SCC 642,
+     which QUOTES the 11 safeguards verbatim from the substantive 18 Dec
+     1996 judgment, (1997) 1 SCC 416. corpus record + chunk header +
+     build_judgment_corpus.py comment corrected: citation = (1997) 1 SCC
+     416 (the standard reference), source_document_citation records the
+     1997 order, source_type = "primary_reproduction". NO retrieval text
+     changed (the requirement wording is verbatim-faithful and chunks
+     cleanly; the 1996 judgment numbers them "(1)".."(11)" and would
+     need a manual_override_text hack, so it was NOT re-sourced).
+   - Kaveri Plastics fabricated holding: corpus notes AND
+     build_cheque_bounce_judgment_corpus.py still asserted a
+     "SECURITY/MATURITY HOLDING" feeding a check_debt_maturity_status
+     function (never built). Text has ZERO occurrences of security/
+     matured/contingent -- re-confirmed by grep, scrubbed from both
+     files. Real citation 2025 INSC 1133 applied.
+   - Citation upgrades applied to corpus + chunk headers + builders:
+     Neelkanth = 2025 SCC OnLine Del 1055 (docket kept as
+     source_document_citation; "OnLine" form inferred from a citing
+     judgment's "2025 SCC Del 1055"); Malabar Gold = 2026 SCC OnLine
+     Del 297 (confirmed against a citing judgment); Kaveri = 2025 INSC
+     1133. retrieval.py surfaces chunks[0]["citation"], so these are
+     now what the chat feature attributes.
+   STILL OPEN:
    - Vihaan Kumar: a larger-bench reference is pending (as of mid-2025)
      on whether written grounds of arrest are required in EVERY case.
      Core holding "holds the field" meanwhile; the arrest module's
      written-grounds check still stands, but re-check when the larger
      Bench reports.
-   - Citation upgrades available (not yet applied to the corpus
-     records): Neelkanth = 2025 SCC OnLine Del 1055; Malabar Gold =
-     2026 SCC OnLine Del 297; Kaveri Plastics = 2025 INSC 1133.
-7. Item 2 above (Kaveri Plastics security/maturity doctrine) --
-   partial progress 2026-09-01: the real Kaveri Plastics judgment is
-   2025 INSC 1133 (SC affirming Delhi HC), and it is about NOTICE-
-   AMOUNT MISMATCH, not security/maturity. Later HCs distinguish it on
-   facts (demand less than vs. more than the cheque). The separate
-   security-cheque/contingent-liability holding the retracted
-   attribution claimed still has NO located source.
+   - The corpus embeddings were NOT regenerated after these metadata
+     edits. Not needed (no chunk TEXT changed, only header citation
+     fields), but embed_corpus.py should be re-run before the next
+     release regardless, for cleanliness.
+7. Item 2 above (Kaveri Plastics security/maturity doctrine): the real
+   Kaveri Plastics judgment is 2025 INSC 1133 (SC affirming Delhi HC),
+   about NOTICE-AMOUNT MISMATCH, not security/maturity. Later HCs
+   distinguish it on facts (demand less than vs. more than the cheque).
+   The separate security-cheque/contingent-liability holding the
+   retracted attribution claimed still has NO located source -- item 2
+   remains genuinely open, but the false trail is now fully scrubbed
+   from the corpus and builder (was still lingering in notes fields).
 
 ## What Project 2 actually is
 

@@ -41,14 +41,22 @@ JUDGMENTS = [
     {
         "pdf": "dk_basu_indiankanoon.pdf",
         "case_name": "D.K. Basu v State of West Bengal",
-        # Citation taken directly from the primary document's own header, not
-        # from earlier secondary-source search results, which cited a
-        # DIFFERENT (1997) 1 SCC 416 citation. That earlier citation refers to
-        # the original 18 Dec 1996 interim order that first laid down the
-        # guidelines; THIS document, dated 1 Aug 1997, is the final
-        # confirmatory judgment reported at (1997) 6 SCC 642. Both are real
-        # documents from the same litigation -- this is the fuller, later one.
-        "citation": "(1997) 6 SCC 642",
+        # PROVENANCE CORRECTED 2026-09-01. An earlier comment here claimed
+        # doc 235756 (dated 1 Aug 1997, (1997) 6 SCC 642) was "the fuller,
+        # later one" and cited it as such. That is BACKWARDS: doc 235756
+        # is the SHORT 8.7k-char monitoring order (Anand & K.T. Thomas
+        # JJ.); it merely QUOTES the 11 requirements verbatim from the
+        # substantive 66k-char judgment of 18 Dec 1996, D.K. Basu v State
+        # of West Bengal, (1997) 1 SCC 416 / AIR 1997 SC 610 -- which is
+        # the standard citation every later court uses for these
+        # safeguards. 'citation' is now that standard reference;
+        # source_document_citation records the doc actually sourced. The
+        # sourced text is kept (not re-sourced to the 1996 judgment)
+        # because it presents the requirements in "N." form that chunks
+        # cleanly into paragraphs 2-11, whereas the 1996 judgment numbers
+        # them "(1)".."(11)" and would need a manual_override_text hack.
+        "citation": "(1997) 1 SCC 416",
+        "source_document_citation": "(1997) 6 SCC 642 / AIR 1997 SC 3017",
         "court": "Supreme Court of India",
         "source_url": "https://indiankanoon.org/doc/235756/",
         "output": "corpus/dk_basu_v_state_of_west_bengal.json",
