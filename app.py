@@ -208,6 +208,35 @@ _DOMAIN_FLOW_CONFIG = {
 }
 
 
+def _sources_worth_showing(matches, reply_text, cap=6):
+    """The 'Read the source' expander used to loop over EVERY retrieved
+    match -- for a weak query that's ~17 near-noise rows (confirmed live
+    2026-09-01). Show, in order: every match the ANSWER actually
+    references (its section number or case name appears in reply_text),
+    then fill up to `cap` from the top of the (score-ordered) list.
+    Deduped by (source, label)."""
+    reply_lc = (reply_text or "").lower()
+
+    def _label(m):
+        return str(m.get("section_number") or m.get("paragraph_number") or "")
+
+    def _referenced(m):
+        cn = (m.get("case_name") or "").lower()
+        return (m.get("section_number") and f"section {m['section_number']}" in reply_lc) \
+            or (cn and cn.split(" v ")[0].strip() in reply_lc)
+
+    picked, seen = [], set()
+    for m in sorted(matches, key=lambda m: not _referenced(m)):  # referenced first, stable within
+        key = (m.get("case_name") or "BNS/BNSS", _label(m))
+        if key in seen:
+            continue
+        seen.add(key)
+        picked.append(m)
+        if len(picked) >= cap:
+            break
+    return picked
+
+
 def _arrest_turn_reply(state_obj, user_message):
     """Turn-processing for interview_flow.py's arrest free-text flow,
     factored out (2026-09-01) so run_interview_chat_flow() -- someone
@@ -1416,23 +1445,28 @@ def run_chat_flow():
         elif state == "conflicting_matches":
             if result.get("response_text"):
                 reply = result["response_text"]
+                # The grounded answer already ends with its own single
+                # "what you can do next" line (the prompt mandates it) --
+                # appending another here produced a visible DUPLICATE
+                # closer (confirmed live 2026-09-01).
             else:
                 reply = (
                     "This touches on more than one part of the law, and they don't all say the same "
                     "thing — so I don't want to guess which one applies to you. Here's what I found:"
+                    "\n\n**What you can do next:** if you have a document (like an FIR or arrest memo), "
+                    "uploading it here would let me check exactly which provision applies to your "
+                    "situation, instead of guessing between them."
                 )
+            # Only the handful of matches that actually drive the answer
+            # -- the old loop over EVERY match dumped ~17 near-identical
+            # near-noise rows (confirmed live 2026-09-01).
             with st.expander("📖 See what I found and compared"):
-                for m in result["matches"]:
+                for m in result["matches"][:5]:
                     label = m.get("section_number") or m.get("paragraph_number")
                     source = m.get("case_name") or "BNS/BNSS"
                     st.markdown(f"**{source}, Section/Para {label}** (relevance: {m['score']:.2f})")
                     _render_chat_match_currency_caveat(m)
-                    st.caption(m["text"][:500])
-            reply += (
-                "\n\n**What you can do next:** if you have a document (like an FIR or arrest memo), "
-                "uploading it here would let me check exactly which provision applies to your situation, "
-                "instead of guessing between them."
-            )
+                    st.caption((m.get("text") or "").strip()[:500])
             if result.get("situation_detected"):
                 handoff_domain = "arrest"
 
@@ -1449,12 +1483,12 @@ def run_chat_flow():
                 m = result["matches"][0]
                 reply = f"Here's what I found on this:\n\n> {m['text'][:800]}"
             with st.expander("📖 Read the source"):
-                for m in result["matches"]:
+                for m in _sources_worth_showing(result["matches"], reply):
                     label = m.get("section_number") or m.get("paragraph_number")
                     source = m.get("case_name") or "BNS/BNSS"
                     st.markdown(f"**{source}, Section/Para {label}**")
                     _render_chat_match_currency_caveat(m)
-                    st.caption(m["text"][:800])
+                    st.caption((m.get("text") or "").strip()[:800])
 
         else:
             reply = "Something unexpected happened on my end — please try rephrasing your question."

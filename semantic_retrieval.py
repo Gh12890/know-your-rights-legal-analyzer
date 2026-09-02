@@ -205,6 +205,21 @@ number of real data points, not a large-scale calibration.
 STATUTE_SIMILARITY_THRESHOLD = 0.34
 JUDGMENT_SIMILARITY_THRESHOLD = 0.40
 
+# conflicting_matches is only declared when the competing provisions are
+# BOTH genuinely relevant: each must score at least CONFLICT_MIN_SCORE
+# (a real, confident match -- not noise-level) AND be within
+# CONFLICT_SCORE_MARGIN of the top statute match. A genuine "the law
+# forks here" case (e.g. "can police arrest me for cheating" -> 318(2)
+# no vs 318(4) yes) has the competing provisions scoring high and close
+# together, usually as subsections of the same section. When the best
+# statute match is only noise-level (~0.36, as for "stole a goat",
+# where nothing aligns cleanly), there is no confident fork to surface
+# -- fall through to single_match and let the answer explain from the
+# (weak) statute set plus the judgment matches. See the long note in
+# find_relevant_sections().
+CONFLICT_SCORE_MARGIN = 0.03
+CONFLICT_MIN_SCORE = 0.40
+
 # Kept for any external code that still imports the old combined name
 # directly -- deliberately aliased to the MORE CONSERVATIVE (judgment)
 # value, not the more permissive statute one, so nothing that isn't
@@ -300,21 +315,44 @@ def find_relevant_sections(query):
     # A conflict is only checked across statute matches, since it's
     # specifically about disagreeing cognizable/bailable classifications
     # -- a concept that doesn't apply to judgment paragraphs the same way.
-    all_cognizable_values = set()
-    for e in enriched:
-        for variant_data in e["all_variants"].values():
-            all_cognizable_values.add(variant_data.get("cognizable"))
-
-    state = "conflicting_matches" if len(all_cognizable_values) > 1 else "single_match"
-
-    # If there are no statute matches at all (only judgments), there's
-    # nothing to conflict-check -- still a genuine single_match state,
-    # just with an empty "matches" list and judgment_matches carrying
-    # the real content.
-    if not enriched:
-        state = "single_match"
+    #
+    # CONFIRMED REAL FAILURE (2026-09-01, live): "police... arrested me...
+    # saying that i stole a goat" retrieved Section 303 (theft, cognizable,
+    # score ~0.44) AND -- spuriously -- Section 318 (cheating, whose
+    # 318(2)/(3) are non-cognizable, score ~0.36). Checking cognizability
+    # across EVERY match above the 0.34 threshold made {True, False} and
+    # forced conflicting_matches, so a straightforward theft question got
+    # the "the law forks, here are the scenarios" treatment plus a
+    # duplicate hardcoded closer from app.py's conflict branch. A genuine
+    # fork (e.g. "can police arrest me for cheating" -> 318(2) no vs
+    # 318(4) yes) has the competing provisions as SUBSECTIONS OF THE SAME
+    # top match, both scoring high -- not a high-relevance section vs a
+    # low-relevance noise match. So conflict detection now only considers
+    # matches within CONFLICT_SCORE_MARGIN of the top statute match.
+    state = _conflict_state(enriched)
 
     return {"state": state, "matches": enriched, "judgment_matches": judgment_matches}
+
+
+def _conflict_state(enriched):
+    """'conflicting_matches' iff the confident, closely-ranked statute
+    matches genuinely disagree on cognizability; 'single_match'
+    otherwise (including the no-statute-matches case). Split out from
+    find_relevant_sections so the gating can be unit-tested without
+    embeddings. `enriched` is score-ordered; each item has 'score' and
+    'all_variants'."""
+    if not enriched:
+        return "single_match"
+    top_score = enriched[0]["score"]
+    conflict_pool = [
+        e for e in enriched
+        if e["score"] >= CONFLICT_MIN_SCORE and top_score - e["score"] <= CONFLICT_SCORE_MARGIN
+    ]
+    all_cognizable_values = set()
+    for e in conflict_pool:
+        for variant_data in e["all_variants"].values():
+            all_cognizable_values.add(variant_data.get("cognizable"))
+    return "conflicting_matches" if len(all_cognizable_values) > 1 else "single_match"
 
 
 if __name__ == "__main__":

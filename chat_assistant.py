@@ -600,32 +600,88 @@ def _explicit_section_matches(question: str, max_sections: int = 2) -> list:
 
     results = []
     for num, act_hint in found:
-        acts = [act_hint] if act_hint in ("BNS", "BNSS") else ["BNS"]
-        for act in acts:
-            data = get_statute_section(act, num)
-            if data:
-                match = {
-                    "act": data["act"],
-                    "section_number": data["section_number"],
-                    "text": data["text"],
-                    "source": "explicit_section_ref",
-                }
-                # PHASE 2 (2026-09-01): enrich with the same BNS_SECTION_DATA
-                # cognizable/bailable/max_years lookup semantic_retrieval's
-                # find_relevant_sections() already does for statute-search
-                # matches. Without this, an explicit "what is section 318"
-                # lookup fed the model raw statute TEXT ONLY -- which never
-                # states cognizability (that classification lives in the
-                # BNSS First Schedule, a separate document, confirmed in
-                # format_retrieved_text_for_prompt's docstring) -- so the
-                # model had nothing to answer the cognizable/bailable half
-                # of the question with, and the deterministic verification
-                # check below (_find_cognizable_bailable_mismatches) had no
-                # ground truth for these matches either.
-                if data["act"] == "BNS":
-                    match["all_variants"] = _bns_section_variants(data["section_number"])
+        act = act_hint if act_hint in ("BNS", "BNSS") else "BNS"
+        if act == "BNS":
+            # _bns_section_as_match already pulls the real text and adds
+            # the BNS_SECTION_DATA cognizable/bailable/max_years
+            # enrichment (PHASE 2, 2026-09-01) -- shared with
+            # _offence_keyword_matches so the two paths can't drift.
+            match = _bns_section_as_match(num)
+            if match:
                 results.append(match)
+            continue
+        data = get_statute_section(act, num)
+        if data:
+            # BNSS procedural sections carry no First-Schedule
+            # cognizable/bailable classification, so no all_variants here.
+            results.append({
+                "act": data["act"],
+                "section_number": data["section_number"],
+                "text": data["text"],
+                "source": "explicit_section_ref",
+            })
     return results
+
+
+# CONFIRMED REAL FAILURE (2026-09-01, live): "police... arrested me...
+# saying that i stole a goat" -- Section 303 (theft) scored only ~0.362
+# on the embeddings, BEHIND Section 274 (summons-case procedure, ~0.376)
+# and tied with several noise matches. The answer sometimes mentioned
+# 274. For a small set of offences a layperson describes in one plain
+# word ("stole", "cheated"), the right BNS section is not a guess -- so
+# anchor it deterministically, exactly like an explicitly-typed section
+# number, rather than hoping the embedding ranks it first. Checked in
+# order, first hit wins (so "attempt to murder" resolves before
+# "murder"). Kept deliberately short and high-precision -- only words
+# that map to ONE offence unambiguously when someone is describing an
+# accusation against them.
+_OFFENCE_KEYWORD_ANCHORS = [
+    (re.compile(r"\b(attempt(ed|ing)?\s+to\s+murder|tried\s+to\s+kill)\b", re.I), "109"),
+    (re.compile(r"\b(murder(ed|ing)?|killed\s+(him|her|someone|a\s+(man|woman|person)))\b", re.I), "103"),
+    (re.compile(r"\b(sto(le|len)|steal(ing)?|theft|thief|shoplift\w*)\b", re.I), "303"),
+    (re.compile(r"\b(cheat(ed|ing)?|defraud\w*)\b", re.I), "318"),
+    (re.compile(r"\b(extort\w*|blackmail\w*)\b", re.I), "308"),
+    (re.compile(r"\b(robbery|robbed|mugg\w*)\b", re.I), "309"),
+    (re.compile(r"\b(criminal\s+breach\s+of\s+trust|misappropriat\w*|embezzl\w*)\b", re.I), "316"),
+    (re.compile(r"\b(kidnap\w*|abduct\w*)\b", re.I), "137"),
+    (re.compile(r"\b(rape|raped|raping)\b", re.I), "64"),
+    (re.compile(r"\b(forg(ed|ery|ing)|fake\s+(document|signature|cheque))\b", re.I), "336"),
+    (re.compile(r"\b(defam\w*)\b", re.I), "356"),
+    (re.compile(r"\b(criminal\s+intimidation|threaten\w*\s+to\s+(kill|hurt|harm))\b", re.I), "351"),
+]
+
+
+def _bns_section_as_match(num: str) -> "dict | None":
+    """Build a prompt-ready match dict for a BNS section number: its real
+    statute text plus the BNS_SECTION_DATA cognizable/bailable
+    enrichment. Shared by _explicit_section_matches (typed section
+    numbers) and _offence_keyword_matches (offence words). None if the
+    section doesn't resolve."""
+    from retrieval import get_statute_section
+
+    data = get_statute_section("BNS", num)
+    if not data:
+        return None
+    return {
+        "act": data["act"],
+        "section_number": data["section_number"],
+        "text": data["text"],
+        "source": "explicit_section_ref",
+        "all_variants": _bns_section_variants(data["section_number"]),
+    }
+
+
+def _offence_keyword_matches(question: str) -> list:
+    """At most ONE anchor -- the first _OFFENCE_KEYWORD_ANCHORS pattern
+    the question matches -- as a high-confidence statute match. Deliberately
+    capped at one: a person's message usually describes a single alleged
+    offence, and firing several would recreate the laundry-list problem
+    this is meant to fix."""
+    for pat, num in _OFFENCE_KEYWORD_ANCHORS:
+        if pat.search(question or ""):
+            m = _bns_section_as_match(num)
+            return [m] if m else []
+    return []
 
 
 def _bns_section_variants(sec_key: str) -> dict:
@@ -942,6 +998,21 @@ def answer_question(question):
         seen = {(o.get("act"), o.get("section_number")) for o in statute_overrides}
         statute_overrides = statute_overrides + [
             e for e in explicit if (e["act"], e["section_number"]) not in seen
+        ]
+
+    # Offence-keyword anchor: only when the person did NOT name a section
+    # themselves (explicit lookup already covers that) -- if their message
+    # describes an accusation in one plain word ("stole", "cheated"),
+    # anchor the matching BNS offence deterministically instead of hoping
+    # the embedding ranks it first. Confirmed real gap (2026-09-01 live):
+    # "arrested me... saying that i stole a goat" scored Section 303 at
+    # ~0.36, behind a procedural noise match. Flows through the same
+    # combine-and-fallback logic below as every other statute override.
+    if not explicit:
+        seen = {(o.get("act"), o.get("section_number")) for o in statute_overrides}
+        statute_overrides = statute_overrides + [
+            m for m in _offence_keyword_matches(question)
+            if (m["act"], m["section_number"]) not in seen
         ]
 
     result = find_relevant_sections(question)

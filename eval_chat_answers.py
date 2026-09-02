@@ -220,6 +220,10 @@ _CLOSER_PAT = re.compile(
     r"a lawyer (can|could|should)",
     re.IGNORECASE,
 )
+# The specific phrase the prompt mandates once at the end AND that
+# app.py's conflicting_matches branch used to also append -- so 2+
+# occurrences is the DUPLICATE-CLOSER bug (confirmed live 2026-09-01).
+_DUPLICATE_CLOSER_PAT = re.compile(r"what you can do next", re.IGNORECASE)
 _SECTION_PAT = re.compile(r"\bSection\s+(\d+)", re.IGNORECASE)
 
 
@@ -254,6 +258,7 @@ def run_case(case):
     matches = result.get("matches") or []
     cited_sections = sorted(set(_SECTION_PAT.findall(answer)), key=lambda x: int(x))
     closer_hits = len(_CLOSER_PAT.findall(answer))
+    duplicate_closer_hits = len(_DUPLICATE_CLOSER_PAT.findall(answer))
     word_count = len(answer.split())
 
     inc_results = [_check_group(answer_lc, g) for g in case.get("must_include", [])]
@@ -274,6 +279,8 @@ def run_case(case):
         checks.append(("must_not", ok, f"{bad!r} {'absent' if ok else 'PRESENT'}"))
     if state == "in_scope_answer":
         checks.append(("has_closer", closer_hits >= 1, f"{closer_hits} next-step pointer(s)"))
+        checks.append(("no_duplicate_closer", duplicate_closer_hits <= 1,
+                       f"'what you can do next' appears {duplicate_closer_hits}x"))
         cap = case.get("max_sections", 5)
         checks.append(("section_count", len(cited_sections) <= cap,
                        f"{len(cited_sections)} distinct sections cited (cap {cap}): {cited_sections}"))
@@ -288,6 +295,7 @@ def run_case(case):
         "match_blocks_fed": len(matches),
         "cited_sections": cited_sections,
         "closer_hits": closer_hits,
+        "duplicate_closer_hits": duplicate_closer_hits,
         "word_count": word_count,
         "checks": checks,
         "n_fail": sum(1 for _, ok, _ in checks if not ok),

@@ -211,6 +211,35 @@ multi = _explicit_section_matches("compare section 303 and section 316 of BNS")
 check({(x["act"], x["section_number"]) for x in multi} == {("BNS", "303"), ("BNS", "316")},
       "two explicitly named sections both resolve (capped at 2)")
 
+# explicit BNS lookups now carry the Phase 2 enrichment via the shared
+# _bns_section_as_match, so they must not have lost all_variants in the refactor
+check(bool(_explicit_section_matches("what is section 318 of BNS")[0].get("all_variants")),
+      "an explicit BNS section still carries the BNS_SECTION_DATA all_variants enrichment")
+
+
+# ---- Phase 5: offence-keyword anchors (real get_statute_section, no API) ----
+
+from chat_assistant import _offence_keyword_matches
+
+goat = _offence_keyword_matches("police came to my house and arrested me saying that i stole a goat")
+check(len(goat) == 1 and (goat[0]["act"], goat[0]["section_number"]) == ("BNS", "303"),
+      "REAL-SHAPED GAP: 'stole a goat' anchors deterministically to BNS 303 (theft), not left to the embedding")
+check(bool(goat[0].get("text")) and bool(goat[0].get("all_variants")),
+      "the anchored match carries real statute text AND the cognizable/bailable enrichment")
+
+check((_offence_keyword_matches("they are accusing me of cheating a customer")[0]["section_number"]) == "318",
+      "'cheating' anchors to BNS 318")
+
+check(_offence_keyword_matches("attempted to murder")[0]["section_number"] == "109"
+      and _offence_keyword_matches("they say i murdered him")[0]["section_number"] == "103",
+      "'attempt to murder' resolves to 109 BEFORE the bare 'murder' -> 103 (order matters)")
+
+check(_offence_keyword_matches("what are my rights if the police arrest me") == [],
+      "a message describing no specific offence yields no anchor")
+
+check(len(_offence_keyword_matches("they say i stole the goat and also cheated the buyer")) == 1,
+      "capped at one anchor even when the message names two offences -- no laundry list")
+
 
 # ---- Phase 2: cognizable/bailable verification -- real BNS_SECTION_DATA, no API cost ----
 
