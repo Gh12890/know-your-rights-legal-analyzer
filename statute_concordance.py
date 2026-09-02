@@ -162,6 +162,67 @@ def describe(act, section):
     return f"{a} Section {sec} {lead} " + "; ".join(parts) + "."
 
 
+# --- scanning free text for old-code references ---------------------------
+#
+# Case law, notices and older compliance-citation tags routinely say
+# "Section 41A CrPC" or "Section 420 IPC". scan_old_refs() finds those and
+# pairs each with its modern equivalent, so a caller (the chat prompt
+# builder, the Project 3 drafting templates) can surface the current
+# number instead of leaving a repealed one to stand on its own.
+#
+# HIGH PRECISION BY DESIGN: fires ONLY when an explicit old-act token sits
+# right after the number(s). A bare "Section 35" is never guessed to be
+# CrPC when it could equally be BNSS.
+_OLD_ACT_RE = (
+    r"(?:I\.?P\.?C\.?|(?:the\s+)?Indian\s+Penal\s+Code|Penal\s+Code"
+    r"|Cr\.?\s?P\.?\s?C\.?|(?:the\s+)?Code\s+of\s+Criminal\s+Procedure"
+    r"|Criminal\s+Procedure\s+Code)"
+)
+_SCAN_NUM = r"\d{1,3}[A-Z]{0,2}(?:\s*\(\s*[0-9a-z]+\s*\))*"
+_OLD_SECTION_REF = re.compile(
+    r"(?:Sections?|Secs?\.?|S\.?|u/s|under\s+section)\s*"
+    r"(" + _SCAN_NUM + r"(?:\s*(?:,|and|&|/|to|read\s+with)\s*" + _SCAN_NUM + r")*)"
+    r"\s*(?:,\s*)?(?:of\s+(?:the\s+)?|,?\s*)?"
+    r"(" + _OLD_ACT_RE + r")",
+    re.IGNORECASE,
+)
+_SCAN_NUM_TOKEN = re.compile(r"\d{1,3}[A-Z]{0,2}(?:\([0-9a-z]+\))?")
+
+
+def scan_old_refs(text):
+    """Every explicit old IPC/CrPC section reference in `text`, paired with
+    its modern BNS/BNSS equivalent from this table. Each item:
+
+        {"old": "IPC 420", "new": "BNS 318(4)", "changed": False}
+
+    `new` is None for a provision repealed with no re-enacted successor.
+    Deduped, in first-seen order. [] if there are none. Pure lookup, no
+    LLM. A reference the table doesn't know at all is skipped silently."""
+    if not text:
+        return []
+    seen, out = set(), []
+    for m in _OLD_SECTION_REF.finditer(text):
+        raw_act = m.group(2).lower()
+        old_act = "IPC" if ("ipc" in raw_act or "penal" in raw_act) else "CrPC"
+        for tok in _SCAN_NUM_TOKEN.findall(m.group(1).replace(" ", "")):
+            key = (old_act, tok)
+            if key in seen:
+                continue
+            seen.add(key)
+            res = to_new(old_act, tok)
+            if res is None:
+                continue
+            if not res:
+                out.append({"old": f"{old_act} {tok}", "new": None, "changed": True})
+            else:
+                out.append({
+                    "old": f"{old_act} {tok}",
+                    "new": "; ".join(f"{e['act']} {e['section']}" for e in res),
+                    "changed": any(e["change"] for e in res),
+                })
+    return out
+
+
 if __name__ == "__main__":
     for a, s in [("IPC", "420"), ("IPC", "302"), ("IPC", "378"), ("IPC", "124A"),
                  ("CrPC", "41"), ("CrPC", "41A"), ("CrPC", "167"), ("CrPC", "173"),

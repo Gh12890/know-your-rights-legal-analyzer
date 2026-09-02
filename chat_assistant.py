@@ -705,31 +705,6 @@ def _bns_section_variants(sec_key: str) -> dict:
     return variants
 
 
-# Old-code section references inside retrieved judgment text. Case law is
-# overwhelmingly indexed under IPC/CrPC numbers -- BNS/BNSS is ~2 years
-# old -- so a paragraph the retriever surfaces routinely says "Section
-# 41A CrPC" or "Section 420 IPC". We give the model the modern
-# equivalent (from statute_concordance, a checked lookup) so its answer
-# can state the current section number instead of parroting the repealed
-# one. Deliberately high-precision: fires ONLY when an explicit old-act
-# token sits right after the number(s), so a bare "Section 35" inside a
-# judgment is never guessed to be CrPC when it could be BNSS.
-_OLD_ACT_RE = (
-    r"(?:I\.?P\.?C\.?|(?:the\s+)?Indian\s+Penal\s+Code|Penal\s+Code"
-    r"|Cr\.?\s?P\.?\s?C\.?|(?:the\s+)?Code\s+of\s+Criminal\s+Procedure"
-    r"|Criminal\s+Procedure\s+Code)"
-)
-_NUM = r"\d{1,3}[A-Z]{0,2}(?:\s*\(\s*[0-9a-z]+\s*\))*"
-_OLD_SECTION_REF = re.compile(
-    r"(?:Sections?|Secs?\.?|S\.?|u/s|under\s+section)\s*"
-    r"(" + _NUM + r"(?:\s*(?:,|and|&|/|to|read\s+with)\s*" + _NUM + r")*)"
-    r"\s*(?:,\s*)?(?:of\s+(?:the\s+)?|,?\s*)?"
-    r"(" + _OLD_ACT_RE + r")",
-    re.IGNORECASE,
-)
-_NUM_TOKEN = re.compile(r"\d{1,3}[A-Z]{0,2}(?:\([0-9a-z]+\))?")
-
-
 def _old_code_equivalents(text: str) -> list:
     """Every old IPC/CrPC section number quoted in `text`, paired with its
     modern BNS/BNSS equivalent from statute_concordance (a checked lookup,
@@ -737,37 +712,15 @@ def _old_code_equivalents(text: str) -> list:
     'changed': bool} -- or 'new': None for a provision repealed with no
     re-enacted successor. Deduped, in first-seen order. [] if none.
 
-    Shared by format_retrieved_text_for_prompt (builds the prompt note)
-    and app.py's 'what I found' expander (shows the reader the same
-    mapping)."""
-    if not text:
-        return []
+    Thin wrapper over statute_concordance.scan_old_refs (the shared
+    primitive, also used by draft_layer.py's templates); kept here for
+    format_retrieved_text_for_prompt and app.py's 'what I found' expander,
+    both of which import this name."""
     try:
-        from statute_concordance import to_new
+        from statute_concordance import scan_old_refs
     except Exception:
         return []
-
-    seen, out = set(), []
-    for m in _OLD_SECTION_REF.finditer(text):
-        raw_act = m.group(2).lower()
-        old_act = "IPC" if ("ipc" in raw_act or "penal" in raw_act) else "CrPC"
-        for tok in _NUM_TOKEN.findall(m.group(1).replace(" ", "")):
-            key = (old_act, tok)
-            if key in seen:
-                continue
-            seen.add(key)
-            res = to_new(old_act, tok)
-            if res is None:
-                continue
-            if not res:
-                out.append({"old": f"{old_act} {tok}", "new": None, "changed": True})
-            else:
-                out.append({
-                    "old": f"{old_act} {tok}",
-                    "new": "; ".join(f"{e['act']} {e['section']}" for e in res),
-                    "changed": any(e["change"] for e in res),
-                })
-    return out
+    return scan_old_refs(text)
 
 
 def _old_code_refs_note(text: str) -> str:

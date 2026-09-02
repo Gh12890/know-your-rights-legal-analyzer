@@ -321,6 +321,51 @@ check("PRAYER" not in cq_u and "Yours faithfully" not in cq_u,
 check(detect_draft_domain(_fa([_NC_NOTICE])) == "arrest",
       "an arrest requirement string still detects as arrest after the freeze/cheque additions")
 
+# =====================================================================
+# STATUTE CONCORDANCE WIRED INTO THE TEMPLATES
+# =====================================================================
+
+_OLD_CODE_GROUND = {
+    "requirement": "Woman not arrested between sunset and sunrise [S.46(4) CrPC / Sheela Barse (1983)]",
+    "status": "Non-Compliant",
+    "explanation": "Arrest of a woman recorded at 22:10; no exceptional-circumstances authorisation on record.",
+}
+_REPEALED_GROUND = {
+    "requirement": "Written grounds of arrest furnished to arrestee [Vihaan Kumar (2025)]",
+    "status": "May be Non-Compliant",
+    "explanation": "The FIR is recorded under Section 124A of the Indian Penal Code; the memo is "
+                   "silent on separate written grounds.",
+}
+
+d_oldcode = draft_for(_fa([_OLD_CODE_GROUND]), "sp")
+check("NOTE ON SECTION NUMBERS" in d_oldcode,
+      "a draft whose grounds cite an old CrPC/IPC number gets a NOTE ON SECTION NUMBERS block")
+check("CrPC 46(4) now corresponds to BNSS 43(5)" in d_oldcode,
+      "the note gives the checked modern equivalent from statute_concordance")
+
+d_clean_note = draft_for(_fa([_NC_NOTICE]), "sp")
+check("NOTE ON SECTION NUMBERS" not in d_clean_note,
+      "a draft that cites only current-code / case-name references gets NO section-number note")
+
+d_repealed = draft_for(_fa([_REPEALED_GROUND]), "understanding")
+check("NOTE ON SECTION NUMBERS" in d_repealed
+      and "no corresponding provision in the recodified law" in d_repealed,
+      "a repealed-without-successor provision (IPC 124A) is flagged, not left to stand as current law")
+
+# the note rides along for the new domains too (cheque cites NI Act sections,
+# which are NOT old-code -> no note; a freeze citing an old CrPC number -> note)
+_FZ_OLD = {
+    "requirement": "Attachment/freeze authorized via Section 107 BNSS court order [Tapas D. Neogy (1999)]",
+    "status": "May be Non-Compliant",
+    "explanation": "The freeze rests on a bare request; the Section 102 of the Code of Criminal "
+                   "Procedure investigative nexus is not shown on record.",
+}
+d_fz_old = draft_for(_fz([_FZ_OLD]), "freeze_sp")
+check("NOTE ON SECTION NUMBERS" in d_fz_old and "CrPC 102 now corresponds to BNSS 106" in d_fz_old,
+      "a freeze draft citing an old CrPC number also gets the section-number note")
+check("NOTE ON SECTION NUMBERS" not in draft_for(_cq([_CQ_AMOUNT_NC]), "cheque_reply"),
+      "a cheque reply citing only NI Act sections (not recodified) gets no section-number note")
+
 # ---- PDF smoke (one cheap call, no API) ----
 import os
 p = generate_draft_pdf(draft_for(_fa([_NC_NOTICE]), "magistrate"), "magistrate", "scratch_test_draft.pdf")

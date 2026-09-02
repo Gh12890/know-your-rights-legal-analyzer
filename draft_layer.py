@@ -921,12 +921,58 @@ _RENDERERS = {
 }
 
 
+def _section_number_note(content):
+    """A trailing 'NOTE ON SECTION NUMBERS' block when any part of the
+    draft's substance still cites the pre-2024 codes (IPC / CrPC) -- the
+    grounds carry citation tags like '[S.187 BNSS / S.167(2) CrPC]' and
+    '[S.46(4) CrPC / Sheela Barse]', and a repealed provision with no
+    successor (e.g. IPC 124A) must never stand unannotated in a citizen's
+    filing. Uses statute_concordance.scan_old_refs -- a checked lookup, no
+    LLM. Returns a list of lines, or [] when nothing old is cited."""
+    parts = list(content.get("facts", []))
+    for g in content.get("grounds", []):
+        parts += [g.get("heading", ""), g.get("finding", ""), g.get("citation", "")]
+    parts += list(content.get("to_verify", []))
+    parts += list(content.get("key_dates", []))
+    if content.get("context_note"):
+        parts.append(content["context_note"])
+    parts += [str(s) for s in content.get("sections", [])]
+
+    try:
+        from statute_concordance import scan_old_refs
+    except Exception:
+        return []
+    refs = scan_old_refs("\n".join(p for p in parts if p))
+    if not refs:
+        return []
+
+    out = ["NOTE ON SECTION NUMBERS",
+           "Some references above are to the pre-2024 codes (the Indian Penal Code / the Code of "
+           "Criminal Procedure). Under the codes now in force:"]
+    for r in refs:
+        if r["new"] is None:
+            out.append(f"- {r['old']}: no corresponding provision in the recodified law "
+                       "(repealed without re-enactment) - do not rely on it as current law.")
+        else:
+            tail = (" (renumbered AND substantively altered - confirm the specific point relied on)"
+                    if r["changed"] else "")
+            out.append(f"- {r['old']} now corresponds to {r['new']}{tail}.")
+    out.append("These correspondences follow the official NCRB reference tables and should be "
+               "confirmed against the current bare Act for the specific point relied on.")
+    return out
+
+
 def render_draft(content, target):
     """`content` from assemble_for() / assemble_*_content(); `target` a key
-    of _RENDERERS. Returns plain text."""
+    of _RENDERERS. Returns plain text. A 'NOTE ON SECTION NUMBERS' block is
+    appended when the draft still cites the old IPC/CrPC numbering."""
     if target not in _RENDERERS:
         raise ValueError(f"unknown draft target {target!r}; expected one of {list(_RENDERERS)}")
-    return _RENDERERS[target](content)
+    body = _RENDERERS[target](content)
+    note = _section_number_note(content)
+    if note:
+        body = body.rstrip() + "\n\n" + "\n".join(note) + "\n"
+    return body
 
 
 def draft_for(full_analysis, target):

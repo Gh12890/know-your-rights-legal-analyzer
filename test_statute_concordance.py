@@ -154,6 +154,34 @@ check(sum(1 for p in _raw["pairs"] if p["kind"] == "new_provision") >= 30,
       "at least 30 newly-added provisions detected")
 
 
+# ---- scan_old_refs: free-text scan for old IPC/CrPC section references ----
+
+from statute_concordance import scan_old_refs
+
+check(scan_old_refs("") == [] and scan_old_refs(None) == [],
+      "scan_old_refs on empty / None -> [], never crashes")
+check(scan_old_refs("this cites Section 35 BNSS and Section 187 BNSS only") == [],
+      "no old-act token -> nothing scanned (a bare 'Section 35' is never guessed as CrPC)")
+
+_r = scan_old_refs("Reference: S.187 BNSS / S.167(2) CrPC")
+check(_r == [{"old": "CrPC 167(2)", "new": "BNSS 187", "changed": False}],
+      "an explicit 'S.167(2) CrPC' resolves to BNSS 187, the mixed-code tag's BNSS half ignored")
+
+_r2 = scan_old_refs("charged under Section 41A of the Code of Criminal Procedure and Section 420 IPC")
+check({e["old"] for e in _r2} == {"CrPC 41A", "IPC 420"},
+      "both an IPC and a CrPC reference in one string are picked up")
+
+_r3 = scan_old_refs("the FIR invokes Section 124A of the Indian Penal Code")
+check(_r3 == [{"old": "IPC 124A", "new": None, "changed": True}],
+      "a repealed-without-successor provision comes back with new=None")
+
+check(scan_old_refs("Section 302 IPC")[0]["changed"] is True,
+      "the 'changed' flag rides along (IPC 302 -> BNS 103, substantively altered)")
+
+_dupes = scan_old_refs("Section 420 IPC ... later, again Section 420 IPC")
+check(len(_dupes) == 1, "a reference repeated in the text is deduped")
+
+
 print()
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILURE(S)")
