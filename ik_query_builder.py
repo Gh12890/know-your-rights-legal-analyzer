@@ -10,15 +10,16 @@ DOCTRINES you already trust (the case_keys in retrieval.py's
 JUDGMENT_CITATION_MAP), not to BNS/BNSS section numbers.
 
 WHY NOT SECTION NUMBERS (Option A/C, deferred, not abandoned):
-bns_section_data.py / the merged table currently store ONLY BNS/BNSS
-section numbers, with NO corresponding old IPC/CrPC section numbers.
 Since BNS is ~2 years old, Indian Kanoon's case-law corpus is
 overwhelmingly indexed under IPC/CrPC section numbers and case names —
-searching "BNS 103" returns almost nothing useful today. The user has
-already sourced 2 real NCRB government PDFs with a verified IPC↔BNS/
-BNSS concordance table, downloaded but NOT YET integrated. Building
-Option A (section-number-anchored search) is explicitly deferred until
-after Option B's real results are seen — do not build it preemptively.
+searching "BNS 103" returns almost nothing useful today. So a
+section-anchored search needs the OLD number, which meant a concordance.
+UPDATE 2026-09-02: that concordance now exists — statute_concordance.py
+(to_new / to_old), built by build_statute_concordance.py from the two
+NCRB "Corresponding Section Table" PDFs. Option A is now UNBLOCKED but
+still deferred: build it only after Option B's real results show it's
+needed — do not build it preemptively. When built, resolve BNS/BNSS ->
+IPC/CrPC via statute_concordance and feed the old number to IK.
 
 WHAT THIS FILE ACTUALLY DOES:
 Takes a case_key already present in JUDGMENT_CITATION_MAP (e.g.
