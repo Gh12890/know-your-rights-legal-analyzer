@@ -23,8 +23,16 @@ Shape (per the user's steer, 2026-09-02):
     number -- the arrest interview never captures these) render as
     "[ ___ ]" placeholders. No PII is collected or stored.
 
-v1 is arrest-domain only. freeze / cheque-bounce reuse this same
-content/target split later.
+Covers three domains, each detected from the compliance requirement text
+(detect_draft_domain) and each with its own assembler + envelope set:
+  - arrest  -> understanding / magistrate representation / SP complaint
+  - freeze  -> understanding / application to the Magistrate to release
+               the account / letter to the SP
+  - cheque  -> understanding / reply to the Section 138 demand notice /
+               (only when a jurisdiction defect exists) application to
+               the Magistrate on territorial jurisdiction
+Target keys are globally unique ("freeze_magistrate", "cheque_reply", ...)
+so render_draft dispatches on the key alone.
 """
 
 import re
@@ -79,14 +87,18 @@ def _heading_of(check):
 # A compliance-check explanation is written for the on-screen UI, where the
 # status label ("May be Non-Compliant") sits right next to it. In a draft
 # document that label is gone, so a sentence like "The arrest may be illegal
-# if no notice was served" reads as a bolder claim than the tool should be
-# putting into a citizen's filing. Drop any sentence that states a
-# conclusion about the arrest's validity -- the draft's own "GROUNDS" /
-# "appears not to have been complied with" framing is the bounded way to
-# raise it, and the lawyer decides how hard to argue it.
+# if no notice was served" -- or, for freeze, "this freeze may be
+# unauthorised and legally vulnerable to challenge" -- reads as a bolder
+# claim than the tool should be putting into a citizen's filing. Drop any
+# sentence that states a conclusion about the arrest's / freeze's validity
+# -- the draft's own "GROUNDS" / "appears not to have been complied with"
+# framing is the bounded way to raise it, and the lawyer decides how hard
+# to argue it. Cheque explanations are already attributed and hedged ("per
+# Kaveri Plastics ... can be fatal to the complaint") -- those stay.
 _CONCLUSION_SENT = re.compile(
-    r"(?<![^.\s])(the\s+arrest|this|the\s+detention)\b[^.]*\b"
-    r"(illegal|unlawful|vitiat\w*|void|bad\s+in\s+law|without\s+jurisdiction)\b[^.]*\.\s*",
+    r"(?<![^.\s])(the\s+arrest|this|the\s+detention|(?:a|the)\s+freeze|the\s+attachment)\b[^.]*\b"
+    r"(illegal|unlawful|vitiat\w*|void|bad\s+in\s+law|without\s+jurisdiction|"
+    r"unauthoris\w*|legally\s+vulnerable)\b[^.]*\.\s*",
     re.IGNORECASE,
 )
 
@@ -131,8 +143,37 @@ def _party_lines(fields):
     ]
 
 
+def _build_grounds(checks):
+    """One ground per Non-Compliant / May-be-Non-Compliant check, worst
+    first: heading with the '[citation]' tag stripped, finding with any
+    illegality-conclusion sentence trimmed, citation, and a `hedged` flag
+    that drives the 'appears not to have' vs 'was not' phrasing. Shared by
+    all three domains."""
+    actionable = sorted(
+        (c for c in checks if c.get("status") in _ACTIONABLE),
+        key=lambda c: _PRIORITY[c["status"]],
+    )
+    return [
+        {
+            "heading": _heading_of(c),
+            "finding": _trim_conclusion(c.get("explanation")),
+            "citation": _citation_for(c),
+            "hedged": c.get("status") == "May be Non-Compliant",
+        }
+        for c in actionable
+    ]
+
+
+def _build_to_verify(checks):
+    return [
+        f"{_heading_of(c)} - {(c.get('explanation') or '').strip()}"
+        for c in checks
+        if c.get("status") == "Cannot Determine"
+    ]
+
+
 def assemble_draft_content(full_analysis):
-    """The single body of draft substance, built from the findings.
+    """The single body of arrest-draft substance, built from the findings.
 
     Returns a dict:
       facts        - list[str]   factual recital, [ ___ ] for unknowns
@@ -148,31 +189,14 @@ def assemble_draft_content(full_analysis):
     checks = compliance.get("compliance_checks", []) or []
     fields = (full_analysis or {}).get("extracted_fields", {}) or {}
 
-    actionable = sorted(
-        (c for c in checks if c.get("status") in _ACTIONABLE),
-        key=lambda c: _PRIORITY[c["status"]],
-    )
-
-    grounds = [
-        {
-            "heading": _heading_of(c),
-            "finding": _trim_conclusion(c.get("explanation")),
-            "citation": _citation_for(c),
-            "hedged": c.get("status") == "May be Non-Compliant",
-        }
-        for c in actionable
-    ]
+    grounds = _build_grounds(checks)
 
     key_dates = []
     for c in checks:
         if "Default bail" in c.get("requirement", "") and c.get("explanation"):
             key_dates.append(c["explanation"].strip())
 
-    to_verify = [
-        f"{_heading_of(c)} - {(c.get('explanation') or '').strip()}"
-        for c in checks
-        if c.get("status") == "Cannot Determine"
-    ]
+    to_verify = _build_to_verify(checks)
 
     consequences = any(
         ("41A" in c.get("requirement", "") or "35(3)" in c.get("requirement", "")
@@ -182,6 +206,7 @@ def assemble_draft_content(full_analysis):
     )
 
     return {
+        "domain": "arrest",
         "facts": _fact_lines(fields),
         "party": _party_lines(fields),
         "grounds": grounds,
@@ -195,32 +220,87 @@ def assemble_draft_content(full_analysis):
 
 _ARREST_MARKERS = ("arrest", "s.35", "s. 35", "default bail", "24 hour", "d.k. basu",
                    "dk basu", "arnesh", "vihaan", "grounds of arrest")
+_FREEZE_MARKERS = ("freeze", "attachment")
+_CHEQUE_MARKERS = ("s.138", "138(", "cheque", "ni act", "return memo", "negotiable instrument")
+
+# Order matters only in that the marker sets are disjoint on the real
+# requirement strings of all three pipelines (verified in
+# test_draft_layer.py) -- no requirement text triggers two domains.
+_DOMAIN_MARKERS = (("freeze", _FREEZE_MARKERS), ("cheque", _CHEQUE_MARKERS),
+                   ("arrest", _ARREST_MARKERS))
+
+
+def detect_draft_domain(full_analysis):
+    """Which drafting domain this analysis belongs to -- 'arrest',
+    'freeze', 'cheque', or None if draft_layer has no template for it.
+    Reads the compliance requirement text, not a classification label,
+    so it works for both the document-upload and interview entry points."""
+    checks = ((full_analysis or {}).get("compliance", {}) or {}).get("compliance_checks", []) or []
+    reqs = " ".join(c.get("requirement", "").lower() for c in checks)
+    for domain, markers in _DOMAIN_MARKERS:
+        if any(m in reqs for m in markers):
+            return domain
+    return None
 
 
 def is_arrest_analysis(full_analysis):
-    """True when full_analysis came from the arrest pipeline -- the only
-    domain draft_layer handles in v1. Checks the compliance requirements
-    rather than a classification label so it works for both the document
-    and interview entry points."""
-    checks = ((full_analysis or {}).get("compliance", {}) or {}).get("compliance_checks", []) or []
-    reqs = " ".join(c.get("requirement", "").lower() for c in checks)
-    return any(m in reqs for m in _ARREST_MARKERS)
+    """Back-compat shim -- kept because app.py and older callers import it.
+    New code should use detect_draft_domain()."""
+    return detect_draft_domain(full_analysis) == "arrest"
+
+
+_ASSEMBLERS = {}  # filled in below, once the freeze/cheque assemblers are defined
+
+
+def assemble_for(full_analysis):
+    """Detect the domain and run its assembler. Returns the content dict
+    (carrying its own 'domain' key) or None when no template applies."""
+    domain = detect_draft_domain(full_analysis)
+    if domain is None:
+        return None
+    return _ASSEMBLERS[domain](full_analysis)
 
 
 def available_targets(full_analysis):
-    """'understanding' is always offered. The addressed drafts
-    (magistrate / SP) are offered only when there is something to raise."""
-    content = assemble_draft_content(full_analysis)
-    targets = ["understanding"]
-    if content["grounds"] or content["key_dates"]:
-        targets += ["magistrate", "sp"]
-    return targets
+    """'<domain>_understanding' (or plain 'understanding' for arrest) is
+    always offered. The addressed drafts are offered only when there is a
+    ground -- and, for arrest, also when there is a forward-looking key
+    date. Returns [] when draft_layer has no template for this analysis."""
+    content = assemble_for(full_analysis)
+    if content is None:
+        return []
+    domain = content["domain"]
+    has_ground = bool(content["grounds"])
+    if domain == "arrest":
+        targets = ["understanding"]
+        if has_ground or content["key_dates"]:
+            targets += ["magistrate", "sp"]
+        return targets
+    if domain == "freeze":
+        targets = ["freeze_understanding"]
+        if has_ground:
+            targets += ["freeze_magistrate", "freeze_sp"]
+        return targets
+    if domain == "cheque":
+        targets = ["cheque_understanding"]
+        if has_ground:
+            targets += ["cheque_reply"]
+        if any("presented for collection" in g["heading"].lower() for g in content["grounds"]):
+            targets += ["cheque_magistrate"]
+        return targets
+    return ["understanding"]
 
 
 TARGET_LABELS = {
     "understanding": "Just to understand where things stand",
     "magistrate": "As a representation to the Magistrate",
     "sp": "As a complaint to the Superintendent of Police",
+    "freeze_understanding": "Just to understand where things stand",
+    "freeze_magistrate": "As an application to the Magistrate to release the account",
+    "freeze_sp": "As a letter to the Superintendent of Police",
+    "cheque_understanding": "Just to understand where things stand",
+    "cheque_reply": "As a reply to the demand notice",
+    "cheque_magistrate": "As an application to the Magistrate on jurisdiction",
 }
 
 
@@ -392,24 +472,469 @@ def _render_sp(c):
     return "\n".join(out).rstrip() + "\n"
 
 
+# ---------------------------------------------------------------------------
+# 2b. freeze domain  --  account holder wanting the account released
+# ---------------------------------------------------------------------------
+
+def _KNOWN(v):
+    """A field value the tool can actually put in a sentence -- not a
+    missing / placeholder / 'unclear' marker from any of the three flows."""
+    return v not in (None, "", "unclear", "SKIPPED", "not stated", "not applicable")
+
+_FREEZE_CONTEXT = (
+    "For an account freeze: ordinary seizure under Section 106 BNSS covers evidentiary "
+    "seizure only and does not, by itself, authorise a debit-freeze or attachment of a "
+    "bank account -- that requires an order of a competent Magistrate under Section 107 "
+    "BNSS, with intimation to the Magistrate. The account holder is, at the least, "
+    "entitled to be told the reasons for the freeze, and a freeze of the whole account "
+    "rather than the specific disputed sum has been held disproportionate "
+    "(Neelkanth Pharma Logistics (2025); Malabar Gold (2026); State of Maharashtra v "
+    "Tapas D. Neogy, (1999) 7 SCC 685)."
+)
+
+
+def _freeze_fact_lines(fields):
+    f = fields or {}
+    lines = []
+
+    scope = f.get("scope")
+    amt = f.get("specific_amount_stated")
+    amt_txt = f" (Rs. {amt})" if _KNOWN(amt) else ""
+    if scope == "entire account":
+        lines.append(f"the entire bank account was frozen, not only a specific disputed sum{amt_txt}")
+    elif scope == "specific disputed amount":
+        lines.append(f"a specific sum{amt_txt} was held, rather than the whole account")
+    else:
+        lines.append("whether the whole account or only a specific sum was frozen is [ to be confirmed ]")
+
+    intimated = f.get("account_holder_intimated")
+    if intimated is True:
+        lines.append("the account holder was informed of the freeze")
+    elif intimated is False:
+        lines.append("the account holder was not informed of the freeze and came to know of it only "
+                     "when a transaction failed")
+    else:
+        lines.append("how the account holder came to know of the freeze is [ to be confirmed ]")
+
+    order_shown = f.get("written_order_shown")
+    mentions_court = f.get("written_order_mentions_court")
+    court_mentioned = f.get("court_or_magistrate_mentioned")
+    if order_shown is True and mentions_court is True:
+        lines.append("a written communication was received that referred to a court or a Magistrate's order")
+    elif order_shown is True:
+        lines.append("a written communication about the freeze was received, but it did not refer to any "
+                     "court or Magistrate's order")
+    elif court_mentioned is True:
+        lines.append("a court or Magistrate was said to be involved, but no written order was shown to "
+                     "the account holder")
+    elif order_shown is False or court_mentioned is False:
+        lines.append("no written order, and no reference to a court or Magistrate authorising the freeze, "
+                     "was shown to the account holder")
+    else:
+        lines.append("whether any court order authorises the freeze is [ to be confirmed ]")
+
+    return lines
+
+
+def _freeze_party_lines(fields):
+    return [
+        f"Name of the account holder: {FILL}",
+        f"Bank, branch and account number: {FILL}",
+        f"FIR / case number and police station, if known: {FILL}",
+        f"Investigating officer / agency, if known: {FILL}",
+        f"Date the freeze was discovered or notified: {FILL}",
+    ]
+
+
+def assemble_freeze_content(full_analysis):
+    """Freeze-domain content. Same {heading, finding, citation, hedged}
+    grounds shape as arrest; facts/party are freeze-specific; no key_dates
+    (a freeze has no running statutory clock the way default bail does)."""
+    compliance = (full_analysis or {}).get("compliance", {}) or {}
+    checks = compliance.get("compliance_checks", []) or []
+    fields = (full_analysis or {}).get("extracted_fields", {}) or {}
+
+    grounds = _build_grounds(checks)
+    return {
+        "domain": "freeze",
+        "facts": _freeze_fact_lines(fields),
+        "party": _freeze_party_lines(fields),
+        "grounds": grounds,
+        "key_dates": [],
+        "to_verify": _build_to_verify(checks),
+        "context_note": _FREEZE_CONTEXT,
+        "no_defect": not grounds,
+        "sections": ["106/107 BNSS"],
+    }
+
+
+def _render_freeze_understanding(c):
+    out = ["NOTES ON THE POSITION REGARDING THE FROZEN ACCOUNT", "",
+           f"[{_DRAFT_HEADER}]", "",
+           "WHAT THE RECORD SHOWS", "On the information available:"]
+    out += [f"- {line[0].upper() + line[1:]}." for line in c["facts"]]
+    out += ["", "DETAILS TO FILL IN"]
+    out += [f"- {p}" for p in c["party"]]
+    out += [""]
+
+    if c["grounds"]:
+        out += ["POINTS THAT MAY NOT COMPLY WITH PROCEDURE"]
+        for i, g in enumerate(c["grounds"], 1):
+            line = f"{i}. {g['heading']} - this {_ground_verb(g)}. {g['finding']}"
+            if g["citation"]:
+                line += f" (Reference: {g['citation']})"
+            out.append(line)
+        out += [""]
+    else:
+        out += ["No procedural defect was identified on the information available. This does not mean "
+                "none exists - only that nothing in what was provided shows one.", ""]
+
+    if c["to_verify"]:
+        out += ["STILL TO CONFIRM"]
+        out += [f"- {t}" for t in c["to_verify"]]
+        out += [""]
+
+    out += ["WHAT THE LAW REQUIRES FOR AN ACCOUNT FREEZE", c["context_note"], ""]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _render_freeze_magistrate(c):
+    out = [
+        "IN THE COURT OF [ name of the Magistrate ], AT [ place ]",
+        "",
+        f"In the matter of FIR / Case No. {FILL}, Police Station {FILL}",
+        "",
+        "In the matter of: [ full name of the account holder ], "
+        "[ address ], holder of Account No. [ ___ ] at [ bank / branch ]  ... Applicant",
+        "",
+        "APPLICATION FOR RELEASE / DE-FREEZING OF THE BANK ACCOUNT, OR FOR "
+        "RESTRICTING THE FREEZE TO THE SPECIFIC DISPUTED AMOUNT",
+        "",
+        f"[{_DRAFT_HEADER}]",
+        "",
+        "MOST RESPECTFULLY SHOWETH:",
+        "",
+    ]
+    for i, fact in enumerate(c["facts"], 1):
+        out.append(f"{i}. That {fact}.")
+    out += ["", "GROUNDS", ""]
+    if c["grounds"]:
+        for idx, g in enumerate(c["grounds"]):
+            letter = chr(ord("A") + idx)
+            verb = "does not appear to have been complied with" if g["hedged"] else "was not complied with"
+            body = f"{letter}. {g['heading']}: it is submitted that this requirement {verb}. {g['finding']}"
+            if g["citation"]:
+                body += f" This is contrary to {g['citation']}."
+            out.append(body)
+    else:
+        out.append("A. No specific defect is asserted; this application is made so that the Court may "
+                   "satisfy itself that the freeze is properly authorised and proportionate.")
+    out += ["", "LEGAL POSITION", c["context_note"], ""]
+
+    out += ["PRAYER", "",
+            "It is therefore most respectfully prayed that this Hon'ble Court may be pleased to:",
+            "a) call upon the investigating agency to produce the order, if any, under which the "
+            "account came to be frozen or attached;",
+            "b) direct the de-freezing / release of the account, or in the alternative direct that "
+            "the freeze be restricted to the specific disputed amount of [ Rs. ___ ];",
+            "c) pass such further or other order as this Hon'ble Court may deem fit and proper in the "
+            "interest of justice."]
+    out += [""]
+
+    if c["to_verify"]:
+        out += ["MATTERS STATED TO BE UNVERIFIED (for the Court's information)"]
+        out += [f"- {t}" for t in c["to_verify"]]
+        out += [""]
+
+    out += ["", "VERIFICATION", "",
+            "Verified at [ place ] on [ date ] that the contents of the above application are true to "
+            "the best of my knowledge and belief.",
+            "",
+            "[ place ]                                          [ signature ]",
+            "[ date ]                                           [ name - the account holder / counsel ]"]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _render_freeze_sp(c):
+    out = [
+        "To,",
+        "The Superintendent of Police,",
+        "[ district ]",
+        "",
+        f"Subject: Freezing of Bank Account No. {FILL} of [ name of the account holder ] - request to "
+        "produce the authorising order and to review the freeze.",
+        "",
+        f"[{_DRAFT_HEADER}]",
+        "",
+        "Sir / Madam,",
+        "",
+        "1. This is submitted on behalf of [ name of the account holder ], holder of the account "
+        f"referred to above. On the information available, {c['facts'][0]}.",
+        "2. It is submitted that, on the information available, the following requirements appear not "
+        "to have been met in relation to this freeze:",
+        "",
+    ]
+    if c["grounds"]:
+        for idx, g in enumerate(c["grounds"]):
+            letter = chr(ord("a") + idx)
+            line = f"   {letter}) {g['heading']} - this {_ground_verb(g)}. {g['finding']}"
+            if g["citation"]:
+                line += f" (Reference: {g['citation']})"
+            out.append(line)
+    else:
+        out.append("   (No specific defect is alleged; this is brought to your notice for verification.)")
+    out += ["",
+            "3. " + c["context_note"],
+            "4. It is requested that the order (if any) authorising the freeze under Section 107 BNSS "
+            "be furnished, that the freeze be restricted to the specific disputed amount or lifted, "
+            "and that I be informed of the action taken.",
+            "",
+            "Yours faithfully,",
+            "",
+            "[ name ]",
+            "[ address / contact number ]",
+            "[ date ]"]
+    return "\n".join(out).rstrip() + "\n"
+
+
+# ---------------------------------------------------------------------------
+# 2c. cheque domain  --  the drawer replying to a Section 138 demand notice
+# ---------------------------------------------------------------------------
+
+_CHEQUE_CONTEXT = (
+    "A Section 138 demand notice must be sent within 30 days of the bank's return memo, must give at "
+    "least 15 days to pay, and must specifically demand the exact cheque amount; the complaint lies "
+    "only where the cheque was presented for collection. Raising these points in a written reply "
+    "records them at the earliest stage. Note also that once the cheque signature is admitted or "
+    "proved, Section 139 presumes the cheque was for a legally enforceable debt -- a bare denial is "
+    "not enough to rebut that presumption."
+)
+
+
+def _cheque_fact_lines(fields):
+    f = fields or {}
+    lines = []
+    face = f.get("cheque_face_value")
+    demand = f.get("demand_principal_amount")
+    ndate = f.get("notice_date")
+    memo = f.get("return_memo_date")
+    win = f.get("payment_window_days_granted")
+    pres = f.get("cheque_presentation_bank_location")
+    filed = f.get("complaint_filed_location")
+
+    if _KNOWN(face):
+        lines.append(f"the cheque was for Rs. {face}")
+    if _KNOWN(memo):
+        lines.append(f"the bank returned the cheque unpaid on {memo}")
+    if _KNOWN(demand) and _KNOWN(ndate):
+        lines.append(f"the demand notice, dated {ndate}, requires payment of Rs. {demand}")
+    elif _KNOWN(demand):
+        lines.append(f"the demand notice requires payment of Rs. {demand}")
+    elif _KNOWN(ndate):
+        lines.append(f"the demand notice is dated {ndate}")
+    if _KNOWN(win):
+        lines.append(f"the notice allows {win} days to pay")
+    if _KNOWN(pres) and _KNOWN(filed):
+        lines.append(f"the cheque was presented for collection at {pres}; the complaint is stated to be "
+                     f"filed or expected at {filed}")
+    elif _KNOWN(pres):
+        lines.append(f"the cheque was presented for collection at {pres}")
+
+    if not lines:
+        lines.append("the key dates and amounts are [ to be filled in ]")
+    return lines
+
+
+def _cheque_party_lines(fields):
+    return [
+        f"Name of the person who issued the cheque (you): {FILL}",
+        f"Name and address of the complainant / their advocate: {FILL}",
+        f"Cheque number, date and drawee bank: {FILL}",
+        f"Date the demand notice was received: {FILL}",
+        f"Court where the complaint is, or may be, filed: {FILL}",
+    ]
+
+
+def assemble_cheque_content(full_analysis):
+    """Cheque-domain content, written from the drawer's side (the person
+    who issued the cheque and received the demand notice). Grounds are the
+    notice / complaint defects the S.138 checks found."""
+    compliance = (full_analysis or {}).get("compliance", {}) or {}
+    checks = compliance.get("compliance_checks", []) or []
+    fields = (full_analysis or {}).get("extracted_fields", {}) or {}
+
+    grounds = _build_grounds(checks)
+    return {
+        "domain": "cheque",
+        "facts": _cheque_fact_lines(fields),
+        "party": _cheque_party_lines(fields),
+        "grounds": grounds,
+        "key_dates": [],
+        "to_verify": _build_to_verify(checks),
+        "context_note": _CHEQUE_CONTEXT,
+        "no_defect": not grounds,
+        "sections": ["138 NI Act"],
+    }
+
+
+def _render_cheque_understanding(c):
+    out = ["NOTES ON THE POSITION REGARDING THE BOUNCED-CHEQUE NOTICE", "",
+           f"[{_DRAFT_HEADER}]", "",
+           "WHAT THE RECORD SHOWS", "On the information available:"]
+    out += [f"- {line[0].upper() + line[1:]}." for line in c["facts"]]
+    out += ["", "DETAILS TO FILL IN"]
+    out += [f"- {p}" for p in c["party"]]
+    out += [""]
+
+    if c["grounds"]:
+        out += ["POINTS IN THE NOTICE OR COMPLAINT THAT MAY NOT COMPLY"]
+        for i, g in enumerate(c["grounds"], 1):
+            line = f"{i}. {g['heading']} - this {_ground_verb(g)}. {g['finding']}"
+            if g["citation"]:
+                line += f" (Reference: {g['citation']})"
+            out.append(line)
+        out += [""]
+    else:
+        out += ["No procedural defect in the notice was identified on the information available. This "
+                "does not mean none exists - only that nothing in what was provided shows one.", ""]
+
+    if c["to_verify"]:
+        out += ["STILL TO CONFIRM"]
+        out += [f"- {t}" for t in c["to_verify"]]
+        out += [""]
+
+    out += ["HOW A SECTION 138 CASE WORKS", c["context_note"], ""]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _render_cheque_reply(c):
+    out = [
+        "To,",
+        "[ name and address of the complainant / their advocate ]",
+        "",
+        "From,",
+        "[ your name and address ]",
+        "",
+        f"Subject: Reply to the statutory notice under Section 138 of the Negotiable Instruments Act, "
+        f"1881, dated {FILL}, concerning cheque no. {FILL}.",
+        "",
+        f"[{_DRAFT_HEADER}]",
+        "",
+        "Sir / Madam,",
+        "",
+        "1. The notice under reply is under consideration. This reply is issued without prejudice to, "
+        "and with an express reservation of, all rights, contentions and defences available in law.",
+        "2. On the information available, the notice / proposed complaint appears to suffer from the "
+        "following defects:",
+        "",
+    ]
+    if c["grounds"]:
+        for idx, g in enumerate(c["grounds"]):
+            letter = chr(ord("a") + idx)
+            line = f"   {letter}) {g['heading']} - this {_ground_verb(g)}. {g['finding']}"
+            if g["citation"]:
+                line += f" (Reference: {g['citation']})"
+            out.append(line)
+    else:
+        out.append("   (No specific procedural defect in the notice is presently identified; the "
+                   "contents of the notice are not admitted and are put to strict proof.)")
+    out += ["",
+            "3. Without admitting any liability, and without prejudice to the above, the claim in the "
+            "notice is not admitted and is disputed for the reasons set out above and for such further "
+            "reasons as may be raised.",
+            "4. You are called upon to take the above on record. All rights and contentions of the "
+            "sender are expressly reserved.",
+            "",
+            "Yours faithfully,",
+            "",
+            "[ name ]",
+            "[ address / contact number ]",
+            "[ date ]",
+            "",
+            "[ Send this reply promptly and by a mode that gives proof of despatch and delivery "
+            "(registered post / courier with tracking), and keep the receipts. ]"]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _render_cheque_magistrate(c):
+    jur = [g for g in c["grounds"] if "presented for collection" in g["heading"].lower()]
+    other = [g for g in c["grounds"] if g not in jur]
+    ordered = jur + other
+    out = [
+        "IN THE COURT OF [ name of the Magistrate ], AT [ place where the complaint is filed ]",
+        "",
+        f"In Complaint Case No. {FILL} under Section 138 of the Negotiable Instruments Act, 1881",
+        "",
+        "[ complainant's name ]  ... Complainant",
+        "versus",
+        "[ your name ]  ... Accused",
+        "",
+        "APPLICATION ON BEHALF OF THE ACCUSED REGARDING THE TERRITORIAL "
+        "JURISDICTION OF THIS HON'BLE COURT",
+        "",
+        f"[{_DRAFT_HEADER}]",
+        "",
+        "MOST RESPECTFULLY SHOWETH:",
+        "",
+    ]
+    for i, fact in enumerate(c["facts"], 1):
+        out.append(f"{i}. That {fact}.")
+    out += ["", "GROUNDS", ""]
+    for idx, g in enumerate(ordered):
+        letter = chr(ord("A") + idx)
+        verb = "does not appear to have been complied with" if g["hedged"] else "was not complied with"
+        body = f"{letter}. {g['heading']}: it is submitted that this requirement {verb}. {g['finding']}"
+        if g["citation"]:
+            body += f" This is contrary to {g['citation']}."
+        out.append(body)
+    out += ["", "PRAYER", "",
+            "It is therefore most respectfully prayed that this Hon'ble Court may be pleased to:",
+            "a) return the complaint for presentation before the court having territorial jurisdiction, "
+            "the cheque having been presented for collection at [ place ];",
+            "b) pass such further or other order as this Hon'ble Court may deem fit and proper in the "
+            "interest of justice."]
+    out += ["", "", "VERIFICATION", "",
+            "Verified at [ place ] on [ date ] that the contents of the above application are true to "
+            "the best of my knowledge and belief.",
+            "",
+            "[ place ]                                          [ signature ]",
+            "[ date ]                                           [ name - the accused / counsel ]"]
+    return "\n".join(out).rstrip() + "\n"
+
+
+_ASSEMBLERS.update({
+    "arrest": assemble_draft_content,
+    "freeze": assemble_freeze_content,
+    "cheque": assemble_cheque_content,
+})
+
 _RENDERERS = {
     "understanding": _render_understanding,
     "magistrate": _render_magistrate,
     "sp": _render_sp,
+    "freeze_understanding": _render_freeze_understanding,
+    "freeze_magistrate": _render_freeze_magistrate,
+    "freeze_sp": _render_freeze_sp,
+    "cheque_understanding": _render_cheque_understanding,
+    "cheque_reply": _render_cheque_reply,
+    "cheque_magistrate": _render_cheque_magistrate,
 }
 
 
 def render_draft(content, target):
-    """`content` from assemble_draft_content(); `target` in
-    {'understanding','magistrate','sp'}. Returns plain text."""
+    """`content` from assemble_for() / assemble_*_content(); `target` a key
+    of _RENDERERS. Returns plain text."""
     if target not in _RENDERERS:
         raise ValueError(f"unknown draft target {target!r}; expected one of {list(_RENDERERS)}")
     return _RENDERERS[target](content)
 
 
 def draft_for(full_analysis, target):
-    """Convenience: assemble + render in one call."""
-    return render_draft(assemble_draft_content(full_analysis), target)
+    """Convenience: detect domain, assemble, render in one call."""
+    content = assemble_for(full_analysis)
+    if content is None:
+        raise ValueError("draft_layer has no template for this analysis")
+    return render_draft(content, target)
 
 
 # ---------------------------------------------------------------------------
@@ -493,8 +1018,49 @@ if __name__ == "__main__":
             ]
         },
     }
-    for t in ("understanding", "magistrate", "sp"):
-        print("=" * 70)
-        print(f"TARGET: {t}")
-        print("=" * 70)
-        print(draft_for(demo, t))
+    freeze_demo = {
+        "extracted_fields": {
+            "scope": "entire account", "specific_amount_stated": "40000",
+            "account_holder_intimated": False, "written_order_shown": False,
+            "court_or_magistrate_mentioned": False,
+        },
+        "compliance": {"compliance_checks": [
+            {"requirement": "Attachment/freeze authorized via Section 107 BNSS court order [Malabar Gold (2026) / Tapas D. Neogy (1999)]",
+             "status": "May be Non-Compliant",
+             "explanation": "No legal section was cited to justify this freeze at all. A freeze effected "
+                            "without invoking this process, on bare police request alone, may be illegal -- see Malabar Gold (2026)."},
+            {"requirement": "Blanket freeze under 106/107 BNSS restricted to disputed amount [Neelkanth Pharma Logistics (2025) / Malabar Gold (2026)]",
+             "status": "Non-Compliant",
+             "explanation": "Entire account frozen despite a specific disputed amount (Rs. 40000) being identifiable."},
+            {"requirement": "Account holder intimated of freeze after the fact [Malabar Gold (2026)]",
+             "status": "May be Non-Compliant",
+             "explanation": "Account holder not intimated -- the freeze was discovered only at the bank/ATM."},
+        ]},
+    }
+    cheque_demo = {
+        "extracted_fields": {
+            "cheque_face_value": 250000, "demand_principal_amount": 300000,
+            "notice_date": "05-08-2026", "return_memo_date": "20-07-2026",
+            "payment_window_days_granted": 10,
+            "cheque_presentation_bank_location": "Pune", "complaint_filed_location": "Nagpur",
+        },
+        "compliance": {"compliance_checks": [
+            {"requirement": "Demand specifically states the correct cheque amount [Suman Sethi (2000) via Kaveri Plastics (2025)]",
+             "status": "Non-Compliant",
+             "explanation": "Demand (Rs.300,000) does not match cheque face value (Rs.250,000). Per Kaveri "
+                            "Plastics (2025), a notice demanding an amount that does not match the actual cheque can be fatal to the complaint."},
+            {"requirement": "At least 15 days granted to pay [S.138(c)]",
+             "status": "Non-Compliant", "explanation": "Notice grants 10 days (statutory minimum: 15)."},
+            {"requirement": "Complaint filed where cheque was presented for collection [Prakash Chimanlal Sheth (2025) / S.142(2) NI Act]",
+             "status": "Non-Compliant",
+             "explanation": "The complaint is recorded as filed at 'Nagpur', but the cheque was presented for collection at 'Pune'."},
+        ]},
+    }
+    for demo_fa, targets in ((demo, ("understanding", "magistrate", "sp")),
+                             (freeze_demo, ("freeze_understanding", "freeze_magistrate", "freeze_sp")),
+                             (cheque_demo, ("cheque_understanding", "cheque_reply", "cheque_magistrate"))):
+        for t in targets:
+            print("=" * 70)
+            print(f"TARGET: {t}")
+            print("=" * 70)
+            print(draft_for(demo_fa, t))

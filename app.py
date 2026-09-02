@@ -174,18 +174,21 @@ def _render_chat_match_currency_caveat(m):
 
 
 def render_draft_section(full_analysis, key_prefix):
-    """Project 3: turn the arrest findings into a draft the person can
-    act on. One body of content (assembled deterministically from the
-    same findings shown above); the person chooses who it is addressed
-    to. Arrest domain only -- a no-op for any other analysis."""
+    """Project 3: turn the findings into a draft the person can act on.
+    One body of content (assembled deterministically from the same
+    findings shown above); the person chooses who it is addressed to.
+    Covers arrest, freeze and cheque-bounce -- a no-op for any analysis
+    draft_layer has no template for."""
     from draft_layer import (
-        is_arrest_analysis, available_targets, TARGET_LABELS,
+        detect_draft_domain, available_targets, TARGET_LABELS,
         draft_for, generate_draft_pdf,
     )
-    if not is_arrest_analysis(full_analysis):
+    if detect_draft_domain(full_analysis) is None:
         return
 
     targets = available_targets(full_analysis)
+    if not targets:
+        return
     st.subheader("Prepare a draft")
     st.caption(
         "This builds a draft from the findings above. It is a starting point to check and "
