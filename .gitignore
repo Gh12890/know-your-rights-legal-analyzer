@@ -7,6 +7,8 @@ compliance_brief.pdf
 interview_brief*.pdf
 temp_batch_*.pdf
 test_brief.pdf
+action_draft*.pdf
+scratch_*.pdf
 
 # citation_currency_checker.py output: regenerable, UNVERIFIED evidence
 # bundles. A human reads these and writes the curated

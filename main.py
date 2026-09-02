@@ -2312,6 +2312,27 @@ from reportlab.lib import colors
 import io
 
 
+def _kyr_pdf_styles():
+    """The shared ParagraphStyle set for every Know Your Rights PDF
+    (the compliance brief and, from Project 3, the action drafts) --
+    factored out so the two renderers can't drift apart on typography."""
+    styles = getSampleStyleSheet()
+    body = ParagraphStyle('Body', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=6, leading=14)
+    return {
+        'styles': styles,
+        'header': ParagraphStyle('Header', parent=styles['Normal'], fontSize=14, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=4),
+        'sub': ParagraphStyle('Sub', parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, textColor=colors.HexColor("#555555"), spaceAfter=2),
+        'section_title': ParagraphStyle('SecTitle', parent=styles['Normal'], fontSize=12, fontName='Helvetica-Bold', spaceBefore=14, spaceAfter=6, textColor=colors.HexColor("#14213D")),
+        'label': ParagraphStyle('Label', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold', spaceAfter=2),
+        'body': body,
+        'finding_pass': ParagraphStyle('Pass', parent=body, textColor=colors.HexColor("#15803D")),
+        'finding_fail': ParagraphStyle('Fail', parent=body, textColor=colors.HexColor("#B91C1C")),
+        'finding_unclear': ParagraphStyle('Unclear', parent=body, textColor=colors.HexColor("#B45309")),
+        'highlight': ParagraphStyle('Highlight', parent=styles['Normal'], fontSize=12, fontName='Helvetica-Bold', textColor=colors.HexColor("#7B2D26"), spaceBefore=8, spaceAfter=8),
+        'small': ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor("#666666")),
+    }
+
+
 def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf"):
     """Render full_analysis into a formatted, letterhead-style PDF."""
     doc = SimpleDocTemplate(
@@ -2319,17 +2340,11 @@ def generate_compliance_brief(full_analysis, output_path="compliance_brief.pdf")
         topMargin=0.9*inch, bottomMargin=0.9*inch,
         leftMargin=0.9*inch, rightMargin=0.9*inch
     )
-    styles = getSampleStyleSheet()
-    header = ParagraphStyle('Header', parent=styles['Normal'], fontSize=14, fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=4)
-    sub = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=9, alignment=TA_CENTER, textColor=colors.HexColor("#555555"), spaceAfter=2)
-    section_title = ParagraphStyle('SecTitle', parent=styles['Normal'], fontSize=12, fontName='Helvetica-Bold', spaceBefore=14, spaceAfter=6, textColor=colors.HexColor("#14213D"))
-    label = ParagraphStyle('Label', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold', spaceAfter=2)
-    body = ParagraphStyle('Body', parent=styles['Normal'], fontSize=10, alignment=TA_JUSTIFY, spaceAfter=6, leading=14)
-    finding_pass = ParagraphStyle('Pass', parent=body, textColor=colors.HexColor("#15803D"))
-    finding_fail = ParagraphStyle('Fail', parent=body, textColor=colors.HexColor("#B91C1C"))
-    finding_unclear = ParagraphStyle('Unclear', parent=body, textColor=colors.HexColor("#B45309"))
-    highlight = ParagraphStyle('Highlight', parent=styles['Normal'], fontSize=12, fontName='Helvetica-Bold', textColor=colors.HexColor("#7B2D26"), spaceBefore=8, spaceAfter=8)
-    small = ParagraphStyle('Small', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor("#666666"))
+    _S = _kyr_pdf_styles()
+    header, sub, section_title, label, body, finding_pass, finding_fail, finding_unclear, highlight, small = (
+        _S['header'], _S['sub'], _S['section_title'], _S['label'], _S['body'],
+        _S['finding_pass'], _S['finding_fail'], _S['finding_unclear'], _S['highlight'], _S['small'],
+    )
 
     story = []
 

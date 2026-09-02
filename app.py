@@ -155,6 +155,53 @@ def _render_chat_match_currency_caveat(m):
         _render_citation_currency_caveat(record)
 
 
+def render_draft_section(full_analysis, key_prefix):
+    """Project 3: turn the arrest findings into a draft the person can
+    act on. One body of content (assembled deterministically from the
+    same findings shown above); the person chooses who it is addressed
+    to. Arrest domain only -- a no-op for any other analysis."""
+    from draft_layer import (
+        is_arrest_analysis, available_targets, TARGET_LABELS,
+        draft_for, generate_draft_pdf,
+    )
+    if not is_arrest_analysis(full_analysis):
+        return
+
+    targets = available_targets(full_analysis)
+    st.subheader("Prepare a draft")
+    st.caption(
+        "This builds a draft from the findings above. It is a starting point to check and "
+        "complete with a lawyer, not a filed document. Fill in anything shown as [ ___ ]."
+    )
+    choice_label = st.radio(
+        "What do you want to do with this?",
+        [TARGET_LABELS[t] for t in targets],
+        key=f"{key_prefix}_draft_target",
+    )
+    target = next(t for t in targets if TARGET_LABELS[t] == choice_label)
+
+    # seed once per (prefix, target) so the person's edits survive reruns;
+    # switching target makes a fresh key and re-seeds from the template
+    text_key = f"{key_prefix}_draft_text_{target}"
+    if text_key not in st.session_state:
+        st.session_state[text_key] = draft_for(full_analysis, target)
+    text = st.text_area("Draft (editable)", height=420, key=text_key)
+
+    if st.button("Prepare PDF", key=f"{key_prefix}_draft_pdf_btn_{target}"):
+        path = generate_draft_pdf(text, target, output_path=f"action_draft_{key_prefix}.pdf")
+        with open(path, "rb") as fh:
+            st.session_state[f"{key_prefix}_draft_pdf_bytes"] = fh.read()
+
+    if f"{key_prefix}_draft_pdf_bytes" in st.session_state:
+        st.download_button(
+            "Download draft (PDF)",
+            data=st.session_state[f"{key_prefix}_draft_pdf_bytes"],
+            file_name="action_draft.pdf",
+            mime="application/pdf",
+            key=f"{key_prefix}_draft_dl",
+        )
+
+
 def _render_chat_match_old_code_note(m):
     """When a retrieved paragraph quotes an old IPC/CrPC section number,
     show the reader its modern BNS/BNSS equivalent from the checked
@@ -1173,6 +1220,8 @@ def show_interview_results(domain_key, config):
             key=f"dl_{domain_key}"
         )
 
+    render_draft_section(full_analysis, key_prefix=f"iv_{domain_key}")
+
     if st.button("Start over", key=f"restart_{domain_key}"):
         st.session_state[f"step__{domain_key}"] = 0
         st.session_state[f"answers__{domain_key}"] = {}
@@ -1256,10 +1305,13 @@ def run_document_flow():
                     file_name="compliance_brief.pdf",
                     mime="application/pdf"
                 )
-                
+
+            render_draft_section(result, key_prefix="doc")
+
             if st.button("Start over", key="restart_document_flow"):
                 st.session_state.pop("result", None)
                 st.session_state.pop("brief_bytes", None)
+                st.session_state.pop("doc_draft_pdf_bytes", None)
                 st.rerun()
 
             default_bail_check = next(
@@ -1847,12 +1899,15 @@ def run_interview_chat_flow():
         with st.expander("Show full legal breakdown (useful to share with a lawyer)"):
             render_compliance_ui_main(full_analysis)
             render_checklist_and_raw(full_analysis)
- 
+
+        render_draft_section(full_analysis, key_prefix="ivchat")
+
         if st.button("Start over", key="restart_interview_chat"):
             from interview_flow import InterviewState
             st.session_state["interview_chat_history"] = []
             st.session_state["interview_state_obj"] = InterviewState()
             st.session_state.pop("interview_chat_results", None)
+            st.session_state.pop("ivchat_draft_pdf_bytes", None)
             st.rerun()
         return
 
