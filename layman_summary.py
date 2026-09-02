@@ -82,19 +82,57 @@ Bail pathway information (state any specific thresholds or conditions given here
 Write a clear, precise, well-organized briefing suitable for a junior lawyer reviewing this case for the first time. Roughly 250-350 words, including the quoted statute text."""
 
 
-def _format_compliance_for_prompt(compliance_result):
+# audience="plain" (2026-09-02): the module was reframed for a junior lawyer
+# on 2026-08-29, but the UI redesign needs a GENUINE plain-language register
+# alongside it -- one on-screen tab for a stressed layperson, another for a
+# lawyer. Same computed compliance_result, same "explain never decide"
+# boundary; only the phrasing differs.
+PLAIN_SUMMARY_PROMPT = """You are explaining a legal situation to an ordinary person who is stressed and has no legal training. They need to understand, in plain words, what happened and what they can do -- not a legal briefing.
+
+CRITICAL RULES:
+- Use ONLY the facts in the findings below. Never add a legal rule, a verdict, or a consequence that is not already stated there. Never say something is "illegal" or "unlawful" unless the findings say so in those words.
+- NO section numbers. NO case names. NO Latin. NO words like "cognizable", "remand", "prima facie". If a finding uses them, translate to plain English ("cognizable" -> "the police can arrest without a warrant for this").
+- Short sentences. Second person ("you", "the person who was arrested").
+- If a specific number, date, or money threshold is in the findings (a deadline, a value limit), state it plainly and exactly -- do not round it away or hide it behind "it depends".
+- Be honest about what is NOT known: if a finding is "Cannot Determine", say plainly what fact is missing and why it matters.
+- Do NOT reassure falsely and do NOT alarm beyond what the findings support.
+
+Structure it as four short parts, with these exact headings:
+**What happened**
+**What the law expects here**
+**What may not have been done**
+**What you can do now** (one concrete step -- name the actual missing document or the actual person to approach; never just "consult a lawyer")
+
+The situation: {offence_name}
+
+The findings (translate all of this to plain words -- do not skip any):
+{compliance_summary}
+
+How serious this looks overall: {severity_label}
+
+About getting out on bail, if relevant: {bail_pathway_message}
+
+Write about 120-180 words total. Plain, calm, direct."""
+
+
+_PROMPTS = {"counsel": LAYMAN_SUMMARY_PROMPT, "plain": PLAIN_SUMMARY_PROMPT}
+
+
+def _format_compliance_for_prompt(compliance_result, keep_citations=True):
     """Formats the compliance_checks list into plain text for the
-    prompt -- includes every check's requirement/status/explanation
-    verbatim, INCLUDING the formal citation bracket (e.g. "[Arnesh
-    Kumar (2014)...]"), since the junior-lawyer audience this module
-    now targets can meaningfully use case citations, unlike the
-    layperson audience this was originally built for. CHANGED
-    2026-08-29: previously stripped citation brackets before this was
-    reframed for a junior-lawyer reader per explicit user direction --
-    stripping them now would remove real value for this audience."""
+    prompt -- every check's requirement/status/explanation verbatim.
+
+    keep_citations=True (default, the junior-lawyer audience) leaves the
+    formal '[Arnesh Kumar (2014)...]' bracket in the requirement string,
+    since that reader can use it. The plain-language register passes
+    keep_citations=False so the bracket is stripped before the model
+    ever sees it (CHANGED 2026-08-29 had removed the strip entirely when
+    the module was reframed; the plain path brings it back, scoped)."""
     lines = []
     for check in compliance_result.get("compliance_checks", []):
         requirement = check.get("requirement", "")
+        if not keep_citations:
+            requirement = _re.split(r"\s*\[", requirement, maxsplit=1)[0].strip()
         status = check.get("status", "")
         explanation = check.get("explanation", "")
         lines.append(f"- {requirement}: {status}. {explanation}")
@@ -102,6 +140,7 @@ def _format_compliance_for_prompt(compliance_result):
 
 
 def generate_layman_summary(compliance_result, severity, bail_pathway, offence_name=None,
+                             audience="counsel",
                              section_number=None, statute_text=None, model=SONNET_MODEL):
     """Generates a precise, section-specific briefing of an
     ALREADY-COMPUTED compliance verdict, aimed at a junior-lawyer-level
@@ -144,31 +183,39 @@ def generate_layman_summary(compliance_result, severity, bail_pathway, offence_n
     if client is None:
         return None
 
-    compliance_summary = _format_compliance_for_prompt(compliance_result)
+    prompt_template = _PROMPTS.get(audience, LAYMAN_SUMMARY_PROMPT)
+    plain = audience == "plain"
+
+    compliance_summary = _format_compliance_for_prompt(compliance_result, keep_citations=not plain)
     severity_label = severity.get("severity_label", "Not Available")
     bail_message = bail_pathway.get("message", "") if bail_pathway else "Not applicable for this situation."
     statute_text_display = statute_text if statute_text else "Not available for this section."
 
-    if offence_name and section_number:
+    if plain:
+        offence_display = offence_name or "the situation described"
+    elif offence_name and section_number:
         offence_display = f"{offence_name} (Section {section_number})"
     elif offence_name:
         offence_display = offence_name
     else:
         offence_display = "the offence described"
 
+    fmt_kwargs = dict(
+        offence_name=offence_display,
+        compliance_summary=compliance_summary,
+        severity_label=severity_label,
+        bail_pathway_message=bail_message,
+    )
+    if not plain:
+        fmt_kwargs["statute_text"] = statute_text_display
+
     try:
         response = client.messages.create(
             model=model,
-            max_tokens=1600,
+            max_tokens=800 if plain else 1600,
             messages=[{
                 "role": "user",
-                "content": LAYMAN_SUMMARY_PROMPT.format(
-                    offence_name=offence_display,
-                    statute_text=statute_text_display,
-                    compliance_summary=compliance_summary,
-                    severity_label=severity_label,
-                    bail_pathway_message=bail_message,
-                ),
+                "content": prompt_template.format(**fmt_kwargs),
             }],
         )
         # FIXED 2026-08-29: was `response.content[0].text`, which

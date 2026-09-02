@@ -108,7 +108,7 @@ check(result.get("situation_detected") is not True,
 
 def run_handoff_case(question, history_key):
     at = AppTest.from_file(APP_PATH)
-    at.session_state["mode"] = "I just want to ask something in my own words"
+    at.session_state["route"] = "chat"
     at.run(timeout=90)
     at.chat_input[0].set_value(question).run(timeout=90)
     if at.exception:
@@ -122,7 +122,7 @@ def run_handoff_case(question, history_key):
         return None, [str(e) for e in at.exception]
 
     return {
-        "mode": at.session_state["mode"],
+        "route": at.session_state["route"],
         "domain_history": at.session_state[history_key],
         "chat_history": at.session_state["chat_history"],
     }, []
@@ -134,7 +134,7 @@ result, errors = run_handoff_case(
 )
 check(not errors, f"freeze handoff runs with no exceptions ({errors})")
 if result:
-    check("bank account was frozen" in result["mode"], "freeze handoff switches mode to the freeze flow")
+    check(result["route"] == "freeze_assess", "freeze handoff routes to the freeze assessment flow")
     check(len(result["domain_history"]) == 2, "freeze flow history has exactly 2 turns (seeded question + real follow-up)")
     check(
         result["domain_history"][0]["content"] == "my bank account got frozen by the police and nobody told me why",
@@ -148,7 +148,7 @@ result, errors = run_handoff_case(
 )
 check(not errors, f"cheque-bounce handoff runs with no exceptions ({errors})")
 if result:
-    check("bounced cheque situation" in result["mode"], "cheque-bounce handoff switches mode to the cheque-bounce flow")
+    check(result["route"] == "cheque_assess", "cheque-bounce handoff routes to the cheque assessment flow")
     check(len(result["domain_history"]) == 2, "cheque flow history has exactly 2 turns (seeded question + real follow-up)")
     check(
         result["domain_history"][0]["content"] == "I got a legal notice saying my cheque bounced, what happens now",
@@ -160,8 +160,8 @@ _arrest_q = "the police took me to the station this morning without telling me w
 result, errors = run_handoff_case(_arrest_q, "interview_chat_history")
 check(not errors, f"arrest handoff runs with no exceptions ({errors})")
 if result:
-    check("describe my situation and get a real assessment" in result["mode"],
-          "arrest handoff switches mode to the free-text arrest interview")
+    check(result["route"] == "arrest_assess",
+          "arrest handoff routes to the free-text arrest assessment flow")
     check(len(result["domain_history"]) == 2,
           "arrest flow history has 2 turns (seeded question + the flow's own first question)")
     check(result["domain_history"][0]["content"] == _arrest_q,

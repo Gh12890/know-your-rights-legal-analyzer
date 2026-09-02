@@ -6,6 +6,8 @@ from main import (
     clean_text,
     check_default_bail,
     generate_compliance_brief,
+    generate_analysis_pdf,
+    generate_next_steps_pdf,
     run_arrest_compliance_checks,
     run_freeze_compliance_checks,
     run_compliance_checks,
@@ -45,27 +47,43 @@ st.markdown(
 # PAGE SETUP
 # =============================================================
 st.title("Know Your Rights")
-st.caption("Indian Legal Notice & Procedural Compliance Analyzer")
-st.write(
-    "Upload a legal document for analysis (currently supports Banking & Cheque Bounce "
-    "notices, Police & Criminal Processes, and Procedures under 106/107 BNSS)"
-)
+st.caption("Check whether the police, a bank, or a court followed the law — for arrests, "
+           "FIRs, account freezes and cheque-bounce notices under Indian law (BNS / BNSS).")
+
+# --- Routing -------------------------------------------------------------
+# The visible menu is 4 options. Routing is on st.session_state["route"],
+# NOT the radio label, so the chat's freeze/cheque/arrest handoffs can send
+# the user to an assessment flow that has no menu entry of its own.
+_MENU = {
+    "Ask a question or describe what happened": "chat",
+    "I have a document (arrest memo, freeze letter, legal notice)": "document",
+    "Answer guided questions instead": "guided",
+    "Triage several documents": "triage",
+}
+_HANDOFF_ROUTES = {"arrest_assess", "freeze_assess", "cheque_assess"}
 
 
+def _sync_route_from_menu():
+    st.session_state["route"] = _MENU[st.session_state["menu_choice"]]
 
-mode = st.radio(
+
+st.session_state.setdefault("route", "chat")
+
+menu_labels = list(_MENU)
+# if we're on a handoff-only route, don't fight the radio's own state
+_menu_index = 0
+if st.session_state["route"] in _MENU.values():
+    _menu_index = list(_MENU.values()).index(st.session_state["route"])
+
+st.radio(
     "What would you like to do?",
-    ["I have a document to upload", "I don't have any paper — ask me questions instead",
-     "I have several documents to triage", "I just want to ask something in my own words",
-     "I want to describe my situation and get a real assessment",
-     "My bank account was frozen and I want to describe what happened",
-     "I have a bounced cheque situation and want to describe what happened"],
-    key="mode",
+    menu_labels,
+    index=_menu_index,
+    key="menu_choice",
+    on_change=_sync_route_from_menu,
 )
-
-
-
-
+if st.session_state.get("route") not in _HANDOFF_ROUTES:
+    st.session_state["route"] = _MENU.get(st.session_state.get("menu_choice"), "chat")
 
 st.divider()
 
@@ -202,6 +220,176 @@ def render_draft_section(full_analysis, key_prefix):
         )
 
 
+# =============================================================
+# UNIFIED RESULTS SURFACE  --  one analysis, three audience views
+# =============================================================
+def _assessment_full_analysis(domain, payload):
+    """Wrap a freeze / cheque free-text-interview payload
+    ({compliance_result, severity, fields_known, ...}) into the same
+    full_analysis shape the document and arrest flows already produce,
+    so render_results() can treat every path identically."""
+    labels = {
+        "freeze": ("Bank / Account Freezing", "Account freeze — free-text conversation (no document)"),
+        "cheque_bounce": ("Cheque Bounce", "Section 138 NI Act — free-text conversation (no document)"),
+    }
+    doc_type, sub_type = labels[domain]
+    fa = {
+        "classification": {
+            "document_type": doc_type, "sub_type": sub_type,
+            "reasoning": "Built from your answers in this conversation, since no document was available.",
+        },
+        "missing_info": {"missing_or_unclear": [],
+                         "completeness_assessment": "Based on conversational answers only."},
+        "compliance": payload["compliance_result"],
+        "checklist": get_document_checklist(doc_type),
+        "urgency": {"urgency_level": "Cannot Determine", "deadline_message": "N/A", "days_remaining": None},
+        "severity": payload.get("severity", {}),
+        "bail_pathway": None,
+        "extracted_fields": payload.get("fields_known", {}),
+    }
+    for k in ("presumption_info", "settlement_info"):
+        if k in payload:
+            fa[k] = payload[k]
+    return fa
+
+
+def _plain_fallback(full_analysis):
+    """Deterministic plain-language text when the API summary is
+    unavailable -- render_results must never show a blank tab."""
+    checks = full_analysis.get("compliance", {}).get("compliance_checks", []) or []
+    bad = [c for c in checks if c.get("status") in ("Non-Compliant", "May be Non-Compliant")]
+    unknown = [c for c in checks if c.get("status") == "Cannot Determine"]
+    lines = ["**What was found**", ""]
+    if bad:
+        lines.append("Some things may not have been done as the law requires:")
+        for c in bad:
+            head = re.split(r"\s*\[", c.get("requirement", ""), maxsplit=1)[0].strip()
+            lines.append(f"- {head} — {c.get('explanation','').strip()}")
+    else:
+        lines.append("Nothing in the information given shows a clear procedural problem. "
+                     "That does not prove there is none.")
+    if unknown:
+        lines += ["", "**Still unclear**"]
+        for c in unknown:
+            head = re.split(r"\s*\[", c.get("requirement", ""), maxsplit=1)[0].strip()
+            lines.append(f"- {head} — {c.get('explanation','').strip()}")
+    lines += ["", "**What you can do now**",
+              "Take this analysis, and any papers you have (arrest memo, FIR copy, the notice or "
+              "letter), to a lawyer or the nearest District Legal Services Authority, which provides "
+              "free help."]
+    return "\n".join(lines)
+
+
+def render_results(full_analysis, *, key_prefix, counsel_text=None):
+    """The single results surface. Tabs: In plain words / Legal analysis /
+    Documents. One compliance computation feeds all three; the two
+    summary registers are cached per compliance-signature so tab
+    switches and reruns don't re-hit the API."""
+    import hashlib
+    import json as _json
+    from layman_summary import generate_layman_summary
+
+    compliance = full_analysis.get("compliance", {}) or {}
+    checks = compliance.get("compliance_checks", []) or []
+    sig = hashlib.md5(
+        _json.dumps(checks, sort_keys=True, default=str).encode()
+    ).hexdigest()[:12]
+
+    severity = full_analysis.get("severity", {}) or {}
+    bail_pathway = full_analysis.get("bail_pathway")
+    fields = full_analysis.get("extracted_fields", {}) or {}
+    secs = fields.get("sections_cited") or []
+    offence_name = full_analysis.get("_offence_name")
+    section_number = full_analysis.get("_section_number") or (str(secs[0]) if secs else None)
+    statute_text = full_analysis.get("_statute_text")
+
+    def _summary(audience):
+        k = f"{key_prefix}_sum_{audience}_{sig}"
+        if audience == "counsel" and counsel_text and k not in st.session_state:
+            st.session_state[k] = counsel_text
+        if k not in st.session_state:
+            st.session_state[k] = generate_layman_summary(
+                compliance, severity, bail_pathway,
+                offence_name=offence_name, section_number=section_number,
+                statute_text=statute_text if audience == "counsel" else None,
+                audience=audience,
+            )
+        return st.session_state[k]
+
+    tab_plain, tab_legal, tab_docs = st.tabs(["In plain words", "Legal analysis", "Documents"])
+
+    with tab_plain:
+        plain = _summary("plain")
+        st.markdown(plain if plain else _plain_fallback(full_analysis))
+        st.caption("A plain-language explanation of the analysis — not legal advice.")
+
+    with tab_legal:
+        counsel = _summary("counsel")
+        if counsel:
+            st.markdown(counsel)
+            st.divider()
+        render_compliance_ui_main(full_analysis)
+        qr = generate_quick_reference(full_analysis)
+        if qr.get("actionable_issues"):
+            with st.expander("At a glance — issues, worst first"):
+                for c in qr["actionable_issues"]:
+                    st.markdown(f"**{c['status']}** — {c.get('requirement','')}")
+                    st.caption(c.get("explanation", ""))
+
+    with tab_docs:
+        st.markdown("**Take-away documents**")
+        c1, c2 = st.columns(2)
+        with c1:
+            _one_click_pdf(
+                "Analysis (PDF)", f"{key_prefix}_analysispdf",
+                lambda p: generate_analysis_pdf(full_analysis, output_path=p),
+                "compliance_analysis.pdf",
+                help="Legal findings + case-law references. For a lawyer or your own file.",
+            )
+        with c2:
+            _one_click_pdf(
+                "What to do next (PDF)", f"{key_prefix}_nextpdf",
+                lambda p: generate_next_steps_pdf(full_analysis, plain_text=_summary("plain"), output_path=p),
+                "what_to_do_next.pdf",
+                help="Plain-language summary + a checklist of what to gather.",
+            )
+        st.divider()
+        render_draft_section(full_analysis, key_prefix=key_prefix)
+
+
+def _back_to_start_button(flow_prefix):
+    """Shown on a handoff-only assessment flow (arrest/freeze/cheque
+    reached from the chat). Returns routing to whatever the menu radio
+    still shows and clears that flow's session state."""
+    if st.button("← Back to start", key=f"{flow_prefix}_back_to_start"):
+        st.session_state["route"] = _MENU.get(
+            st.session_state.get("menu_choice"), "chat")
+        for k in list(st.session_state):
+            if k.startswith(flow_prefix) or k.startswith(
+                {"ivchat": "interview_chat", "freezechat": "freeze_chat",
+                 "chequechat": "cheque_chat"}.get(flow_prefix, flow_prefix)):
+                st.session_state.pop(k, None)
+        st.rerun()
+
+
+def _one_click_pdf(label, key, build_fn, download_name, help=None):
+    """Generate-on-click then offer the download, as one affordance
+    instead of the old two-button dance. Bytes cached in session."""
+    bytes_key = f"{key}_bytes"
+    if bytes_key not in st.session_state:
+        if st.button(f"Prepare {label}", key=f"{key}_btn", help=help, use_container_width=True):
+            path = build_fn(f"scratch_{key}.pdf")
+            with open(path, "rb") as fh:
+                st.session_state[bytes_key] = fh.read()
+            st.rerun()
+    else:
+        st.download_button(
+            f"Download {label}", data=st.session_state[bytes_key],
+            file_name=download_name, mime="application/pdf",
+            key=f"{key}_dl", use_container_width=True,
+        )
+
+
 def _render_chat_match_old_code_note(m):
     """When a retrieved paragraph quotes an old IPC/CrPC section number,
     show the reader its modern BNS/BNSS equivalent from the checked
@@ -236,7 +424,6 @@ def _render_chat_match_old_code_note(m):
 # first real turn immediately, so they never have to repeat themselves.
 _DOMAIN_FLOW_CONFIG = {
     "freeze": {
-        "mode_label": "My bank account was frozen and I want to describe what happened",
         "history_key": "freeze_chat_history",
         "state_key": "freeze_state_obj",
         "results_key": "freeze_chat_results",
@@ -245,7 +432,6 @@ _DOMAIN_FLOW_CONFIG = {
         "button_label": "🏦 Continue in the bank-freeze assistant →",
     },
     "cheque_bounce": {
-        "mode_label": "I have a bounced cheque situation and want to describe what happened",
         "history_key": "cheque_chat_history",
         "state_key": "cheque_state_obj",
         "results_key": "cheque_chat_results",
@@ -264,7 +450,6 @@ _DOMAIN_FLOW_CONFIG = {
     # special-cases this domain via _arrest_turn_reply() rather than the
     # generic module-lookup path.
     "arrest": {
-        "mode_label": "I want to describe my situation and get a real assessment",
         "history_key": "interview_chat_history",
         "state_key": "interview_state_obj",
         "results_key": "interview_chat_results",
@@ -367,6 +552,10 @@ def _arrest_turn_reply(state_obj, user_message):
             "severity": result["severity"],
             "bail_pathway": result["bail_pathway"],
             "extracted_fields": result["fields_known"],
+            # hints for render_results' counsel summary
+            "_offence_name": result.get("offence_plain_language") or getattr(state_obj, "offence_plain_language", None),
+            "_section_number": result.get("section_number"),
+            "_statute_text": result.get("statute_text"),
         }
         results_payload = {
             "full_analysis": full_analysis,
@@ -456,7 +645,9 @@ def _handoff_to_domain_flow(domain, question):
             flow_reply = "Sorry, I had trouble understanding that -- could you try rephrasing your answer?"
 
     st.session_state[config["history_key"]].append({"role": "assistant", "content": flow_reply})
-    st.session_state["mode"] = config["mode_label"]
+    st.session_state["route"] = {
+        "arrest": "arrest_assess", "freeze": "freeze_assess", "cheque_bounce": "cheque_assess",
+    }[domain]
 
 
 def render_compliance_ui_main(result):
@@ -982,8 +1173,7 @@ def run_interview(domain_key):
         return
 
     q = questions[step - 1]
-    st.write(f"🔧 DEBUG: step={step}, question_key={q['key']}, total_questions={len(questions)}")
-    st.progress(step / len(questions))
+    st.progress(step / len(questions), text=f"Question {step} of {len(questions)}")
 
     if st.button("◀ Back", key=f"back_{domain_key}_{step}"):
         st.session_state[step_key] = step - 1
@@ -1175,28 +1365,22 @@ def show_interview_results(domain_key, config):
         "extracted_fields": fields
     }
 
-    render_compliance_ui_main(full_analysis)
+    render_results(full_analysis, key_prefix=f"iv_{domain_key}")
 
-    # TEMPORARY DIRECT RENDER (2026-08-30): guaranteed-visible fallback
-    # until render_compliance_ui_main is confirmed to handle these keys
-    # itself -- see docstring above.
     if presumption_info:
-        st.subheader("About the Debt Presumption")
+        st.subheader("About the debt presumption")
         st.write(presumption_info["explanation"])
         st.caption(presumption_info["note"])
     if settlement_info:
-        st.subheader("If You Are Considering Settlement")
+        st.subheader("If you are considering settlement")
         st.write(settlement_info["message"])
-        
-    
-    if st.button("⚡ Courtroom Quick View", key=f"quickref_{domain_key}"):
-        render_quick_reference(full_analysis)
+
     default_bail_check = next(
         (c for c in compliance_result.get("compliance_checks", []) if "Default bail" in c["requirement"]),
         None
     )
     if default_bail_check and default_bail_check["status"] in ("Cannot Determine", "May be Non-Compliant"):
-        st.subheader("One More Question")
+        st.subheader("One more question")
         st.write("We couldn't fully resolve the default-bail deadline from your answers.")
         chargesheet_answer = st.radio("Has a chargesheet been filed in this case?",
                                        ["Not yet / Don't know", "Yes"], key=f"cs_radio_{domain_key}")
@@ -1206,28 +1390,16 @@ def show_interview_results(domain_key, config):
             st.write("Updated result:")
             st.json(updated_check)
 
-    if st.button("Generate Compliance Brief", key=f"genbrief_{domain_key}"):
-        pdf_path = generate_compliance_brief(full_analysis, output_path=f"interview_brief_{domain_key}.pdf")
-        with open(pdf_path, "rb") as f:
-            st.session_state[f"brief_bytes__{domain_key}"] = f.read()
-
-    if f"brief_bytes__{domain_key}" in st.session_state:
-        st.download_button(
-            "Download Compliance Brief (PDF)",
-            data=st.session_state[f"brief_bytes__{domain_key}"],
-            file_name="compliance_brief.pdf",
-            mime="application/pdf",
-            key=f"dl_{domain_key}"
-        )
-
-    render_draft_section(full_analysis, key_prefix=f"iv_{domain_key}")
+    with st.expander("Raw data (advanced)"):
+        render_checklist_and_raw(full_analysis)
 
     if st.button("Start over", key=f"restart_{domain_key}"):
         st.session_state[f"step__{domain_key}"] = 0
         st.session_state[f"answers__{domain_key}"] = {}
-        st.session_state.pop(f"brief_bytes__{domain_key}", None)
+        for k in list(st.session_state):
+            if k.startswith(f"iv_{domain_key}_"):
+                st.session_state.pop(k, None)
         st.rerun()
-    render_checklist_and_raw(full_analysis)
 
 
 # =============================================================
@@ -1265,61 +1437,22 @@ def run_document_flow():
         with open("temp_uploaded.pdf", "wb") as f:
             f.write(uploaded_file.getbuffer())
 
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("Analyze", use_container_width=True):
-                with st.spinner("Analyzing..."):
-                    document_text = clean_text(extract_text_from_pdf("temp_uploaded.pdf"))
-                    st.session_state["result"] = analyze_document(document_text)
-
-        with col2:
-            quick_view_clicked = st.button(
-                "⚡ Courtroom Quick View",
-                key="quickref_upload",
-                use_container_width=True,
-                disabled="result" not in st.session_state
-            )
+        if st.button("Analyze", use_container_width=True):
+            with st.spinner("Analyzing..."):
+                document_text = clean_text(extract_text_from_pdf("temp_uploaded.pdf"))
+                st.session_state["result"] = analyze_document(document_text)
 
         if "result" in st.session_state:
             result = st.session_state["result"]
 
-            if quick_view_clicked:
-                render_quick_reference(result)
-
-            render_compliance_ui_main(result)
-         
-        
-
-           
-
-            if st.button("Generate Compliance Brief"):
-                pdf_path = generate_compliance_brief(result, output_path="compliance_brief.pdf")
-                with open(pdf_path, "rb") as f:
-                    st.session_state["brief_bytes"] = f.read()
-
-            if "brief_bytes" in st.session_state:
-                st.download_button(
-                    label="Download Compliance Brief (PDF)",
-                    data=st.session_state["brief_bytes"],
-                    file_name="compliance_brief.pdf",
-                    mime="application/pdf"
-                )
-
-            render_draft_section(result, key_prefix="doc")
-
-            if st.button("Start over", key="restart_document_flow"):
-                st.session_state.pop("result", None)
-                st.session_state.pop("brief_bytes", None)
-                st.session_state.pop("doc_draft_pdf_bytes", None)
-                st.rerun()
+            render_results(result, key_prefix="doc")
 
             default_bail_check = next(
                 (c for c in result["compliance"].get("compliance_checks", []) if "Default bail" in c["requirement"]),
                 None
             )
             if default_bail_check and default_bail_check["status"] in ("Cannot Determine", "May be Non-Compliant"):
-                st.subheader("One More Question")
+                st.subheader("One more question")
                 st.write("This document alone couldn't fully resolve the default-bail deadline.")
                 chargesheet_answer = st.radio("Has a chargesheet been filed in this case?", ["Not yet / Don't know", "Yes"])
                 if chargesheet_answer == "Yes":
@@ -1330,8 +1463,19 @@ def run_document_flow():
                     )
                     st.write("Updated result:")
                     st.json(updated_check)
-            render_checklist_and_raw(result)
-            
+
+            with st.expander("Raw data (advanced)"):
+                render_checklist_and_raw(result)
+
+            if st.button("Start over", key="restart_document_flow"):
+                for k in ("result", "brief_bytes"):
+                    st.session_state.pop(k, None)
+                for k in list(st.session_state):
+                    if k.startswith("doc_"):
+                        st.session_state.pop(k, None)
+                st.rerun()
+
+
 def run_batch_triage_flow():
     st.subheader("📋 Batch Triage — Cause List Mode")
     st.write("Upload several documents to see which need urgent attention first.")
@@ -1479,10 +1623,10 @@ def run_chat_flow():
                 # redirect rather than guessing and launching the wrong flow.
                 reply = (
                     "This sounds like it's about a **bank account freeze** or a **cheque bounce case** — "
-                    "and good news, this tool does handle those, just not through this chat yet.\n\n"
-                    "**What you can do next:** switch to **\"My bank account was frozen...\"** or "
-                    "**\"I have a bounced cheque situation...\"** above (no document needed), or "
-                    "**\"I have a document to upload\"** if you have the actual notice."
+                    "and good news, this tool does handle those.\n\n"
+                    "**What you can do next:** choose **\"Answer guided questions instead\"** above and "
+                    "pick the matching issue (no document needed), or **\"I have a document\"** if you "
+                    "have the actual notice or letter."
                 )
 
         elif state == "adjacent_uncovered":
@@ -1499,9 +1643,8 @@ def run_chat_flow():
             reply = (
                 "I'm having trouble looking into this right now — something on my end isn't working "
                 "properly. This isn't about your question; it's a technical issue.\n\n"
-                "**What you can do next:** try again in a moment, or use the **\"I have a document to "
-                "upload\"** or **\"I don't have any paper — ask me questions instead\"** options above, "
-                "which don't depend on this."
+                "**What you can do next:** try again in a moment, or use the **\"I have a document\"** "
+                "or **\"Answer guided questions instead\"** options above, which don't depend on this."
             )
 
         elif state == "no_match":
@@ -1628,29 +1771,16 @@ def run_freeze_interview_chat_flow():
     if st.session_state.get("freeze_chat_results") is not None:
         results = st.session_state["freeze_chat_results"]
         st.divider()
- 
+
         severity = results.get("severity", {})
         if severity.get("severity_color") in ("orange", "red"):
-            st.warning(
-                f"WARNING: {severity.get('severity_label', 'Concerns found')} -- "
-                f"see the summary below for what was found."
-            )
- 
-        st.markdown("### What was found")
-        for check_result in results["compliance_result"]["compliance_checks"]:
-            icon = {"Compliant": "OK", "Non-Compliant": "X", "May be Non-Compliant": "!",
-                    "Cannot Determine": "?"}.get(check_result["status"], "?")
-            st.markdown(f"**{check_result['requirement']}**")
-            st.write(f"{check_result['status']}: {check_result['explanation']}")
-            st.divider()
- 
-        st.markdown(f"**Overall:** {results['compliance_result']['overall_assessment']}")
- 
-        if st.button("Start over", key="restart_freeze_chat"):
-            st.session_state["freeze_chat_history"] = []
-            st.session_state["freeze_state_obj"] = FreezeInterviewState()
-            st.session_state.pop("freeze_chat_results", None)
-            st.rerun()
+            st.warning(f"{severity.get('severity_label', 'Concerns found')} — see the tabs below.")
+
+        full_analysis = _assessment_full_analysis("freeze", results)
+        render_results(full_analysis, key_prefix="freezechat")
+
+        st.divider()
+        _back_to_start_button("freezechat")
         return
  
     user_message = st.chat_input("Describe what happened, or answer the question above...")
@@ -1727,38 +1857,27 @@ def run_cheque_interview_chat_flow():
     if st.session_state.get("cheque_chat_results") is not None:
         results = st.session_state["cheque_chat_results"]
         st.divider()
- 
+
         severity = results.get("severity", {})
         if severity.get("severity_color") in ("orange", "red"):
-            st.warning(
-                f"WARNING: {severity.get('severity_label', 'Concerns found')} -- "
-                f"see the summary below for what was found."
-            )
- 
-        st.markdown("### What was found")
-        for check_result in results["compliance_result"]["compliance_checks"]:
-            st.markdown(f"**{check_result['requirement']}**")
-            st.write(f"{check_result['status']}: {check_result['explanation']}")
-            st.divider()
- 
-        st.markdown(f"**Overall:** {results['compliance_result']['overall_assessment']}")
- 
+            st.warning(f"{severity.get('severity_label', 'Concerns found')} — see the tabs below.")
+
+        full_analysis = _assessment_full_analysis("cheque_bounce", results)
+        render_results(full_analysis, key_prefix="chequechat")
+
         presumption_info = results.get("presumption_info")
         if presumption_info:
-            st.subheader("About the Debt Presumption")
+            st.subheader("About the debt presumption")
             st.write(presumption_info["explanation"])
             st.caption(presumption_info["note"])
- 
+
         settlement_info = results.get("settlement_info")
         if settlement_info:
-            st.subheader("If You Are Considering Settlement")
+            st.subheader("If you are considering settlement")
             st.write(settlement_info["message"])
- 
-        if st.button("Start over", key="restart_cheque_chat"):
-            st.session_state["cheque_chat_history"] = []
-            st.session_state["cheque_state_obj"] = ChequeBounceInterviewState()
-            st.session_state.pop("cheque_chat_results", None)
-            st.rerun()
+
+        st.divider()
+        _back_to_start_button("chequechat")
         return
  
     user_message = st.chat_input("Describe what happened, or answer the question above...")
@@ -1856,27 +1975,18 @@ def run_interview_chat_flow():
         results = st.session_state["interview_chat_results"]
         full_analysis = results["full_analysis"]
         st.divider()
- 
+
         severity = full_analysis.get("severity", {})
         if severity.get("severity_color") in ("orange", "red"):
-            st.warning(
-                f"WARNING: {severity.get('severity_label', 'Concerns found')} -- "
-                f"see the summary below for what was found."
-            )
- 
-        layman_text = results.get("layman_summary")
-        if layman_text:
-            st.markdown("### What this means for you")
-            st.markdown(layman_text)
-        else:
-            st.info(
-                "I have your results, but had trouble putting together a plain-language "
-                "summary. Here's the full breakdown instead:"
-            )
-            render_compliance_ui_main(full_analysis)
- 
+            st.warning(f"{severity.get('severity_label', 'Concerns found')} — see the tabs below.")
+
+        render_results(full_analysis, key_prefix="ivchat",
+                       counsel_text=results.get("layman_summary"))
+
         st.divider()
- 
+
+        _back_to_start_button("ivchat")
+
         if results.get("tier_shown") == 1:
             st.markdown(
                 "This covers the most important arrest-procedure questions. A few more "
@@ -1896,18 +2006,17 @@ def run_interview_chat_flow():
                 st.session_state.pop("interview_chat_results", None)
                 st.rerun()
  
-        with st.expander("Show full legal breakdown (useful to share with a lawyer)"):
-            render_compliance_ui_main(full_analysis)
+        with st.expander("Raw data (advanced)"):
             render_checklist_and_raw(full_analysis)
-
-        render_draft_section(full_analysis, key_prefix="ivchat")
 
         if st.button("Start over", key="restart_interview_chat"):
             from interview_flow import InterviewState
             st.session_state["interview_chat_history"] = []
             st.session_state["interview_state_obj"] = InterviewState()
             st.session_state.pop("interview_chat_results", None)
-            st.session_state.pop("ivchat_draft_pdf_bytes", None)
+            for k in list(st.session_state):
+                if k.startswith("ivchat_"):
+                    st.session_state.pop(k, None)
             st.rerun()
         return
 
@@ -1944,17 +2053,13 @@ def run_interview_chat_flow():
 # =============================================================
 # ROUTER
 # =============================================================
-if mode == "I have a document to upload":
-    run_document_flow()
-elif mode == "I don't have any paper — ask me questions instead":
-    run_no_document_flow()
-elif mode == "I just want to ask something in my own words":
-    run_chat_flow()
-elif mode == "I want to describe my situation and get a real assessment":
-    run_interview_chat_flow()
-elif mode == "My bank account was frozen and I want to describe what happened":
-    run_freeze_interview_chat_flow()
-elif mode == "I have a bounced cheque situation and want to describe what happened":
-    run_cheque_interview_chat_flow()
-else:
-    run_batch_triage_flow()
+_ROUTER = {
+    "chat": run_chat_flow,
+    "document": run_document_flow,
+    "guided": run_no_document_flow,
+    "triage": run_batch_triage_flow,
+    "arrest_assess": run_interview_chat_flow,
+    "freeze_assess": run_freeze_interview_chat_flow,
+    "cheque_assess": run_cheque_interview_chat_flow,
+}
+_ROUTER.get(st.session_state.get("route", "chat"), run_chat_flow)()
