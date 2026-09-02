@@ -63,6 +63,64 @@ logger = logging.getLogger("statute_doctrine_map")
 # curated context_note giving the legal nuance a bare statute-text
 # lookup wouldn't include on its own.
 STATUTE_DOCTRINE_MAP = {
+    "bnss_482_anticipatory_bail": {
+        # WHY (2026-09-02): "i think the police are going to arrest me
+        # soon, what can i do" -- anticipatory bail (BNSS 482) is the
+        # single most important thing to tell someone facing imminent
+        # arrest, yet it does not appear anywhere in the top ~25 semantic
+        # matches for this phrasing (the corpus is arrest-PROCEDURE heavy;
+        # BNSS 482 is a remedy, framed differently). Before the retrieval
+        # block-cap it slipped into answers only because the model
+        # volunteered it and "482" happened to survive the grounding net
+        # via a concordance-translated CrPC 438 mention in a bail
+        # judgment -- luck, not retrieval. This wires it deterministically,
+        # same as the 43(5) entry below.
+        "act": "BNSS",
+        "section_number": "482",
+        "trigger_groups": [
+            ("going", "arrest"),
+            ("about", "arrested"),
+            ("arrest", "soon"),
+            ("anticipatory",),
+            ("apprehend", "arrest"),
+            ("apprehending", "arrest"),
+            ("afraid", "arrest"),
+            ("scared", "arrest"),
+            ("worried", "arrest"),
+            ("fear", "arrest"),
+            ("fear", "arrested"),
+            ("avoid", "arrest"),
+            ("prevent", "arrest"),
+            ("before", "arrest", "bail"),
+            ("bail", "before", "arrested"),
+        ],
+        "context_note": (
+            "BNSS Section 482 is anticipatory bail. When a person has "
+            "reason to believe they may be arrested on an accusation of a "
+            "NON-BAILABLE offence, they may apply to the High Court or the "
+            "Court of Session for a direction that, in the event of arrest, "
+            "they be released on bail. It is the main pre-arrest remedy for "
+            "someone who fears an imminent or false case.\n\n"
+            "Key limits to state honestly: it is available only for "
+            "non-bailable offences; the grant is discretionary, not "
+            "automatic; and the court can attach conditions (making "
+            "yourself available for interrogation, not tampering with "
+            "evidence or influencing witnesses, not leaving India without "
+            "permission). It does not prevent investigation and does not "
+            "erase the case -- it only pre-empts custodial arrest. The "
+            "applicant should move promptly once the apprehension of "
+            "arrest is concrete, ideally with a lawyer."
+        ),
+        "verified_note": (
+            "BNSS 482 statute text pulled live via get_statute_section "
+            "(not hardcoded here). Section 482 = anticipatory bail is the "
+            "BNSS re-enactment of CrPC Section 438; correspondence "
+            "confirmed against statute_concordance.json. Curated entry "
+            "added 2026-09-02 alongside the chat retrieval block-cap, "
+            "which exposed that this remedy was reaching answers only by "
+            "chance."
+        ),
+    },
     "bnss_43_5_night_arrest_women": {
         "act": "BNSS",
         "section_number": "43",

@@ -220,6 +220,34 @@ JUDGMENT_SIMILARITY_THRESHOLD = 0.40
 CONFLICT_SCORE_MARGIN = 0.03
 CONFLICT_MIN_SCORE = 0.40
 
+# How many match blocks actually reach the answer generator.
+#
+# WHY (2026-09-02): threshold filtering (0.34 statute / 0.40 judgment) is
+# a deliberately low bar -- for a typical situation question ~18 blocks
+# clear it, of which only a handful are genuinely on point and the rest
+# are topic-adjacent noise. Confirmed real case: "police... arrested me...
+# saying that i stole a goat" put 13 statute candidates over 0.34, the
+# last at rank 39; feeding all of them let the model wander to a
+# tangential procedural section instead of staying on BNS 303 (theft).
+# The Phase 5 offence-keyword anchor worked around this by injecting one
+# strong correct match; this is the actual fix -- rank what cleared the
+# threshold and keep only the strongest.
+#
+# Two-stage, applied PER TYPE (statute and judgment capped separately, so
+# a weaker-scoring but genuinely relevant judgment is never crowded out
+# by statute chunks or vice versa), on the already-score-ordered list:
+#   1. relative gap -- drop anything scoring more than MATCH_SCORE_GAP
+#      below that type's top match (adapts: keeps all of a genuine
+#      multi-section cluster, trims a lone strong match's noise tail).
+#   2. absolute cap -- then keep at most MAX_*_MATCHES_FOR_PROMPT.
+# The top match of each type is always kept. Both stages are strictly
+# looser than the conflicting_matches gate (within CONFLICT_SCORE_MARGIN
+# 0.03 of top AND >= CONFLICT_MIN_SCORE 0.40), so conflict detection sees
+# every provision it did before -- see _conflict_state().
+MATCH_SCORE_GAP = 0.08
+MAX_STATUTE_MATCHES_FOR_PROMPT = 5
+MAX_JUDGMENT_MATCHES_FOR_PROMPT = 4
+
 # Kept for any external code that still imports the old combined name
 # directly -- deliberately aliased to the MORE CONSERVATIVE (judgment)
 # value, not the more permissive statute one, so nothing that isn't
@@ -274,6 +302,12 @@ def find_relevant_sections(query):
 
     statute_matches = [r for r in results if r["type"] == "statute" and r["score"] >= STATUTE_SIMILARITY_THRESHOLD]
     judgment_matches = [r for r in results if r["type"] == "judgment" and r["score"] >= JUDGMENT_SIMILARITY_THRESHOLD]
+
+    # Keep only the strongest blocks per type before anything downstream
+    # (enrichment, conflict detection, prompt assembly) sees them -- see
+    # the MATCH_SCORE_GAP / MAX_*_MATCHES_FOR_PROMPT note above.
+    statute_matches = _cap_matches(statute_matches, MAX_STATUTE_MATCHES_FOR_PROMPT)
+    judgment_matches = _cap_matches(judgment_matches, MAX_JUDGMENT_MATCHES_FOR_PROMPT)
 
     if not statute_matches and not judgment_matches:
         return {"state": "no_match", "results": results}
@@ -332,6 +366,20 @@ def find_relevant_sections(query):
     state = _conflict_state(enriched)
 
     return {"state": state, "matches": enriched, "judgment_matches": judgment_matches}
+
+
+def _cap_matches(matches, max_keep, gap=MATCH_SCORE_GAP):
+    """Trim a score-ordered match list to the strongest blocks: first drop
+    anything more than `gap` below the top score, then keep at most
+    `max_keep`. The top match is always kept. Split out from
+    find_relevant_sections so it can be unit-tested without embeddings.
+    `matches` must already be sorted by descending 'score' (semantic_search
+    guarantees this)."""
+    if len(matches) <= 1:
+        return matches
+    top_score = matches[0]["score"]
+    within_gap = [m for m in matches if top_score - m["score"] <= gap]
+    return within_gap[:max_keep]
 
 
 def _conflict_state(enriched):
