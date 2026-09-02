@@ -155,6 +155,26 @@ def _render_chat_match_currency_caveat(m):
         _render_citation_currency_caveat(record)
 
 
+def _render_chat_match_old_code_note(m):
+    """When a retrieved paragraph quotes an old IPC/CrPC section number,
+    show the reader its modern BNS/BNSS equivalent from the checked
+    concordance -- the same mapping the answer generator is given. Case
+    law is indexed under the old numbers, so this is common on judgment
+    matches; a no-op when the text has no old-code references."""
+    from chat_assistant import _old_code_equivalents
+    eqs = _old_code_equivalents(m.get("text", ""))
+    if not eqs:
+        return
+    bits = []
+    for e in eqs:
+        if e["new"] is None:
+            bits.append(f"{e['old']} → not re-enacted")
+        else:
+            bits.append(f"{e['old']} → {e['new']}"
+                        + (" (changed)" if e["changed"] else ""))
+    st.caption("Old→new section numbers in this extract: " + " · ".join(bits))
+
+
 # Chat-to-domain-flow handoff (added 2026-09-01): when the chat feature's
 # classifier recognises a freeze or cheque-bounce question, the dedicated
 # free-text interview flows (freeze_interview_flow.py /
@@ -1466,6 +1486,7 @@ def run_chat_flow():
                     source = m.get("case_name") or "BNS/BNSS"
                     st.markdown(f"**{source}, Section/Para {label}** (relevance: {m['score']:.2f})")
                     _render_chat_match_currency_caveat(m)
+                    _render_chat_match_old_code_note(m)
                     st.caption((m.get("text") or "").strip()[:500])
             if result.get("situation_detected"):
                 handoff_domain = "arrest"
@@ -1488,6 +1509,7 @@ def run_chat_flow():
                     source = m.get("case_name") or "BNS/BNSS"
                     st.markdown(f"**{source}, Section/Para {label}**")
                     _render_chat_match_currency_caveat(m)
+                    _render_chat_match_old_code_note(m)
                     st.caption((m.get("text") or "").strip()[:800])
 
         else:

@@ -383,6 +383,49 @@ with patch("chat_assistant.client") as mock_client:
     check(result == "Section 35 of the BNSS covers this.", "unchanged result for a call with no matches param")
 
 
+# ---- old IPC/CrPC -> BNS/BNSS translation in retrieved judgment text ----
+# (statute_concordance wired into format_retrieved_text_for_prompt, 2026-09-02)
+
+from chat_assistant import _old_code_equivalents, _old_code_refs_note, format_retrieved_text_for_prompt
+
+_JUDG = ("The petitioner was booked under Section 420 of the Indian Penal Code "
+         "and the arrest ignored Section 41A of the Code of Criminal Procedure, 1973. "
+         "A separate charge under Section 124A IPC was also pressed.")
+
+eqs = _old_code_equivalents(_JUDG)
+pairs = {(e["old"], e["new"]) for e in eqs}
+check(("IPC 420", "BNS 318(4)") in pairs,
+      "judgment text 'Section 420 IPC' -> BNS 318(4) equivalent extracted")
+check(any(e["old"] == "CrPC 41A" and e["new"] and "BNSS 35(3)" in e["new"] for e in eqs),
+      "'Section 41A of the Code of Criminal Procedure' -> BNSS 35(3)")
+check(any(e["old"] == "IPC 124A" and e["new"] is None for e in eqs),
+      "repealed 'Section 124A IPC' surfaces with new=None (no re-enacted successor)")
+check(any(e["old"] == "IPC 420" and e["changed"] is False for e in eqs)
+      and any(e["old"] == "CrPC 41A" for e in eqs),
+      "the change flag rides along per-mapping")
+
+check(_old_code_equivalents("your rights on arrest, plainly stated, no section numbers") == [],
+      "plain text with no old-code citation -> no equivalents, no false positives")
+check(_old_code_equivalents("This turns on Section 35 of the BNSS and Section 103 BNS") == [],
+      "a NEW-code 'Section 35 BNSS' reference is never mistaken for an old-code one")
+
+note = _old_code_refs_note(_JUDG)
+check("IPC 420 -> BNS 318(4)" in note and "not re-enacted: IPC 124A" in note,
+      "the prompt note is one compact line: current equivalents + not-re-enacted list")
+check(note.startswith("\n\n[") and note.rstrip().endswith("]")
+      and "\n" not in note.strip(),
+      "the note stays terse (single appended line) so it can't crowd the answer")
+
+# end to end: format_retrieved_text_for_prompt appends the note to a judgment match,
+# and the modern numbers become part of retrieved_text (so the grounding net treats
+# an answer that cites BNS 318(4) as grounded, not a hallucination)
+rt = format_retrieved_text_for_prompt([{"case_name": "Some v State", "paragraph_number": "7", "text": _JUDG}])
+check("318(4)" in rt and "35(3)" in rt,
+      "format_retrieved_text_for_prompt folds the modern numbers into retrieved_text")
+check(_find_ungrounded_sections("This is now Section 318 of the BNS.", rt) == [],
+      "an answer citing the concordance-supplied modern section is NOT flagged ungrounded")
+
+
 print("\n" + "=" * 70)
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILURE(S)")

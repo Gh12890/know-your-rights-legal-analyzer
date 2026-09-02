@@ -705,6 +705,107 @@ def _bns_section_variants(sec_key: str) -> dict:
     return variants
 
 
+# Old-code section references inside retrieved judgment text. Case law is
+# overwhelmingly indexed under IPC/CrPC numbers -- BNS/BNSS is ~2 years
+# old -- so a paragraph the retriever surfaces routinely says "Section
+# 41A CrPC" or "Section 420 IPC". We give the model the modern
+# equivalent (from statute_concordance, a checked lookup) so its answer
+# can state the current section number instead of parroting the repealed
+# one. Deliberately high-precision: fires ONLY when an explicit old-act
+# token sits right after the number(s), so a bare "Section 35" inside a
+# judgment is never guessed to be CrPC when it could be BNSS.
+_OLD_ACT_RE = (
+    r"(?:I\.?P\.?C\.?|(?:the\s+)?Indian\s+Penal\s+Code|Penal\s+Code"
+    r"|Cr\.?\s?P\.?\s?C\.?|(?:the\s+)?Code\s+of\s+Criminal\s+Procedure"
+    r"|Criminal\s+Procedure\s+Code)"
+)
+_NUM = r"\d{1,3}[A-Z]{0,2}(?:\s*\(\s*[0-9a-z]+\s*\))*"
+_OLD_SECTION_REF = re.compile(
+    r"(?:Sections?|Secs?\.?|S\.?|u/s|under\s+section)\s*"
+    r"(" + _NUM + r"(?:\s*(?:,|and|&|/|to|read\s+with)\s*" + _NUM + r")*)"
+    r"\s*(?:,\s*)?(?:of\s+(?:the\s+)?|,?\s*)?"
+    r"(" + _OLD_ACT_RE + r")",
+    re.IGNORECASE,
+)
+_NUM_TOKEN = re.compile(r"\d{1,3}[A-Z]{0,2}(?:\([0-9a-z]+\))?")
+
+
+def _old_code_equivalents(text: str) -> list:
+    """Every old IPC/CrPC section number quoted in `text`, paired with its
+    modern BNS/BNSS equivalent from statute_concordance (a checked lookup,
+    no LLM). Each item: {'old': 'IPC 420', 'new': 'BNS 318(4)',
+    'changed': bool} -- or 'new': None for a provision repealed with no
+    re-enacted successor. Deduped, in first-seen order. [] if none.
+
+    Shared by format_retrieved_text_for_prompt (builds the prompt note)
+    and app.py's 'what I found' expander (shows the reader the same
+    mapping)."""
+    if not text:
+        return []
+    try:
+        from statute_concordance import to_new
+    except Exception:
+        return []
+
+    seen, out = set(), []
+    for m in _OLD_SECTION_REF.finditer(text):
+        raw_act = m.group(2).lower()
+        old_act = "IPC" if ("ipc" in raw_act or "penal" in raw_act) else "CrPC"
+        for tok in _NUM_TOKEN.findall(m.group(1).replace(" ", "")):
+            key = (old_act, tok)
+            if key in seen:
+                continue
+            seen.add(key)
+            res = to_new(old_act, tok)
+            if res is None:
+                continue
+            if not res:
+                out.append({"old": f"{old_act} {tok}", "new": None, "changed": True})
+            else:
+                out.append({
+                    "old": f"{old_act} {tok}",
+                    "new": "; ".join(f"{e['act']} {e['section']}" for e in res),
+                    "changed": any(e["change"] for e in res),
+                })
+    return out
+
+
+def _old_code_refs_note(text: str) -> str:
+    """ONE compact line mapping the old IPC/CrPC section numbers quoted in
+    `text` to their modern equivalents, or '' if there are none.
+
+    Deliberately terse and non-imperative -- an earlier multi-line,
+    "you MUST use the modern number" version measurably crowded other
+    points out of the answer (goat-theft eval regressed on the
+    grounds-of-arrest / 24-hour checks, 2026-09-02). The generation
+    prompt already bars old-code output; this only needs to supply the
+    mapping so the model can comply accurately."""
+    eqs = _old_code_equivalents(text)
+    if not eqs:
+        return ""
+
+    def _tidy(new):
+        # "BNSS 35(3); BNSS 35(4); BNSS 35(5); BNSS 35(6)" -> "BNSS 35(3)-(6)"
+        tgts = new.split("; ")
+        acts = {t.split()[0] for t in tgts}
+        bares = {t.split()[1].split("(")[0] for t in tgts}
+        if len(tgts) > 2 and len(acts) == 1 and len(bares) == 1:
+            subs = [t.split("(")[1].rstrip(")") for t in tgts if "(" in t]
+            if len(subs) == len(tgts):
+                return f"{tgts[0].split()[0]} {bares.pop()}({subs[0]})-({subs[-1]})"
+        return new
+
+    live = [f"{e['old']} -> {_tidy(e['new'])}" for e in eqs if e["new"]]
+    gone = [e["old"] for e in eqs if e["new"] is None]
+    parts = []
+    if live:
+        parts.append("current equivalents " + ", ".join(live))
+    if gone:
+        parts.append("not re-enacted: " + ", ".join(gone))
+    return ("\n\n[Section-number note (the text above cites the pre-2024 codes): "
+            + "; ".join(parts) + "]")
+
+
 def format_retrieved_text_for_prompt(matches):
     """Formats a list of enriched match dicts (from
     semantic_retrieval.find_relevant_sections) into plain text suitable
@@ -905,7 +1006,14 @@ def format_retrieved_text_for_prompt(matches):
             block += "\n\n[Known classification for this section, from the verified compliance table]\n" + "\n".join(variant_lines)
 
         blocks.append(block)
-    return "\n\n---\n\n".join(blocks)
+
+    joined = "\n\n---\n\n".join(blocks)
+    # ONE consolidated old->new section-number note for the whole prompt
+    # (not per-block: the case law repeats "Section 41 CrPC" across
+    # several paragraphs, and repeating the mapping each time crowded the
+    # answer -- see _old_code_refs_note).
+    joined += _old_code_refs_note(joined)
+    return joined
 
 def answer_question(question):
     """Main entry point for the chat interface. Returns a dict describing
