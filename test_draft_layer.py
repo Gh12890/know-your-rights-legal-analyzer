@@ -376,6 +376,62 @@ check(os.path.exists(p2) and os.path.getsize(p2) > 1500, "generate_draft_pdf wri
 os.remove(p2)
 
 
+# ---- authorities + matters_raised + medical prayer (the chat-draft additions) ----
+
+_AUTHS = [
+    {"case_name": "D.K. Basu v State of West Bengal", "citation": "(1997) 1 SCC 416",
+     "court": "Supreme Court", "para_number": 8,
+     "quote": "The arrestee should be subjected to medical examination by a trained doctor every 48 hours.",
+     "url": "https://indiankanoon.org/doc/235756/", "verified": True},
+    {"case_name": "Mujeeb Rahman v State of Kerala", "citation": "",
+     "court": "Kerala High Court", "para_number": 12,
+     "quote": "The right to be produced before a Magistrate within twenty-four hours is an absolute safeguard.",
+     "url": "https://indiankanoon.org/doc/999/", "verified": False},
+    {"case_name": "Nope", "quote": "", "verified": True},  # no quote -> dropped
+]
+_MATTERS = ["he had bruises on both arms and said he was slapped and kept awake all night"]
+
+dm = draft_for(_fa([_NC_NOTICE]), "magistrate", authorities=_AUTHS, matters_raised=_MATTERS)
+check("RELEVANT JUDICIAL AUTHORITY" in dm, "the authority section appears in the magistrate draft")
+check('"The arrestee should be subjected to medical examination by a trained doctor every 48 hours."' in dm,
+      "the verified authority's paragraph is reproduced verbatim")
+check("In D.K. Basu v State of West Bengal (1997) 1 SCC 416 (Supreme Court), at paragraph 8" in dm,
+      "verbatim quote carries the full citation and paragraph number")
+check("FURTHER JUDGMENTS FROM A LIVE SEARCH - NOT VERIFIED" in dm
+      and "Mujeeb Rahman" in dm.split("NOT VERIFIED", 1)[1],
+      "an unverified authority is walled off in the 'NOT VERIFIED' block, not the body")
+check("https://indiankanoon.org/doc/999/" in dm, "the unverified authority carries its source link")
+check("MATTERS STATED BY THE ARRESTED PERSON / FAMILY" in dm
+      and "bruises on both arms" in dm and "does not assess or verify" in dm,
+      "custodial-assault allegation is set out verbatim and expressly unassessed")
+check("medically examined forthwith by a Government medical officer" in dm,
+      "the medical-examination prayer clause is added when injuries are alleged")
+check("Nope" not in dm, "an authority with no quote is dropped")
+
+# medical prayer also fires when the D.K. Basu medical check itself is Non-Compliant
+_MED_NC = {"requirement": "Arrest memo attested by witness, family informed, medical exam [DK Basu (1997)]",
+           "status": "Non-Compliant", "explanation": "D.K Basu items missing: medical exam recorded."}
+check("medically examined forthwith" in draft_for(_fa([_MED_NC]), "magistrate"),
+      "the medical prayer also fires from a failed D.K. Basu medical check (no matters_raised needed)")
+
+# no authorities / no matters -> those sections simply absent, draft still renders
+plain = draft_for(_fa([_NC_NOTICE]), "magistrate")
+check("RELEVANT JUDICIAL AUTHORITY" not in plain and "MATTERS STATED" not in plain,
+      "with nothing passed in, the new sections don't appear and the draft is unchanged")
+
+# an old-code reference inside a quoted authority still triggers the section-number note
+d_old_q = draft_for(_fa([_COMPLIANT_MEMO]), "magistrate", authorities=[
+    {"case_name": "X v State", "quote": "Section 41 of the Cr.P.C. lists the cases where arrest may be made.",
+     "verified": True}])
+check("NOTE ON SECTION NUMBERS" in d_old_q and "CrPC 41" in d_old_q,
+      "an old CrPC number quoted inside an authority passage is caught by the section-number note")
+
+# SP letter also carries both sections
+ds = draft_for(_fa([_NC_NOTICE]), "sp", authorities=_AUTHS, matters_raised=_MATTERS)
+check("RELEVANT JUDICIAL AUTHORITY" in ds and "MATTERS STATED BY THE ARRESTED PERSON / FAMILY" in ds,
+      "the SP complaint carries the authority and matters sections too")
+
+
 print()
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILURE(S)")

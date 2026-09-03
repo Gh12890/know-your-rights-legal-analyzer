@@ -252,13 +252,125 @@ def is_arrest_analysis(full_analysis):
 _ASSEMBLERS = {}  # filled in below, once the freeze/cheque assemblers are defined
 
 
-def assemble_for(full_analysis):
+def _clean_authorities(authorities):
+    """Normalise the caller-supplied authorities list. Each item:
+        {case_name, citation, court, para_number, quote, url, verified}
+    A quote is mandatory (it is what gets reproduced verbatim); an item
+    without one is dropped. Order preserved, deduped on (case_name, quote)."""
+    out, seen = [], set()
+    for a in authorities or []:
+        if not isinstance(a, dict):
+            continue
+        quote = (a.get("quote") or "").strip()
+        name = (a.get("case_name") or "").strip()
+        if not quote or not name:
+            continue
+        key = (name.lower(), quote[:80].lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "case_name": name,
+            "citation": (a.get("citation") or "").strip(),
+            "court": (a.get("court") or "").strip(),
+            "para_number": a.get("para_number"),
+            "quote": quote,
+            "url": (a.get("url") or "").strip(),
+            "verified": bool(a.get("verified")),
+        })
+    return out
+
+
+_MEDICAL_MATTER_RE = re.compile(
+    r"\b(bruis|injur|wound|beat|slap|assault|hit|thrash|tortur|hurt|blood|"
+    r"marks on|handcuff|chained|medical|doctor|hospital|kept awake|sleep)\b", re.I)
+
+
+def _wants_medical_prayer(checks, matters_raised):
+    """True when the draft should ask the Court to order an immediate
+    medical examination: the D.K. Basu medical item did not pass, OR the
+    person has described injuries / custodial ill-treatment."""
+    for c in checks or []:
+        if "medical exam" in c.get("requirement", "").lower() and c.get("status") in _ACTIONABLE:
+            return True
+    return any(_MEDICAL_MATTER_RE.search(m or "") for m in (matters_raised or []))
+
+
+def assemble_for(full_analysis, *, authorities=None, matters_raised=None):
     """Detect the domain and run its assembler. Returns the content dict
-    (carrying its own 'domain' key) or None when no template applies."""
+    (carrying its own 'domain' key) or None when no template applies.
+
+    authorities: verbatim judgment passages to reproduce in the draft --
+        see _clean_authorities. verified=True ones sit in the body;
+        verified=False ones sit in a clearly-marked "not verified" block.
+    matters_raised: things the person stated that no compliance check
+        adjudicates (e.g. custodial assault) -- set out verbatim for the
+        authority's attention, expressly unassessed.
+    """
     domain = detect_draft_domain(full_analysis)
     if domain is None:
         return None
-    return _ASSEMBLERS[domain](full_analysis)
+    content = _ASSEMBLERS[domain](full_analysis)
+    checks = ((full_analysis or {}).get("compliance", {}) or {}).get("compliance_checks", []) or []
+    content["authorities"] = _clean_authorities(authorities)
+    content["matters_raised"] = [str(m).strip() for m in (matters_raised or []) if m and str(m).strip()]
+    content["needs_medical_prayer"] = _wants_medical_prayer(checks, content["matters_raised"])
+    return content
+
+
+def _authorities_block(content):
+    """The 'RELEVANT JUDICIAL AUTHORITY' section -- verbatim quotes, full
+    citation, para number. verified in the body; the rest walled off in a
+    'NOT VERIFIED' sub-block. [] when there are no authorities."""
+    auths = content.get("authorities") or []
+    if not auths:
+        return []
+    verified = [a for a in auths if a["verified"]]
+    unverified = [a for a in auths if not a["verified"]]
+
+    def _cite(a):
+        bits = [a["case_name"]]
+        if a["citation"]:
+            bits.append(a["citation"])
+        if a["court"]:
+            bits.append(f"({a['court']})")
+        loc = f", at paragraph {a['para_number']}" if a["para_number"] else ""
+        return " ".join(bits) + loc
+
+    out = ["RELEVANT JUDICIAL AUTHORITY",
+           "The following passages are reproduced word-for-word from the judgments. "
+           "Read each judgment in full before relying on it."]
+    for i, a in enumerate(verified, 1):
+        out.append(f"{i}. In {_cite(a)}, the Court observed:")
+        out.append(f'   "{a["quote"]}"')
+
+    if unverified:
+        out += ["",
+                "FURTHER JUDGMENTS FROM A LIVE SEARCH - NOT VERIFIED",
+                "These were retrieved automatically and have NOT been checked by anyone. "
+                "Before this draft is sent, read each judgment at the link given and satisfy "
+                "yourself that it is on point and still good law. Delete any you are not sure of."]
+        for j, a in enumerate(unverified):
+            out.append(f"   {chr(ord('a') + j)}) In {_cite(a)}, the Court observed:")
+            out.append(f'      "{a["quote"]}"')
+            if a["url"]:
+                out.append(f"      [ {a['url']} ]")
+    return out + [""]
+
+
+def _matters_block(content):
+    """The 'MATTERS STATED BY THE ARRESTED PERSON / FAMILY' section --
+    grievances no check adjudicates, set out verbatim, expressly
+    unassessed. [] when there are none."""
+    matters = content.get("matters_raised") or []
+    if not matters:
+        return []
+    out = ["MATTERS STATED BY THE ARRESTED PERSON / FAMILY",
+           "The following were stated in describing the situation. This tool does not "
+           "assess or verify them. They are set out here for the attention of the "
+           "authority addressed."]
+    out += [f"- {m.rstrip('.')}." for m in matters]
+    return out + [""]
 
 
 def available_targets(full_analysis):
@@ -341,6 +453,9 @@ def _render_understanding(c):
         out += [f"- {d}" for d in c["key_dates"]]
         out += [""]
 
+    out += _matters_block(c)
+    out += _authorities_block(c)
+
     if c["to_verify"]:
         out += ["STILL TO CONFIRM"]
         out += [f"- {t}" for t in c["to_verify"]]
@@ -390,18 +505,26 @@ def _render_magistrate(c):
     if c["consequences"]:
         out += ["CONSEQUENCES OF NON-COMPLIANCE", _ARNESH_CONSEQUENCES, ""]
 
+    out += _matters_block(c)
+    out += _authorities_block(c)
+
     out += ["PRAYER", "",
             "It is therefore most respectfully prayed that this Hon'ble Court may be pleased to:",
             "a) examine the legality of the arrest and the continued custody of the arrested "
             "person in the light of the grounds set out above;"]
+    _pl = ord("b")
+    if c.get("needs_medical_prayer"):
+        out.append(f"{chr(_pl)}) direct that the arrested person be medically examined forthwith by a "
+                   "Government medical officer / registered medical practitioner, that all injuries and "
+                   "their approximate time of causation be recorded, and that the report be placed on "
+                   "the record of this case;")
+        _pl += 1
     if c["key_dates"]:
-        out.append("b) consider the arrested person's entitlement to release, having regard to the "
-                   "position on default bail set out below;")
-        letter = "c"
-    else:
-        letter = "b"
-    out.append(f"{letter}) pass such further or other order as this Hon'ble Court may deem fit and proper "
-               "in the interest of justice.")
+        out.append(f"{chr(_pl)}) consider the arrested person's entitlement to release, having regard to "
+                   "the position on default bail set out below;")
+        _pl += 1
+    out.append(f"{chr(_pl)}) pass such further or other order as this Hon'ble Court may deem fit and "
+               "proper in the interest of justice.")
     out += [""]
 
     if c["key_dates"]:
@@ -460,6 +583,18 @@ def _render_sp(c):
         n += 1
     if c["consequences"]:
         out.append(f"{n}. {_ARNESH_CONSEQUENCES}")
+        n += 1
+
+    matters = _matters_block(c)
+    if matters:
+        out += [""] + matters
+    auth = _authorities_block(c)
+    if auth:
+        out += auth
+
+    if c.get("needs_medical_prayer"):
+        out.append(f"{n}. It is requested that the arrested person be medically examined without delay "
+                   "and any injuries recorded, with a copy of the report furnished.")
         n += 1
     out.append(f"{n}. It is requested that the above be examined, that the compliance of the "
                "officer(s) concerned be looked into, and that I be informed of the action taken.")
@@ -934,6 +1069,9 @@ def _section_number_note(content):
         parts += [g.get("heading", ""), g.get("finding", ""), g.get("citation", "")]
     parts += list(content.get("to_verify", []))
     parts += list(content.get("key_dates", []))
+    parts += list(content.get("matters_raised", []))
+    for a in content.get("authorities", []):
+        parts += [a.get("quote", ""), a.get("citation", "")]
     if content.get("context_note"):
         parts.append(content["context_note"])
     parts += [str(s) for s in content.get("sections", [])]
@@ -975,9 +1113,10 @@ def render_draft(content, target):
     return body
 
 
-def draft_for(full_analysis, target):
-    """Convenience: detect domain, assemble, render in one call."""
-    content = assemble_for(full_analysis)
+def draft_for(full_analysis, target, *, authorities=None, matters_raised=None):
+    """Convenience: detect domain, assemble, render in one call.
+    `authorities` / `matters_raised` -- see assemble_for."""
+    content = assemble_for(full_analysis, authorities=authorities, matters_raised=matters_raised)
     if content is None:
         raise ValueError("draft_layer has no template for this analysis")
     return render_draft(content, target)
