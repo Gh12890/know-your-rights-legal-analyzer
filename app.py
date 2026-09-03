@@ -1569,6 +1569,94 @@ def run_batch_triage_flow():
 # =============================================================
 # CHAT MODE (ask in your own words)
 # =============================================================
+
+# --- Lane B: live "related judgments" panel -------------------------------
+# Runs AFTER the grounded answer, entirely to the side of it (see
+# related_judgments.py's module docstring). Opt-in: the user taps a button.
+# Only offered on states that produced a real answer, and only rendered to
+# the user when every issue is a settled doctrine (result["show_user"]).
+
+_RELATED_STATES = ("single_match", "conflicting_matches")
+
+
+def _render_related_judgments_result(result):
+    """Render the outcome of a related-judgments run under the last answer."""
+    if not result.get("show_user") or not result.get("for_display"):
+        st.caption(
+            "I also looked for related court judgments you could read, but I don't have any "
+            "I'm confident enough to show for this one. (This doesn't change the answer above.)"
+        )
+        return
+
+    disp = result["for_display"]
+    with st.expander(f"⚖️ {len(disp)} related court judgment(s) — read these yourself", expanded=True):
+        st.warning(
+            "**Unverified.** These were found automatically, not checked by a lawyer. A judgment "
+            "may have been appealed or narrowed since — read the full text before relying on it. "
+            "This does not change the answer above."
+        )
+        for c in disp:
+            t = c.get("triage", {})
+            title = t.get("title") or "Judgment"
+            bits = [f"**{title}**"]
+            if c.get("source") == "corpus":
+                bits.append("in our verified library")
+            elif t.get("court"):
+                bits.append(t["court"])
+            if (t.get("publish_date") or "")[:4]:
+                bits.append((t["publish_date"])[:4])
+            st.markdown(" · ".join(bits))
+
+            if c.get("gloss"):
+                st.markdown(f"*{c['gloss']}*")
+
+            for p in (c.get("pinned") or [])[:2]:
+                where = f"Para {p['para_number']}" if p.get("para_number") else "Extract"
+                st.markdown(f"> **{where}.** {(p.get('text') or '').strip()[:600]}…")
+
+            if t.get("url"):
+                st.markdown(f"[Read the full judgment on Indian Kanoon ↗]({t['url']})")
+            if t.get("adverse_markers"):
+                st.caption("⚠ A later case may have questioned this — flagged terms: "
+                           + ", ".join(t["adverse_markers"]))
+            st.divider()
+
+        st.caption("This is general information, not legal advice. Please consult a qualified lawyer.")
+
+
+def _render_related_judgments_section():
+    """The opt-in button + (once run) the panel, for the most recent
+    answered question. Rendered on every pass of run_chat_flow so it
+    survives the button-click rerun."""
+    import hashlib, os
+
+    la = st.session_state.get("chat_last_answer")
+    if not la or la.get("state") not in _RELATED_STATES:
+        return
+    if os.getenv("KYR_DISABLE_LIVE_JUDGMENTS"):
+        return
+
+    qhash = hashlib.md5(la["question"].encode()).hexdigest()[:12]
+    result_key = f"related_result_{qhash}"
+
+    if result_key in st.session_state:
+        _render_related_judgments_result(st.session_state[result_key])
+        return
+
+    if st.button("🔎 Show related court judgments", key=f"related_btn_{qhash}",
+                 help="Searches Indian court judgments for a situation like the one you described. "
+                      "Takes up to a minute."):
+        with st.spinner("Searching Indian court judgments for a similar situation…"):
+            try:
+                from related_judgments import get_related_judgments
+                st.session_state[result_key] = get_related_judgments(
+                    la["question"], la.get("reply")
+                )
+            except Exception:
+                st.session_state[result_key] = {"show_user": False, "for_display": []}
+        st.rerun()
+
+
 def run_chat_flow():
     st.write(
         "Ask about a police arrest, an FIR, or your rights during criminal proceedings "
@@ -1586,6 +1674,14 @@ def run_chat_flow():
 
     question = st.chat_input("Type your question here...")
     if not question:
+        # No new question this pass -- still render the opt-in related-
+        # judgments affordance for the most recent answer (it must survive
+        # the rerun a button click triggers) and the standing disclaimer.
+        _render_related_judgments_section()
+        st.caption(
+            "This is general information based on Indian law and court judgments, not legal "
+            "advice. For guidance on your specific situation, please consult a qualified lawyer."
+        )
         return
 
     st.session_state["chat_history"].append({"role": "user", "content": question})
@@ -1735,11 +1831,24 @@ def run_chat_flow():
 
     st.session_state["chat_history"].append({"role": "assistant", "content": reply})
 
+    # Remember this answer so the opt-in "related judgments" affordance can
+    # render under it -- both now and on the reruns a button click triggers
+    # (only for states that produced a real grounded answer, never for
+    # redirects / no-match / errors).
+    if state in _RELATED_STATES:
+        st.session_state["chat_last_answer"] = {
+            "question": question, "reply": reply, "state": state,
+        }
+    else:
+        st.session_state.pop("chat_last_answer", None)
+
+    _render_related_judgments_section()
+
     st.caption(
         "This is general information based on Indian law and court judgments, not legal advice. "
         "For guidance on your specific situation, please consult a qualified lawyer."
     )
-    
+
     
 
 def run_freeze_interview_chat_flow():

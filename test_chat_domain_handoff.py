@@ -114,10 +114,16 @@ def run_handoff_case(question, history_key):
     if at.exception:
         return None, [str(e) for e in at.exception]
 
-    if len(at.button) != 1:
-        return None, [f"expected exactly 1 handoff button, found {len(at.button)}"]
+    # The arrest answer (single_match) now also renders an opt-in
+    # "Show related court judgments" button (Lane B); the freeze/cheque
+    # redirects do not. Target the handoff button by its key rather than
+    # assuming it's the only one.
+    handoff = [b for b in at.button if getattr(b, "key", None) == "chat_domain_handoff"]
+    if len(handoff) != 1:
+        return None, [f"expected exactly 1 handoff button, found {len(handoff)} "
+                      f"(total buttons on page: {len(at.button)})"]
 
-    at.button[0].click().run(timeout=90)
+    handoff[0].click().run(timeout=90)
     if at.exception:
         return None, [str(e) for e in at.exception]
 
