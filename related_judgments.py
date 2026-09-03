@@ -36,7 +36,9 @@ wired yet. Nothing here calls Indian Kanoon or costs IK credits.
 
 import json
 import logging
+import os
 import re
+from datetime import date, datetime, timezone
 
 logger = logging.getLogger("related_judgments")
 
@@ -343,3 +345,451 @@ def extract_answer_sections(answer_text):
     they carry more weight than a guessed hook. Base number only, matching
     how retrieved_text is labelled elsewhere in the project."""
     return {m.group(1) for m in _ANSWER_SECTION_RE.finditer(answer_text or "")}
+
+
+# "Section 35 of the BNSS", "Section 187 BNSS", "Section 303(2) of the BNS"
+_ANSWER_ACT_SECTION_RE = re.compile(
+    r"Section\s+(\d{1,3}[A-Z]{0,2})(?:\s*\([^)]*\))?\s+(?:of\s+(?:the\s+)?)?\b(BNSS|BNS)\b",
+    re.IGNORECASE,
+)
+
+
+def _answer_act_sections(answer_text):
+    """[(act, num)] pairs the grounded answer explicitly tied to an act
+    ('Section 35 of the BNSS' -> ('BNSS','35')). Deduped, order kept.
+    Only act-qualified references -- a bare 'Section 35' is ambiguous
+    (BNS private defence vs BNSS arrest) and is deliberately ignored
+    here."""
+    out, seen = [], set()
+    for m in _ANSWER_ACT_SECTION_RE.finditer(answer_text or ""):
+        pair = (m.group(2).upper(), m.group(1))
+        if pair not in seen:
+            seen.add(pair)
+            out.append(pair)
+    return out
+
+
+def answer_old_sections(answer_text):
+    """The grounded answer's act-qualified sections, resolved to their
+    IPC/CrPC equivalents ('Section 35 of the BNSS' -> ['CrPC 41', ...]).
+    A clean, verified section signal -- used by later phases for ranking
+    and verification. NOT folded into the search queries: an answer
+    section can't be tied to a specific issue, and spraying every issue
+    query with every answer section is what produced constitutional-law
+    noise in the first Phase-1b trial."""
+    from statute_concordance import to_old
+
+    out, seen = [], set()
+    for act, num in _answer_act_sections(answer_text):
+        try:
+            eq = to_old(act, num)
+        except ValueError:
+            eq = None
+        for e in (eq or []):
+            ol = f"{e['act']} {e['section']}"
+            if ol not in seen:
+                seen.add(ol)
+                out.append(ol)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Phase 1b -- the search phase. Real Indian Kanoon calls happen here (cost
+# real IK credits); the CLI writes a review bundle for a human to eyeball
+# before any of this is wired into the app. Fetch / paragraph-pinning /
+# the one-sentence gloss / the whitelist gate are LATER phases.
+# ---------------------------------------------------------------------------
+
+# How many IK search hits to keep per query, and how many ranked
+# candidates the bundle keeps. Deliberately modest -- the reranker is what
+# finds the good ones, not breadth.
+_PER_QUERY_CAP = 12
+_KEEP_RANKED = 12
+
+# Scoring weights for rank_candidates. rerank score (0..~1) dominates;
+# the rest are gentle nudges, not overrides.
+_W_CROSS_ISSUE = 0.12   # per extra issue this judgment also answered
+_W_COURT_TIER = 0.04    # * court_tier_rank (0..3)
+
+# How many already-in-corpus cases the ranked list may carry. Lane B is
+# mainly for NEW judgments; a couple of relevant verified cases the
+# grounded answer missed are a bonus, a list full of them is noise.
+_MAX_CORPUS_IN_RESULT = 3
+
+
+def _corpus_case_names():
+    """Distinct case_name of every judgment embedded in the local corpus
+    (the 22 hand-verified cases). Used to DROP an IK hit that is really
+    one of those -- the clean corpus copy is preferable to a live fetch."""
+    try:
+        from semantic_retrieval import _load_corpus_embeddings
+        corpus = _load_corpus_embeddings()
+    except Exception:
+        return []
+    if not corpus:
+        return []
+    names = {r.get("case_name") for r in corpus["records"]
+             if r.get("type") == "judgment" and r.get("case_name")}
+    return sorted(names)
+
+
+def search_candidates(anchors, *, ik_search_fn=None, local_search_fn=None,
+                      per_query_cap=_PER_QUERY_CAP):
+    """Run one Indian Kanoon search per issue query + one local-corpus
+    semantic search per issue, and pool the hits.
+
+    ik_search_fn: callable(query:str)->dict like indiankanoon_client.search
+        (defaults to the real, PAID client).
+    local_search_fn: callable(query:str)->list like
+        semantic_retrieval.semantic_search (defaults to the real one; free).
+
+    Returns a list of candidate dicts, each:
+        {
+          "source": "indiankanoon" | "corpus",
+          "matched_issues": [int, ...],   # which anchor indices surfaced it
+          "queries": [str, ...],          # the IK queries that surfaced it
+          "raw": {...},                   # the raw IK doc  (source=indiankanoon)
+          "record": {...},                # the corpus chunk (source=corpus)
+        }
+    Deduped: IK by tid, corpus by chunk_id. matched_issues/queries are
+    unioned across anchors. IK or local failures are logged and skipped --
+    a partial pool is fine, an empty pool is honest.
+    """
+    from ik_query_builder import build_issue_queries
+
+    if ik_search_fn is None:
+        try:
+            from indiankanoon_client import search as ik_search_fn
+        except Exception:
+            ik_search_fn = None
+    if local_search_fn is None:
+        try:
+            from semantic_retrieval import semantic_search as local_search_fn
+        except Exception:
+            local_search_fn = None
+
+    ik_by_tid = {}
+    corpus_by_chunk = {}
+
+    for i, anchor in enumerate(anchors or []):
+        # --- Indian Kanoon ---
+        if ik_search_fn is not None:
+            for query in build_issue_queries(anchor):
+                try:
+                    raw = ik_search_fn(query)
+                except Exception:
+                    logger.exception("search_candidates: IK search failed for %r", query)
+                    continue
+                docs = raw.get("docs", []) if isinstance(raw, dict) else []
+                for doc in docs[:per_query_cap]:
+                    tid = doc.get("tid")
+                    if tid is None:
+                        continue
+                    entry = ik_by_tid.get(tid)
+                    if entry is None:
+                        entry = {"source": "indiankanoon", "matched_issues": set(),
+                                 "queries": set(), "raw": doc}
+                        ik_by_tid[tid] = entry
+                    entry["matched_issues"].add(i)
+                    entry["queries"].add(query)
+
+        # --- local corpus: OTHER verified cases relevant to this issue.
+        #     Deduped by CASE NAME (not chunk) -- showing six paragraphs of
+        #     Vihaan Kumar as six "related judgments" is noise; one row per
+        #     case, keeping the best-scoring paragraph, is the useful form.
+        if local_search_fn is not None:
+            try:
+                local_hits = local_search_fn(anchor.get("issue", "")) or []
+            except Exception:
+                logger.exception("search_candidates: local search failed")
+                local_hits = []
+            for rec in local_hits:
+                if rec.get("type") != "judgment":
+                    continue
+                name = rec.get("case_name") or rec.get("chunk_id")
+                if not name:
+                    continue
+                entry = corpus_by_chunk.get(name)
+                if entry is None:
+                    entry = {"source": "corpus", "matched_issues": set(),
+                             "queries": set(), "record": rec}
+                    corpus_by_chunk[name] = entry
+                entry["matched_issues"].add(i)
+                if rec.get("score", 0.0) > entry["record"].get("score", 0.0):
+                    entry["record"] = rec
+
+    pooled = list(ik_by_tid.values()) + list(corpus_by_chunk.values())
+    for e in pooled:
+        e["matched_issues"] = sorted(e["matched_issues"])
+        e["queries"] = sorted(e["queries"])
+    return pooled
+
+
+def _candidate_document(cand):
+    """The text handed to the reranker for one candidate -- title/name
+    plus the best available snippet. Kept short; the reranker reads it
+    against the user's full message."""
+    from ik_triage import strip_html, snippet_of
+
+    if cand["source"] == "corpus":
+        rec = cand["record"]
+        name = rec.get("case_name") or "BNS/BNSS judgment"
+        return f"{name}. {(rec.get('text') or '')[:700]}"
+    doc = cand["raw"]
+    title = strip_html(doc.get("title") or "")
+    return f"{title}. {snippet_of(doc)[:700]}"
+
+
+def rank_candidates(candidates, user_message, *, rerank_fn=None,
+                    corpus_case_names=None, grounded_answer_text=None,
+                    keep=_KEEP_RANKED, today=None):
+    """Triage the pool, drop IK hits that are really corpus cases and
+    corpus cases the grounded answer already cited, then rank by:
+    reranker relevance to the FULL user message (dominant) + a
+    cross-issue-agreement bonus + a gentle court-tier weight.
+
+    rerank_fn: callable(query, [docs], top_k)->list|None like
+        semantic_retrieval.rerank (defaults to the real one). None
+        (unavailable) -> ranking degrades to the deterministic nudges
+        alone, flagged via 'rerank_used' on each item.
+
+    Returns the top `keep` candidates, best first, with at most
+    _MAX_CORPUS_IN_RESULT already-in-corpus cases among them. Each item
+    is enriched with 'triage', 'score', 'rerank_score', 'rerank_used'.
+    """
+    from ik_triage import triage_hit, court_tier_rank
+
+    today = today or date.today()
+    if corpus_case_names is None:
+        corpus_case_names = _corpus_case_names()
+    if rerank_fn is None:
+        try:
+            from semantic_retrieval import rerank as rerank_fn
+        except Exception:
+            rerank_fn = None
+
+    answer_lc = (grounded_answer_text or "").lower()
+
+    kept = []
+    for cand in candidates or []:
+        if cand["source"] == "indiankanoon":
+            tr = triage_hit(cand["raw"], corpus_case_names=corpus_case_names, today=today)
+            if tr["is_corpus_case"]:
+                logger.info("rank_candidates: dropped IK hit that is a corpus case: %r", tr["title"])
+                continue
+            cand["triage"] = tr
+        else:
+            rec = cand["record"]
+            name = rec.get("case_name") or ""
+            # A corpus case the grounded answer ALREADY names is not a
+            # "related" judgment -- the user has it.
+            short = re.split(r"\s+v\.?\s+| vs\.? ", name, maxsplit=1)[0].strip().lower()
+            if short and len(short) > 3 and short in answer_lc:
+                logger.info("rank_candidates: dropped corpus case already in the answer: %r", name)
+                continue
+            cand["triage"] = {
+                "tid": None,
+                "title": name or None,
+                "url": rec.get("source_url"),
+                "court": rec.get("court"),
+                "court_tier": "supreme_court",  # corpus is SC/foundational + a few HC
+                "publish_date": None,
+                "is_corpus_case": True,
+                "post_three_code_commencement": None,
+                "adverse_markers": [],
+                "snippet": (rec.get("text") or "")[:600],
+            }
+        kept.append(cand)
+
+    if not kept:
+        return []
+
+    docs = [_candidate_document(c) for c in kept]
+    ranked = rerank_fn(user_message, docs, top_k=None) if rerank_fn else None
+    rerank_used = ranked is not None
+    score_by_index = {r["index"]: r["score"] for r in (ranked or [])}
+
+    for idx, cand in enumerate(kept):
+        rerank_score = score_by_index.get(idx, 0.0)
+        cross = max(0, len(cand["matched_issues"]) - 1)
+        tier = court_tier_rank(cand["triage"]["court_tier"])
+        cand["rerank_score"] = rerank_score
+        cand["rerank_used"] = rerank_used
+        cand["score"] = rerank_score + _W_CROSS_ISSUE * cross + _W_COURT_TIER * tier
+
+    kept.sort(key=lambda c: c["score"], reverse=True)
+
+    # Cap the number of already-in-corpus cases so the list stays mostly
+    # new judgments.
+    out, corpus_seen = [], 0
+    for cand in kept:
+        if cand["source"] == "corpus":
+            if corpus_seen >= _MAX_CORPUS_IN_RESULT:
+                continue
+            corpus_seen += 1
+        out.append(cand)
+        if len(out) >= keep:
+            break
+    return out
+
+
+def _slugify(text, maxlen=60):
+    s = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+    return (s[:maxlen].rstrip("-")) or "query"
+
+
+def write_review_bundle(user_message, profile, anchors, ranked, *,
+                        grounded_answer_text=None, degraded=False,
+                        out_dir="related_judgments_review"):
+    """Write the pooled/ranked candidates + how they were found to
+    <out_dir>/<slug>.json, for a human to read and curate genuinely-good
+    judgments into the corpus by hand. Mirrors
+    citation_currency_checker.write_review_bundle. Overwrites a previous
+    bundle for the same slug. Returns the path."""
+    os.makedirs(out_dir, exist_ok=True)
+    slug = _slugify(user_message)
+    path = os.path.join(out_dir, f"{slug}.json")
+
+    bundle = {
+        "user_message": user_message,
+        "grounded_answer_excerpt": (grounded_answer_text or "")[:1500] or None,
+        "generated_utc": datetime.now(timezone.utc).isoformat(),
+        "profile": profile,
+        "anchors": anchors,
+        "degraded": degraded,
+        "counts": {
+            "candidates_ranked": len(ranked),
+            "from_indiankanoon": sum(1 for r in ranked if r["source"] == "indiankanoon"),
+            "from_corpus": sum(1 for r in ranked if r["source"] == "corpus"),
+        },
+        "candidates": [
+            {
+                "source": r["source"],
+                "score": round(r["score"], 4),
+                "rerank_score": round(r["rerank_score"], 4),
+                "rerank_used": r["rerank_used"],
+                "matched_issue_indices": r["matched_issues"],
+                "queries": r.get("queries", []),
+                "triage": r["triage"],
+            }
+            for r in ranked
+        ],
+        "disclaimer": (
+            "UNVERIFIED. Every candidate here was retrieved automatically. "
+            "No field is a determination that a judgment is on point, "
+            "still good law, or not under appeal. adverse_markers is a "
+            "keyword flag for a human, never a verdict."
+        ),
+    }
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(bundle, fh, indent=2, ensure_ascii=False)
+    logger.info("wrote related-judgments review bundle: %s", path)
+    return path
+
+
+_KILL_SWITCH_ENV = "KYR_DISABLE_LIVE_JUDGMENTS"
+
+
+def get_related_judgments(user_message, grounded_answer_text=None, *,
+                          write_bundle=True, ik_search_fn=None,
+                          local_search_fn=None, rerank_fn=None,
+                          decompose_fn=None, today=None):
+    """Lane B entry point (Phase 1b form: stops after ranking + the review
+    bundle -- fetch / paragraph-pinning / gloss / whitelist gate are
+    later phases).
+
+    Returns a dict with 'status' always set:
+      'disabled'          -- KYR_DISABLE_LIVE_JUDGMENTS is set
+      'no_decomposition'  -- the situation could not be broken into issues
+      'no_candidates'     -- searches ran but nothing survived ranking
+      'ok'                -- 'candidates' holds the ranked list
+    plus 'candidates' (possibly []), 'bundle_path' (or None), 'profile',
+    'anchors', 'degraded' (True if the reranker was unavailable).
+
+    NEVER raises for an operational failure -- every path returns a dict
+    the caller can render or ignore. This function's result is NEVER fed
+    back into the grounded-answer pipeline.
+    """
+    empty = {"status": None, "candidates": [], "bundle_path": None,
+             "profile": None, "anchors": [], "degraded": False}
+
+    if os.getenv(_KILL_SWITCH_ENV):
+        return {**empty, "status": "disabled"}
+
+    decompose = decompose_fn or decompose_situation
+    profile = decompose(user_message)
+    if not profile:
+        return {**empty, "status": "no_decomposition"}
+
+    anchors = build_anchors(profile)
+
+    pooled = search_candidates(
+        anchors, ik_search_fn=ik_search_fn, local_search_fn=local_search_fn
+    )
+    ranked = rank_candidates(
+        pooled, user_message, rerank_fn=rerank_fn,
+        grounded_answer_text=grounded_answer_text, today=today
+    )
+    degraded = bool(ranked) and not ranked[0].get("rerank_used", False)
+
+    bundle_path = None
+    if write_bundle:
+        try:
+            bundle_path = write_review_bundle(
+                user_message, profile, anchors, ranked,
+                grounded_answer_text=grounded_answer_text, degraded=degraded,
+            )
+        except Exception:
+            logger.exception("get_related_judgments: could not write review bundle")
+
+    return {
+        "status": "ok" if ranked else "no_candidates",
+        "candidates": ranked,
+        "bundle_path": bundle_path,
+        "profile": profile,
+        "anchors": anchors,
+        "degraded": degraded,
+    }
+
+
+def _print_result(result):
+    print(f"\nstatus: {result['status']}   degraded(rerank down): {result['degraded']}")
+    if result["profile"]:
+        print(f"grievance: {result['profile'].get('primary_grievance')}")
+        for i, iss in enumerate(result["profile"]["issues"]):
+            print(f"  issue {i}: {iss['issue']}  <- {iss['hook_phrase']!r}")
+    print(f"\n{len(result['candidates'])} ranked candidate(s):")
+    for r in result["candidates"]:
+        t = r["triage"]
+        tags = []
+        if r["source"] == "corpus":
+            tags.append("CORPUS (verified)")
+        if t.get("adverse_markers"):
+            tags.append("ADVERSE: " + ",".join(t["adverse_markers"]))
+        if len(r["matched_issues"]) > 1:
+            tags.append(f"{len(r['matched_issues'])} issues")
+        tag = f"  [{' | '.join(tags)}]" if tags else ""
+        print(f"  {r['score']:.3f}  {t.get('court_tier', '?'):>13}  "
+              f"{(t.get('title') or '')[:66]}{tag}")
+        if t.get("url"):
+            print(f"         {t['url']}")
+    if result["bundle_path"]:
+        print(f"\nbundle: {result['bundle_path']}")
+
+
+if __name__ == "__main__":
+    import argparse
+
+    logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
+    ap = argparse.ArgumentParser(
+        description="Lane B search phase for a chat question. Makes REAL Indian "
+                    "Kanoon calls -- costs IK credits. Writes a review bundle."
+    )
+    ap.add_argument("question", help="the user's free-text situation")
+    ap.add_argument("--answer", default=None,
+                    help="the grounded answer text (its cited sections become an extra anchor)")
+    ap.add_argument("--no-bundle", action="store_true", help="don't write the review bundle")
+    args = ap.parse_args()
+
+    res = get_related_judgments(args.question, args.answer, write_bundle=not args.no_bundle)
+    _print_result(res)

@@ -19,3 +19,9 @@ citation_currency_review/
 # eval_chat_answers.py output: regenerable run reports (each run makes
 # live API calls). Keep locally for before/after comparison; not tracked.
 eval_out/
+
+# related_judgments.py (Lane B) output: regenerable, UNVERIFIED candidate
+# bundles from live Indian Kanoon searches. A human reads these to curate
+# genuinely-good judgments into the corpus by hand -- the bundle is a
+# working artifact, not a source of truth. Not tracked.
+related_judgments_review/

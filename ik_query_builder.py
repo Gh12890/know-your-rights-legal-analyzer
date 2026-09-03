@@ -402,6 +402,48 @@ def _section_numbers_from_labels(labels: list) -> list:
     return out
 
 
+# Filler words that carry no search signal -- dropped from issue-keyword
+# extraction and trimmed off the front of an over-long fact phrase.
+_QUERY_STOPWORDS = frozenset("""
+a an the this that these those and or but of to in on at by for with as is are
+was were be been being he she it they them his her their my our your i we me us
+you not no nor so then than there here have has had do does did about after over
+under from into out up down will would can could within was were on around
+last month year years time still even though yet been being
+""".split())
+
+
+def _keywords(text: str, n: int = 5) -> list:
+    """The first `n` content words of `text` (lowercased, stopwords and
+    pure numbers dropped, order kept, deduped)."""
+    out = []
+    for w in _re.findall(r"[a-z]+", (text or "").lower()):
+        if w in _QUERY_STOPWORDS or len(w) < 3:
+            continue
+        if w not in out:
+            out.append(w)
+        if len(out) >= n:
+            break
+    return out
+
+
+def _trim_phrase(phrase: str, max_words: int = 5) -> str:
+    """A phrase query only matches if it appears verbatim in a judgment;
+    an 8-10 word layman phrase almost never does. Drop leading and
+    trailing filler, then keep at most `max_words` words -- a shorter
+    distinctive run is far more likely to hit (and the keyword+section
+    companion query from build_issue_queries is the real workhorse)."""
+    words = _clean_phrase(phrase).split()
+    while words and words[0].lower() in _QUERY_STOPWORDS:
+        words.pop(0)
+    while words and words[-1].lower() in _QUERY_STOPWORDS:
+        words.pop()
+    words = words[:max_words]
+    while words and words[-1].lower() in _QUERY_STOPWORDS:
+        words.pop()
+    return " ".join(words)
+
+
 def build_issue_query(anchor: dict, *, courts: str = "supremecourt,highcourts",
                       fromdate: str = None, include_phrase: bool = True) -> str:
     """One Indian Kanoon `formInput` string for a single issue anchor
@@ -411,36 +453,48 @@ def build_issue_query(anchor: dict, *, courts: str = "supremecourt,highcourts",
              "doctrine_hooks"}
     courts: value for the `doctypes:` filter, or "" / None to omit it.
     fromdate: "DD-MM-YYYY" for a `fromdate:` recency bias, or None.
-    include_phrase: if False, drop the verbatim fact phrase (a broader
-        fallback query -- section numbers + doctrine only).
+    include_phrase: if True, lead with a trimmed verbatim fact phrase;
+        if False, a broader query -- issue keywords + doctrine + sections
+        (the phrase-anchored query often returns nothing).
 
-    Returns a plain query string. Never raises on a well-formed anchor;
-    an anchor with no usable signal returns just the issue text.
+    Returns a plain query string. Never raises on a well-formed anchor.
     """
     parts = []
 
     if include_phrase:
-        hook = _clean_phrase(anchor.get("hook_phrase", ""))
-        if hook and len(hook.split()) >= 2:
-            parts.append(f'"{hook}"')
+        phrase = _trim_phrase(anchor.get("hook_phrase", ""))
+        if phrase and len(phrase.split()) >= 2:
+            parts.append(f'"{phrase}"')
+    else:
+        # keyword signal from the model's clean neutral issue description
+        parts.extend(_keywords(anchor.get("issue", ""), n=5))
 
     for lbl in (anchor.get("doctrine_hooks") or [])[:2]:
-        # Drop a subsection parenthetical first ("Article 22(1)" ->
-        # "Article 22") -- IK matches the article/section fine and the
-        # bare "1" left behind by _clean_phrase only adds noise.
+        # Drop a subsection parenthetical ("Article 22(1)" -> "Article 22").
         cleaned = _clean_phrase(_re.sub(r"\s*\([^)]*\)", "", lbl))
-        if cleaned:
-            parts.append(f'"{cleaned}"' if len(cleaned.split()) >= 2 else cleaned)
+        if not cleaned:
+            continue
+        # Quote a multi-word CASE NAME ("D K Basu") -- a phrase match is
+        # what you want there. Leave a bare provision reference
+        # ("Article 22", "Section 50") UNQUOTED: quoting it made every
+        # preventive-detention constitutional judgment a top hit in the
+        # first Phase-1b trial.
+        is_provision_ref = bool(_re.match(r"(?i)(article|section|s\.?)\s+\d", cleaned))
+        if len(cleaned.split()) >= 2 and not is_provision_ref:
+            parts.append(f'"{cleaned}"')
+        else:
+            parts.append(cleaned)
 
     # Old (IPC/CrPC) numbers first -- most of IK's corpus is indexed under
-    # them -- then the new numbers for the minority of recent judgments.
+    # them -- then the new. Kept SHORT: a query stuffed with numbers
+    # matches on citation lists, not on the point of law.
     secnums = _section_numbers_from_labels(
-        (anchor.get("old_sections") or [])[:3] + (anchor.get("new_sections") or [])[:2]
+        (anchor.get("old_sections") or [])[:2] + (anchor.get("new_sections") or [])[:1]
     )
     parts.extend(secnums)
 
     if not parts:
-        parts.append(_clean_phrase(anchor.get("issue", "")) or "criminal procedure")
+        parts.extend(_keywords(anchor.get("issue", ""), n=5) or ["criminal", "procedure"])
 
     query = " ".join(p for p in parts if p).strip()
     if courts:
@@ -453,20 +507,19 @@ def build_issue_query(anchor: dict, *, courts: str = "supremecourt,highcourts",
 
 
 def build_issue_queries(anchor: dict, **kwargs) -> list:
-    """Up to two queries for one issue, in priority order: the phrase-
-    anchored query, then -- only if the anchor HAS a usable phrase and at
-    least one section number -- a broader phrase-less fallback. Callers
-    pool the results of both and dedupe by tid before ranking."""
-    primary = build_issue_query(anchor, include_phrase=True, **kwargs)
-    queries = [primary]
+    """Two queries for one issue: the trimmed-phrase query (precise, often
+    zero hits) and the keyword+section query (broad, always something).
+    Both run -- the phrase query, when it hits, tends to hit well; the
+    keyword query is the safety net. Deduped. Callers pool the results
+    across queries and issues, then dedupe by tid before ranking."""
+    queries = []
+    phrase = _trim_phrase(anchor.get("hook_phrase", ""))
+    if phrase and len(phrase.split()) >= 2:
+        queries.append(build_issue_query(anchor, include_phrase=True, **kwargs))
 
-    hook = _clean_phrase(anchor.get("hook_phrase", ""))
-    has_phrase = bool(hook and len(hook.split()) >= 2)
-    has_sections = bool(anchor.get("old_sections") or anchor.get("new_sections"))
-    if has_phrase and has_sections:
-        fallback = build_issue_query(anchor, include_phrase=False, **kwargs)
-        if fallback and fallback != primary:
-            queries.append(fallback)
+    broad = build_issue_query(anchor, include_phrase=False, **kwargs)
+    if broad and broad not in queries:
+        queries.append(broad)
 
-    return queries
+    return queries or [build_issue_query(anchor, include_phrase=False, **kwargs)]
 
