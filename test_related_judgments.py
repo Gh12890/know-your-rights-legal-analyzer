@@ -760,6 +760,55 @@ check(m_auths[0]["para_number"] == 21 and "vitiates the arrest" in m_auths[0]["q
 
 
 # ---------------------------------------------------------------------------
+# The user-approved store: record_approved / approved_candidates
+# ---------------------------------------------------------------------------
+import tempfile, os as _os, json as _json
+
+_store = _os.path.join(tempfile.mkdtemp(), "approved.json")
+_issues = [{"issue": "arrest of a person not produced before a magistrate within twenty-four hours"},
+           {"issue": "denial of access to a lawyer during police custody"}]
+_result_to_approve = {"for_display": [
+    {"source": "indiankanoon",
+     "triage": {"tid": 42, "title": "Mujeeb Rahman v State of Kerala", "court": "Kerala High Court",
+                "url": "https://indiankanoon.org/doc/42/", "citation": ""},
+     "pinned": [{"para_number": 12, "text": "The right to be produced before a Magistrate within twenty-four hours is absolute."}],
+     "gloss": "Deals with delayed production before a magistrate."},
+    {"source": "indiankanoon", "triage": {"tid": 43, "title": "No Pins"}, "pinned": []},  # skipped
+]}
+
+n = rj.record_approved("my brother was not produced before a magistrate in 24 hours and denied a lawyer",
+                       _issues, _result_to_approve, path=_store)
+check(n == 1, "record_approved stores one judgment (the one with a pinned paragraph)")
+check(_os.path.exists(_store), "the approved store file is written")
+
+# re-recording the same judgment does not duplicate it
+n2 = rj.record_approved("another similar question about 24 hour production", _issues, _result_to_approve, path=_store)
+check(n2 == 0 and len(_json.load(open(_store))) == 1, "recording the same tid again is a no-op")
+
+# a new question whose issues overlap -> the approved judgment comes back, pre-pinned
+prof = {"_question": "different wording",
+        "issues": [{"issue": "person was not produced before the magistrate within 24 hours of arrest"}]}
+got = rj.approved_candidates(prof, path=_store)
+check(len(got) == 1 and got[0]["source"] == "approved", "an overlapping-issue question retrieves the approved judgment")
+check(got[0]["pinned"] and got[0]["pinned"][0]["para_number"] == 12,
+      "it comes back pre-pinned -- no Indian Kanoon call needed")
+check(got[0]["triage"]["previously_approved"] is True, "flagged previously_approved")
+
+# an unrelated question -> nothing
+check(rj.approved_candidates({"issues": [{"issue": "my landlord filed an eviction suit"}]}, path=_store) == [],
+      "an unrelated question retrieves nothing from the approved store")
+
+# exact-question match works even with different issue phrasing
+check(len(rj.approved_candidates(
+    {"_question": "my brother was not produced before a magistrate in 24 hours and denied a lawyer",
+     "issues": [{"issue": "completely different phrasing here"}]}, path=_store)) == 1,
+    "the exact same question retrieves the approved judgment regardless of issue wording")
+
+check(rj.approved_candidates({"issues": []}, path="/nonexistent/nope.json") == [],
+      "a missing store file -> [], never a raise")
+
+
+# ---------------------------------------------------------------------------
 print()
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILED")

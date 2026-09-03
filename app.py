@@ -1610,6 +1610,8 @@ def _render_related_judgments_result(result):
             bits = [f"**{title}**"]
             if t.get("cited_in_answer"):
                 bits.append("_the judgment cited in the answer above_")
+            elif t.get("previously_approved"):
+                bits.append("_you kept this in a draft before_")
             elif c.get("source") == "corpus":
                 bits.append("in our verified library")
             elif t.get("court"):
@@ -1722,6 +1724,14 @@ def _render_arrest_draft_section():
                     rr = st.session_state.get(f"related_result_{qhash}")
                     if rr:
                         auths = authorities_from_result(rr) + auths
+                        # the user has read these live judgments and is putting
+                        # them into a filing -> remember them so the same /
+                        # a similar question retrieves them instantly next time
+                        try:
+                            from related_judgments import record_approved
+                            record_approved(la["question"], (rr.get("profile") or {}).get("issues", []), rr)
+                        except Exception:
+                            pass
                     st.session_state[fa_key] = {"fa": fa, "authorities": auths, "matters": matters}
             except Exception:
                 st.session_state[fa_key] = {"error": True}

@@ -25,3 +25,8 @@ eval_out/
 # genuinely-good judgments into the corpus by hand -- the bundle is a
 # working artifact, not a source of truth. Not tracked.
 related_judgments_review/
+
+# related_judgments.py user-approved store: judgments a user kept in a
+# prepared draft, cached so a similar question retrieves them instantly.
+# Per-user, still UNVERIFIED, never feeds the grounded answer. Not tracked.
+related_judgments_approved.json

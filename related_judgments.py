@@ -1189,6 +1189,7 @@ def prepare_related_judgments(user_message, *, decompose_fn=None,
     if not profile:
         return None
 
+    profile.setdefault("_question", user_message)
     anchors = build_anchors(profile)
     corpus_pool = corpus_candidates(
         anchors, local_search_fn=local_search_fn,
@@ -1199,8 +1200,136 @@ def prepare_related_judgments(user_message, *, decompose_fn=None,
         grounded_answer_text=grounded_answer_text, today=today,
         keep=_KEEP_FINAL,
     )
+    # judgments the user kept in a draft for the same / a similar question
+    # -- pre-pinned, no IK call. Merged ahead of the corpus ones.
+    seed = approved_candidates(profile)
+    if seed:
+        seen = {(c["source"], c["triage"].get("tid") or c["triage"].get("title")) for c in corpus_ranked}
+        corpus_ranked = [c for c in seed
+                         if (c["source"], c["triage"].get("tid") or c["triage"].get("title")) not in seen
+                         ] + corpus_ranked
     return {"profile": profile, "anchors": anchors,
             "corpus_ranked": corpus_ranked, "today": today}
+
+
+# ---------------------------------------------------------------------------
+# The user-approved store. When a live judgment is kept in a draft the user
+# prepared (they read it, edited around it, sent it on), it is recorded
+# here so the SAME / a similar question retrieves it instantly next time --
+# no Indian Kanoon call, paragraphs already pinned.
+#
+# This is NOT the verified corpus. It never feeds the grounded answer
+# (Lane A). It only pre-seeds Lane B, still shown with the unverified
+# framing. Gitignored, like the review bundles.
+# ---------------------------------------------------------------------------
+
+_APPROVED_STORE = "related_judgments_approved.json"
+_APPROVED_MATCH_FLOOR = 0.55   # content-word overlap between a stored issue and a new one
+
+
+def _issue_overlap(a, b):
+    wa, wb = _content_words(a), _content_words(b)
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / len(wa | wb)
+
+
+def _load_approved(path=_APPROVED_STORE):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, list) else []
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+
+
+def record_approved(question, issues, ranked_or_result, *, path=_APPROVED_STORE):
+    """Append the judgments a user kept in a prepared draft to the store.
+    Accepts a get_related_judgments() result OR a raw ranked list. Deduped
+    by tid (IK) / title (corpus). Only entries with a pinned paragraph are
+    stored. Never raises."""
+    cands = ((ranked_or_result or {}).get("for_display")
+             if isinstance(ranked_or_result, dict) else ranked_or_result) or []
+    issue_texts = [str(i.get("issue") if isinstance(i, dict) else i) for i in (issues or [])]
+
+    store = _load_approved(path)
+    have = {(e.get("tid"), (e.get("case_name") or "").lower()) for e in store}
+    added = 0
+    for c in cands:
+        pinned = c.get("pinned") or []
+        if not pinned:
+            continue
+        t = c.get("triage", {})
+        key = (t.get("tid"), (t.get("title") or "").lower())
+        if key in have:
+            continue
+        have.add(key)
+        store.append({
+            "tid": t.get("tid"),
+            "case_name": t.get("title") or "Judgment",
+            "citation": t.get("citation") or "",
+            "court": t.get("court") or "",
+            "url": t.get("url") or "",
+            "publish_date": t.get("publish_date"),
+            "source": c.get("source", "indiankanoon"),
+            "pinned": [{"para_number": p.get("para_number"), "structure": p.get("structure"),
+                        "text": (p.get("text") or "")[:1200]} for p in pinned[:_MAX_PINNED_PARAS]],
+            "gloss": c.get("gloss"),
+            "issues": issue_texts,
+            "approved_for_question": (question or "")[:400],
+            "approved_utc": datetime.now(timezone.utc).isoformat(),
+        })
+        added += 1
+
+    if added:
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(store, fh, indent=2, ensure_ascii=False)
+        except OSError:
+            logger.warning("record_approved: could not write %s", path)
+    return added
+
+
+def approved_candidates(profile, *, path=_APPROVED_STORE):
+    """Stored judgments whose approved-for issues overlap this question's
+    issues (or the exact same question). Returned pre-pinned, as candidate
+    dicts with source='approved' -- no Indian Kanoon call. [] if none."""
+    store = _load_approved(path)
+    if not store or not profile:
+        return []
+    new_issues = [i.get("issue", "") for i in profile.get("issues", [])]
+    q = (profile.get("_question") or "").strip().lower()  # optional, set by callers
+
+    out = []
+    for e in store:
+        exact = q and (e.get("approved_for_question") or "").strip().lower() == q
+        overlap = exact or any(
+            _issue_overlap(si, ni) >= _APPROVED_MATCH_FLOOR
+            for si in e.get("issues", []) for ni in new_issues
+        )
+        if not overlap:
+            continue
+        out.append({
+            "source": "approved",
+            "matched_issues": list(range(len(new_issues))),
+            "queries": [],
+            "pinned": [dict(p) for p in e.get("pinned", [])],
+            "gloss": e.get("gloss"),
+            "content_score": 0.6,   # it was good enough to keep in a filing
+            "rerank_score": 0.6,
+            "rerank_used": True,
+            "_nudges": 0.0,
+            "score": 0.6,
+            "triage": {
+                "tid": e.get("tid"), "title": e.get("case_name"),
+                "citation": e.get("citation"), "court": e.get("court"),
+                "court_tier": "high_court", "url": e.get("url"),
+                "publish_date": e.get("publish_date"), "is_corpus_case": False,
+                "cited_in_answer": False, "adverse_markers": [],
+                "previously_approved": True,
+            },
+        })
+    return out
 
 
 _PREP_EXECUTOR = None
@@ -1274,41 +1403,27 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
     if prepared and prepared.get("profile"):
         profile = prepared["profile"]
         anchors = prepared["anchors"]
-        corpus_pool = None  # already in prepared["corpus_ranked"]
-        seeded = list(prepared.get("corpus_ranked") or [])
+        # prepared["corpus_ranked"] is corpus + user-approved, already ranked
+        pre_ranked = list(prepared.get("corpus_ranked") or [])
         if today is None:
             today = prepared.get("today")
+        ik_pool = search_candidates(anchors, ik_search_many_fn=ik_search_many_fn, corpus_pool=[])
+        ik_ranked = rank_candidates(
+            ik_pool, user_message, rerank_fn=rerank_fn,
+            grounded_answer_text=grounded_answer_text, today=today,
+        )
+        ranked = _merge_ranked(ik_ranked, pre_ranked)
     else:
         decompose = decompose_fn or decompose_situation
         profile = decompose(user_message)
         if not profile:
             return {**empty, "status": "no_decomposition"}
+        profile.setdefault("_question", user_message)
         anchors = build_anchors(profile)
         corpus_pool = corpus_candidates(
             anchors, local_search_fn=local_search_fn,
             local_search_many_fn=local_search_many_fn,
         )
-        seeded = []
-
-    # The paid half: Indian Kanoon searches (concurrent). When we have a
-    # prepared corpus pool, search_candidates only does the IK part and we
-    # merge the pre-ranked corpus candidates back in afterwards.
-    if seeded:
-        ik_only = search_candidates(
-            anchors, ik_search_many_fn=ik_search_many_fn, corpus_pool=[],
-        )
-        ranked = rank_candidates(
-            ik_only, user_message, rerank_fn=rerank_fn,
-            grounded_answer_text=grounded_answer_text, today=today,
-        )
-        # merge: keep both, re-sort by score, cap
-        by_key = {(c["source"], c["triage"].get("tid") or c["triage"].get("title")): c
-                  for c in ranked}
-        for c in seeded:
-            by_key.setdefault(
-                (c["source"], c["triage"].get("tid") or c["triage"].get("title")), c)
-        ranked = sorted(by_key.values(), key=lambda c: c.get("score", 0.0), reverse=True)[:_KEEP_FINAL]
-    else:
         pooled = search_candidates(
             anchors, ik_search_many_fn=ik_search_many_fn,
             local_search_fn=local_search_fn,
@@ -1318,6 +1433,10 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
             pooled, user_message, rerank_fn=rerank_fn,
             grounded_answer_text=grounded_answer_text, today=today,
         )
+        # user-approved judgments are pre-built (they carry their own
+        # triage/score) -- merge them AFTER rank_candidates, which expects
+        # a 'record'/'raw' on every input.
+        ranked = _merge_ranked(ranked, approved_candidates(profile))
 
     if pin and ranked:
         pin_query = " ".join(
@@ -1377,6 +1496,17 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         "show_user": show_user,
         "whitelist": wl,
     }
+
+
+def _merge_ranked(*lists, keep=_KEEP_FINAL):
+    """Union candidate lists, deduped by (source, tid-or-title), sorted by
+    score desc, capped at `keep`. First occurrence of a key wins."""
+    by_key = {}
+    for lst in lists:
+        for c in lst or []:
+            t = c.get("triage", {})
+            by_key.setdefault((c["source"], t.get("tid") or t.get("title")), c)
+    return sorted(by_key.values(), key=lambda c: c.get("score", 0.0), reverse=True)[:keep]
 
 
 def _para_num_or_none(v):
