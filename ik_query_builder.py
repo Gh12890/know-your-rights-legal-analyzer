@@ -361,3 +361,112 @@ def list_available_case_keys() -> list:
     """
     return sorted(CASE_METADATA.keys())
 
+
+# ---------------------------------------------------------------------------
+# ISSUE-anchored queries (Option A, finally built -- 2026-09-03).
+#
+# The doctrine-anchored queries above find the citing progeny of a case we
+# ALREADY trust. These build a query for an arbitrary issue a chat user
+# described -- anchored on (a) a verbatim fact phrase from their message,
+# (b) the pre-2024 IPC/CrPC section number (Indian Kanoon's corpus is
+# overwhelmingly indexed under the old numbers), (c) any doctrine name.
+#
+# Still not a relevance judgement: this only answers "given an issue, what
+# is a reasonable IK search string?". related_judgments.py pools the
+# results across a user's several issues and reranks them against the full
+# message; that is where relevance is actually decided.
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+_PHRASE_CLEAN_RE = _re.compile(r'["“”‘’]')
+
+
+def _clean_phrase(text: str) -> str:
+    """Strip the quote characters IK's phrase syntax would choke on and
+    collapse whitespace. Keeps letters, digits, spaces, hyphens."""
+    text = _PHRASE_CLEAN_RE.sub("", text or "")
+    text = _re.sub(r"[^\w\s\-]", " ", text)
+    return _re.sub(r"\s+", " ", text).strip()
+
+
+def _section_numbers_from_labels(labels: list) -> list:
+    """['CrPC 41A', 'CrPC 41'] -> ['41A', '41'] (deduped, order kept)."""
+    out = []
+    for lbl in labels or []:
+        parts = str(lbl).split()
+        if parts:
+            num = parts[-1]
+            if num not in out:
+                out.append(num)
+    return out
+
+
+def build_issue_query(anchor: dict, *, courts: str = "supremecourt,highcourts",
+                      fromdate: str = None, include_phrase: bool = True) -> str:
+    """One Indian Kanoon `formInput` string for a single issue anchor
+    (from related_judgments.build_anchors).
+
+    anchor: {"issue", "hook_phrase", "new_sections", "old_sections",
+             "doctrine_hooks"}
+    courts: value for the `doctypes:` filter, or "" / None to omit it.
+    fromdate: "DD-MM-YYYY" for a `fromdate:` recency bias, or None.
+    include_phrase: if False, drop the verbatim fact phrase (a broader
+        fallback query -- section numbers + doctrine only).
+
+    Returns a plain query string. Never raises on a well-formed anchor;
+    an anchor with no usable signal returns just the issue text.
+    """
+    parts = []
+
+    if include_phrase:
+        hook = _clean_phrase(anchor.get("hook_phrase", ""))
+        if hook and len(hook.split()) >= 2:
+            parts.append(f'"{hook}"')
+
+    for lbl in (anchor.get("doctrine_hooks") or [])[:2]:
+        # Drop a subsection parenthetical first ("Article 22(1)" ->
+        # "Article 22") -- IK matches the article/section fine and the
+        # bare "1" left behind by _clean_phrase only adds noise.
+        cleaned = _clean_phrase(_re.sub(r"\s*\([^)]*\)", "", lbl))
+        if cleaned:
+            parts.append(f'"{cleaned}"' if len(cleaned.split()) >= 2 else cleaned)
+
+    # Old (IPC/CrPC) numbers first -- most of IK's corpus is indexed under
+    # them -- then the new numbers for the minority of recent judgments.
+    secnums = _section_numbers_from_labels(
+        (anchor.get("old_sections") or [])[:3] + (anchor.get("new_sections") or [])[:2]
+    )
+    parts.extend(secnums)
+
+    if not parts:
+        parts.append(_clean_phrase(anchor.get("issue", "")) or "criminal procedure")
+
+    query = " ".join(p for p in parts if p).strip()
+    if courts:
+        query += f" doctypes:{courts}"
+    if fromdate:
+        query += f" fromdate:{fromdate}"
+
+    logger.info("built issue query: %r", query)
+    return query
+
+
+def build_issue_queries(anchor: dict, **kwargs) -> list:
+    """Up to two queries for one issue, in priority order: the phrase-
+    anchored query, then -- only if the anchor HAS a usable phrase and at
+    least one section number -- a broader phrase-less fallback. Callers
+    pool the results of both and dedupe by tid before ranking."""
+    primary = build_issue_query(anchor, include_phrase=True, **kwargs)
+    queries = [primary]
+
+    hook = _clean_phrase(anchor.get("hook_phrase", ""))
+    has_phrase = bool(hook and len(hook.split()) >= 2)
+    has_sections = bool(anchor.get("old_sections") or anchor.get("new_sections"))
+    if has_phrase and has_sections:
+        fallback = build_issue_query(anchor, include_phrase=False, **kwargs)
+        if fallback and fallback != primary:
+            queries.append(fallback)
+
+    return queries
+

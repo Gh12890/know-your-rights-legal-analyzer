@@ -49,6 +49,7 @@ except ImportError:
     _voyage_available = False
 
 MODEL = "voyage-law-2"
+RERANK_MODEL = "rerank-2"
 EMBEDDINGS_PATH = "embeddings/corpus_embeddings.json"
 
 
@@ -154,6 +155,50 @@ def semantic_search(query, top_k=TOP_MATCHES_TO_CONSIDER, _raise_errors=False):
         record["score"] = float(scores[idx])
         results.append(record)
     return results
+
+
+def rerank(query, documents, top_k=None, _raise_errors=False):
+    """Score `documents` (a list of strings) for relevance to `query`
+    using Voyage's cross-encoder reranker, which reads the query and each
+    document TOGETHER -- unlike semantic_search's separate-embedding
+    cosine, which loses nuance on long, multi-part queries.
+
+    Used by related_judgments.py (Lane B) to rank a pool of candidate
+    judgments against the user's FULL situation, and to pin the on-point
+    paragraphs within a fetched judgment.
+
+    Returns a list of {"index": int, "score": float, "document": str},
+    sorted best-first (length min(top_k, len(documents))), OR None if the
+    reranker is unavailable (no voyageai, no API key, network failure) --
+    callers must treat None as an honest "could not rank", the same as
+    semantic_search returning None, and fall back rather than crash.
+
+    A scoring function, not a generator: it invents nothing and cites
+    nothing. Consistent with this project's one architectural principle.
+    """
+    if not _voyage_available:
+        return None
+    docs = [d for d in (documents or []) if isinstance(d, str) and d.strip()]
+    if not query or not docs:
+        return []
+
+    try:
+        client = voyageai.Client()
+        resp = client.rerank(query, docs, model=RERANK_MODEL, top_k=top_k)
+    except Exception:
+        if _raise_errors:
+            raise
+        return None
+
+    out = []
+    for r in getattr(resp, "results", []) or []:
+        out.append({
+            "index": int(r.index),
+            "score": float(r.relevance_score),
+            "document": docs[int(r.index)],
+        })
+    out.sort(key=lambda x: x["score"], reverse=True)
+    return out
 
 
 """

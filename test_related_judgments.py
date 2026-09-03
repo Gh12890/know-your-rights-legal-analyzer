@@ -205,6 +205,76 @@ with patch("related_judgments.client") as mock_client:
 
 
 # ---------------------------------------------------------------------------
+# ik_query_builder.build_issue_query / build_issue_queries (no network)
+# ---------------------------------------------------------------------------
+from ik_query_builder import build_issue_query, build_issue_queries
+
+_anchor = {
+    "issue": "grounds of arrest not communicated",
+    "hook_phrase": "They never told us why",
+    "new_sections": ["BNSS 47"],
+    "old_sections": ["CrPC 50"],
+    "doctrine_hooks": ["Article 22(1)"],
+}
+q = build_issue_query(_anchor, fromdate="01-01-2015")
+check('"They never told us why"' in q, "verbatim fact phrase is quoted in the query")
+check(" 50 " in f" {q} " and " 47 " in f" {q} ", "old (CrPC 50) and new (BNSS 47) section numbers both appear")
+check("Article 22 1" not in q and "Article 22" in q, "'Article 22(1)' -> 'Article 22' (subsection paren dropped)")
+check("doctypes:supremecourt,highcourts" in q, "court filter appended")
+check("fromdate:01-01-2015" in q, "fromdate appended when given")
+
+qs = build_issue_queries(_anchor)
+check(len(qs) == 2, "phrase-anchored + phrase-less fallback when the anchor has both a phrase and sections")
+check('"They never told us why"' not in qs[1], "the fallback query drops the verbatim phrase")
+
+no_sec = {"issue": "x", "hook_phrase": "police came to our house", "new_sections": [],
+          "old_sections": [], "doctrine_hooks": []}
+check(len(build_issue_queries(no_sec)) == 1, "no fallback when there are no section numbers to broaden to")
+
+empty = {"issue": "arrest procedure", "hook_phrase": "", "new_sections": [],
+         "old_sections": [], "doctrine_hooks": []}
+check(build_issue_query(empty).startswith("arrest procedure"),
+      "a signal-less anchor falls back to the issue text, never an empty query")
+
+
+# ---------------------------------------------------------------------------
+# semantic_retrieval.rerank -- Voyage client mocked (no API cost)
+# ---------------------------------------------------------------------------
+import semantic_retrieval as sr
+
+
+class _RerankResult:
+    def __init__(self, index, score):
+        self.index = index
+        self.relevance_score = score
+
+
+class _RerankResponse:
+    def __init__(self, pairs):
+        self.results = [_RerankResult(i, s) for i, s in pairs]
+
+
+check(sr.rerank("q", []) == [], "rerank with no documents -> [] (not None)")
+check(sr.rerank("", ["a", "b"]) == [], "rerank with empty query -> []")
+
+with patch("semantic_retrieval._voyage_available", True), \
+     patch("semantic_retrieval.voyageai") as mock_voyage:
+    mock_voyage.Client.return_value.rerank.return_value = _RerankResponse([(2, 0.9), (0, 0.4)])
+    out = sr.rerank("which case is about X", ["doc-a", "doc-b", "doc-c"], top_k=2)
+    check([o["index"] for o in out] == [2, 0], "results returned best-first by score")
+    check(out[0]["document"] == "doc-c", "index maps back to the right document string")
+    check(out[0]["score"] == 0.9, "relevance_score carried through")
+
+with patch("semantic_retrieval._voyage_available", True), \
+     patch("semantic_retrieval.voyageai") as mock_voyage:
+    mock_voyage.Client.return_value.rerank.side_effect = RuntimeError("voyage down")
+    check(sr.rerank("q", ["a", "b"]) is None, "a reranker exception -> None (honest 'could not rank')")
+
+with patch("semantic_retrieval._voyage_available", False):
+    check(sr.rerank("q", ["a", "b"]) is None, "reranker unavailable -> None")
+
+
+# ---------------------------------------------------------------------------
 print()
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILED")
