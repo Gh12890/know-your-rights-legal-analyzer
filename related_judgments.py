@@ -16,22 +16,27 @@ anyway. The design doc for this lane:
 
 The pipeline (this file builds it phase by phase):
   1. decompose_situation()  -- LLM EXTRACTION ONLY: break the user's
-     message into its discrete legal issues + verbatim fact hooks. This
-     is the same category of work as analyze_document()'s field
-     extraction or interview_flow's offence identification -- it decides
-     NO section and NO verdict, and every hook it emits is checked back
-     against the user's own words (_hook_phrase_in_text) before it is
-     trusted.
+     message into its discrete legal issues + verbatim fact hooks. Every
+     hook is checked back against the user's own words before it is used.
   2. build_anchors()        -- pure Python: per issue, resolve the BNS/
-     BNSS section hooks to the IPC/CrPC numbers Indian Kanoon is actually
-     indexed under (statute_concordance), and carry the verbatim hook
-     phrase.
-  3. (later phases) multi-query search -> rerank against the full
-     message -> whitelist gate -> fetch + pin paragraphs -> one bounded
-     gloss -> verbatim-substring verification -> render.
+     BNSS section hooks to the IPC/CrPC numbers Indian Kanoon is indexed
+     under (statute_concordance).
+  3. search_candidates()    -- one IK search per issue query + one local
+     corpus search per issue; pooled and deduped.
+  4. rank_candidates()      -- Voyage rerank-2 the pool against the FULL
+     user message + cross-issue bonus + court-tier weight; drop corpus
+     cases and corpus-case IK hits.
+  5. fetch_and_pin()        -- fetch the top few IK candidates, clean via
+     ik_text_cleaner, then rerank REAL PARAGRAPHS against the situation:
+     this re-orders the pool on actual content (search headlines alone
+     don't discriminate) and pins the 1-3 on-point paragraphs, with the
+     judgment's own paragraph number.
+  6. (later phases) whitelist gate -> one bounded gloss -> verbatim-
+     substring verification -> render.
 
-PHASE 0 (this commit) implements steps 1 and 2 only, plus the CLI is not
-wired yet. Nothing here calls Indian Kanoon or costs IK credits.
+Phases 0-2 are built (steps 1-5). The whitelist gate, the gloss, and the
+UI are later. get_related_judgments() is the entry point; its result is
+NEVER fed back into the grounded-answer pipeline.
 """
 
 import json
@@ -408,8 +413,10 @@ _KEEP_RANKED = 12
 
 # Scoring weights for rank_candidates. rerank score (0..~1) dominates;
 # the rest are gentle nudges, not overrides.
-_W_CROSS_ISSUE = 0.12   # per extra issue this judgment also answered
-_W_COURT_TIER = 0.04    # * court_tier_rank (0..3)
+_W_CROSS_ISSUE = 0.10    # per extra issue this judgment also answered
+_W_COURT_TIER = 0.03     # * court_tier_rank (0..3)
+_W_PHRASE_QUERY = 0.08   # candidate was surfaced by a verbatim-phrase query
+_W_RECENT = 0.03         # candidate is dated on/after the 1 Jul 2024 codes
 
 # How many already-in-corpus cases the ranked list may carry. Lane B is
 # mainly for NEW judgments; a couple of relevant verified cases the
@@ -434,7 +441,7 @@ def _corpus_case_names():
 
 
 def search_candidates(anchors, *, ik_search_fn=None, local_search_fn=None,
-                      per_query_cap=_PER_QUERY_CAP):
+                      per_query_cap=_PER_QUERY_CAP, fromdate="01-01-2015"):
     """Run one Indian Kanoon search per issue query + one local-corpus
     semantic search per issue, and pool the hits.
 
@@ -442,6 +449,9 @@ def search_candidates(anchors, *, ik_search_fn=None, local_search_fn=None,
         (defaults to the real, PAID client).
     local_search_fn: callable(query:str)->list like
         semantic_retrieval.semantic_search (defaults to the real one; free).
+    fromdate: "DD-MM-YYYY" recency floor on the IK searches (default
+        ~2015 -- older High Court judgments are far less likely to be a
+        current, on-point application). "" / None to disable.
 
     Returns a list of candidate dicts, each:
         {
@@ -474,7 +484,7 @@ def search_candidates(anchors, *, ik_search_fn=None, local_search_fn=None,
     for i, anchor in enumerate(anchors or []):
         # --- Indian Kanoon ---
         if ik_search_fn is not None:
-            for query in build_issue_queries(anchor):
+            for query in build_issue_queries(anchor, fromdate=fromdate or None):
                 try:
                     raw = ik_search_fn(query)
                 except Exception:
@@ -613,9 +623,21 @@ def rank_candidates(candidates, user_message, *, rerank_fn=None,
         rerank_score = score_by_index.get(idx, 0.0)
         cross = max(0, len(cand["matched_issues"]) - 1)
         tier = court_tier_rank(cand["triage"]["court_tier"])
+        # A candidate that a "quoted verbatim phrase" query surfaced is far
+        # more likely to be genuinely on point than one that only matched a
+        # bag of section numbers and keywords.
+        from_phrase = any('"' in q for q in cand.get("queries", []))
+        recent = cand["triage"].get("post_three_code_commencement") is True
+        nudges = (
+            _W_CROSS_ISSUE * cross
+            + _W_COURT_TIER * tier
+            + (_W_PHRASE_QUERY if from_phrase else 0.0)
+            + (_W_RECENT if recent else 0.0)
+        )
         cand["rerank_score"] = rerank_score
         cand["rerank_used"] = rerank_used
-        cand["score"] = rerank_score + _W_CROSS_ISSUE * cross + _W_COURT_TIER * tier
+        cand["_nudges"] = nudges   # fetch_and_pin re-uses these on top of content_score
+        cand["score"] = rerank_score + nudges
 
     kept.sort(key=lambda c: c["score"], reverse=True)
 
@@ -631,6 +653,230 @@ def rank_candidates(candidates, user_message, *, rerank_fn=None,
         if len(out) >= keep:
             break
     return out
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 -- fetch + paragraph pinning.
+#
+# Ranking on Indian Kanoon's one-line search headlines does not
+# discriminate (a Phase-1b trial put Kasab and Navjot Sandhu in the same
+# score band as the genuinely on-point cases). So: fetch the top few IK
+# candidates, clean them with ik_text_cleaner, and rerank the REAL
+# PARAGRAPHS against the user's full situation. A candidate's content
+# score is its best paragraph's score; the same pass pins the 1-3 on-point
+# paragraphs with the judgment's own paragraph number.
+# ---------------------------------------------------------------------------
+
+_FETCH_N = 6              # top IK candidates to fetch in full (Rs 0.20 each)
+_MAX_PINNED_PARAS = 3
+_MAX_PARAS_PER_DOC = 50   # cap the rerank payload
+_KEEP_FINAL = 8
+_W_UNFETCHED = 0.4       # score multiplier for an IK candidate we didn't fetch
+
+# IK's own data-structure paragraph categories worth a small nudge when
+# choosing which paragraph to pin -- the court's reasoning and holding,
+# not the facts recital or the parties' arguments.
+_STRUCTURE_BONUS = {
+    "Conclusion": 0.06, "Precedent": 0.05, "CDiscource": 0.045,
+    "Analysis": 0.04, "Issue": 0.02,
+}
+
+_PARA_NUM_RE = re.compile(r"^\s*(\d{1,3})\s*[.)]\s")
+
+
+def _para_number(text):
+    """The judgment's own leading paragraph number ('14. ...' -> 14), or
+    None. Lets the panel cite 'para 14', not 'somewhere in the judgment'."""
+    m = _PARA_NUM_RE.match(text or "")
+    return int(m.group(1)) if m else None
+
+
+def _corpus_para_pool(case_name):
+    """Every embedded chunk of a corpus case, as a paragraph pool -- free
+    (already local), and better than the single retrieved chunk for
+    choosing what to pin."""
+    try:
+        from semantic_retrieval import _load_corpus_embeddings
+        corpus = _load_corpus_embeddings()
+    except Exception:
+        return []
+    if not corpus:
+        return []
+    pool = []
+    for r in corpus["records"]:
+        if r.get("type") != "judgment" or r.get("case_name") != case_name:
+            continue
+        text = (r.get("text") or "").strip()
+        if len(text) < 40:
+            continue
+        pool.append({"text": text, "structure": None,
+                     "para_number": _para_number(text) or r.get("paragraph_number")})
+    return pool[:_MAX_PARAS_PER_DOC]
+
+
+def _ik_para_pool(tid, fetch_fn, clean_fn):
+    """Fetch + clean one IK judgment into a paragraph pool. Returns None
+    on any failure (network, balance, or HTML that ik_text_cleaner
+    rejects) -- the caller demotes rather than drops the candidate."""
+    try:
+        raw = fetch_fn(str(tid))
+    except Exception:
+        logger.exception("_ik_para_pool: get_document failed for tid=%s", tid)
+        return None
+    html = raw.get("doc") if isinstance(raw, dict) else None
+    if not isinstance(html, str) or not html.strip():
+        logger.warning("_ik_para_pool: no 'doc' HTML for tid=%s", tid)
+        return None
+    try:
+        cleaned = clean_fn(html)
+    except Exception:
+        logger.warning("_ik_para_pool: ik_text_cleaner rejected tid=%s", tid)
+        return None
+
+    pool = []
+    for p in cleaned.get("paragraphs", []):
+        text = (p.get("text") or "").strip()
+        if len(text) < 40:
+            continue
+        pool.append({"text": text, "structure": p.get("structure"),
+                     "para_number": _para_number(text)})
+        if len(pool) >= _MAX_PARAS_PER_DOC:
+            break
+    return pool
+
+
+_PIN_STOPWORDS = frozenset("""
+a an the this that these those and or but of to in on at by for with as is are
+was were be been being he she it they them his her their my our your i we me us
+you not no nor so then than there here have has had do does did about after over
+under from into out up down will would can could court judgment judgement case
+cases police arrest arrested arresting section sections held would shall this
+petitioner respondent appellant accused learned counsel para paragraph
+""".split())
+
+
+def _content_words(text):
+    return {w for w in re.findall(r"[a-z]{3,}", (text or "").lower())
+            if w not in _PIN_STOPWORDS}
+
+
+def fetch_and_pin(ranked, user_message, *, pin_query=None, fetch_fn=None,
+                  clean_fn=None, rerank_fn=None, fetch_n=_FETCH_N, keep=_KEEP_FINAL):
+    """Fetch the top `fetch_n` IK candidates + every corpus candidate and
+    PIN their 1-3 on-point paragraphs (with the judgment's own paragraph
+    number). Does NOT re-order the candidate list -- a first trial showed
+    fragment-level reranking against a long narrative query re-orders
+    *worse* than the headline ranking. rank_candidates owns the order;
+    this step owns the paragraphs.
+
+    Each candidate gains:
+      - 'pinned'        -- up to _MAX_PINNED_PARAS {para_number, structure,
+                           text, score}, best first ([] if unfetched or
+                           no paragraph cleared the relevance gate)
+      - 'content_score' -- best pinned paragraph's rerank score, or None
+      - 'fetch_failed'  -- True if the IK fetch/clean failed
+      - 'score'         -- RE-BASED on content when we have it: the
+                           fetched paragraph relevance is a far better
+                           signal than the one-line search headline, so
+                           when a paragraph is pinned the score becomes
+                           content_score + the same rank_candidates
+                           nudges. Fetched-but-nothing-pinned and
+                           unfetched IK candidates fall back to a demoted
+                           headline score. THIS re-orders the list.
+
+    pin_query: the concise text to rank paragraphs against (default:
+        `user_message`). Callers should pass primary_grievance + issue
+        list -- shorter and sharper than the raw message.
+    """
+    if not ranked:
+        return []
+    q = pin_query or user_message
+    q_words = _content_words(q)
+
+    if fetch_fn is None:
+        try:
+            from indiankanoon_client import get_document as fetch_fn
+        except Exception:
+            fetch_fn = None
+    if clean_fn is None:
+        try:
+            from ik_text_cleaner import clean_document as clean_fn
+        except Exception:
+            clean_fn = None
+    if rerank_fn is None:
+        try:
+            from semantic_retrieval import rerank as rerank_fn
+        except Exception:
+            rerank_fn = None
+
+    ik_seen = 0
+    pools = {}  # candidate index -> [paragraph dicts]
+    for idx, cand in enumerate(ranked):
+        if cand["source"] == "corpus":
+            pools[idx] = _corpus_para_pool(cand["triage"].get("title") or "")
+        elif cand["source"] == "indiankanoon" and ik_seen < fetch_n:
+            ik_seen += 1
+            if fetch_fn and clean_fn:
+                pool = _ik_para_pool(cand["triage"].get("tid"), fetch_fn, clean_fn)
+                if pool is None:
+                    cand["fetch_failed"] = True
+                else:
+                    pools[idx] = pool
+
+    # One rerank pass over every candidate's paragraphs.
+    flat = [(cidx, p) for cidx, pool in pools.items() for p in pool]
+    para_scores = {}
+    if rerank_fn and flat:
+        result = rerank_fn(q, [p["text"] for _, p in flat], top_k=None)
+        for r in (result or []):
+            para_scores[id(flat[r["index"]][1])] = r["score"]
+
+    ik_fetched_idxs = {i for i in pools if ranked[i]["source"] == "indiankanoon"}
+
+    for idx, cand in enumerate(ranked):
+        pool = pools.get(idx) or []
+        scored = []
+        for p in pool:
+            s = para_scores.get(id(p), 0.0)
+            overlap = len(_content_words(p["text"]) & q_words)
+            pick = (s
+                    + _STRUCTURE_BONUS.get(p.get("structure") or "", 0.0)
+                    + 0.04 * min(overlap, 5))
+            scored.append((pick, s, overlap, p))
+
+        # Relevance gate: a pinned paragraph must share vocabulary with
+        # the situation -- keeps procedural boilerplate and reranker
+        # misfires ("As a honest Judge... is he right in hearing this
+        # matter") out. Prefer >=2 shared content words; fall back to >=1,
+        # then to the top-2 by rerank only if nothing overlaps at all.
+        strong = [t for t in scored if t[2] >= 2]
+        weak = [t for t in scored if t[2] >= 1]
+        pool_scored = strong or weak or sorted(scored, key=lambda t: t[1], reverse=True)[:2]
+        pool_scored.sort(key=lambda t: t[0], reverse=True)
+
+        nudges = cand.get("_nudges", 0.0)
+        if pool_scored:
+            cand["content_score"] = round(pool_scored[0][1], 4)
+            cand["pinned"] = [
+                {"para_number": p.get("para_number"), "structure": p.get("structure"),
+                 "text": p["text"][:1200], "score": round(s, 4)}
+                for _, s, _o, p in pool_scored[:_MAX_PINNED_PARAS]
+            ]
+            # Content is authoritative: re-base the score on it.
+            cand["score"] = pool_scored[0][1] + nudges
+        else:
+            cand["content_score"] = None
+            cand["pinned"] = []
+            head = cand.get("rerank_score", 0.0)
+            if idx in ik_fetched_idxs or cand.get("fetch_failed"):
+                # we looked and found nothing on point -> strong demote
+                cand["score"] = 0.5 * head + nudges
+            elif cand["source"] == "indiankanoon":
+                # beyond fetch_n, never opened -> mild demote
+                cand["score"] = 0.7 * head + nudges
+
+    ranked.sort(key=lambda c: c["score"], reverse=True)
+    return ranked[:keep]
 
 
 def _slugify(text, maxlen=60):
@@ -666,11 +912,15 @@ def write_review_bundle(user_message, profile, anchors, ranked, *,
             {
                 "source": r["source"],
                 "score": round(r["score"], 4),
-                "rerank_score": round(r["rerank_score"], 4),
+                "headline_rerank_score": round(r.get("rerank_score", 0.0), 4),
+                "content_score": (round(r["content_score"], 4)
+                                  if r.get("content_score") is not None else None),
+                "fetch_failed": r.get("fetch_failed", False),
                 "rerank_used": r["rerank_used"],
                 "matched_issue_indices": r["matched_issues"],
                 "queries": r.get("queries", []),
                 "triage": r["triage"],
+                "pinned_paragraphs": r.get("pinned", []),
             }
             for r in ranked
         ],
@@ -691,20 +941,25 @@ _KILL_SWITCH_ENV = "KYR_DISABLE_LIVE_JUDGMENTS"
 
 
 def get_related_judgments(user_message, grounded_answer_text=None, *,
-                          write_bundle=True, ik_search_fn=None,
+                          write_bundle=True, pin=True, ik_search_fn=None,
                           local_search_fn=None, rerank_fn=None,
-                          decompose_fn=None, today=None):
-    """Lane B entry point (Phase 1b form: stops after ranking + the review
-    bundle -- fetch / paragraph-pinning / gloss / whitelist gate are
-    later phases).
+                          decompose_fn=None, fetch_fn=None, clean_fn=None,
+                          today=None):
+    """Lane B entry point (Phase 2 form: decompose -> anchor -> search ->
+    rank -> fetch top few + pin paragraphs. Whitelist gate / gloss / UI
+    are later phases).
 
     Returns a dict with 'status' always set:
       'disabled'          -- KYR_DISABLE_LIVE_JUDGMENTS is set
       'no_decomposition'  -- the situation could not be broken into issues
       'no_candidates'     -- searches ran but nothing survived ranking
-      'ok'                -- 'candidates' holds the ranked list
+      'ok'                -- 'candidates' holds the ranked list, each with
+                             'pinned' paragraphs where a fetch succeeded
     plus 'candidates' (possibly []), 'bundle_path' (or None), 'profile',
     'anchors', 'degraded' (True if the reranker was unavailable).
+
+    pin=False stops after ranking (no full-document fetches / no IK-doc
+    credits) -- useful for a quick look.
 
     NEVER raises for an operational failure -- every path returns a dict
     the caller can render or ignore. This function's result is NEVER fed
@@ -730,6 +985,19 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         pooled, user_message, rerank_fn=rerank_fn,
         grounded_answer_text=grounded_answer_text, today=today
     )
+    if pin and ranked:
+        pin_query = " ".join(
+            [profile.get("primary_grievance", "")]
+            + [iss["issue"] for iss in profile.get("issues", [])]
+        ).strip() or user_message
+        try:
+            ranked = fetch_and_pin(
+                ranked, user_message, pin_query=pin_query,
+                fetch_fn=fetch_fn, clean_fn=clean_fn, rerank_fn=rerank_fn,
+            )
+        except Exception:
+            logger.exception("get_related_judgments: fetch_and_pin failed; using headline ranking")
+
     degraded = bool(ranked) and not ranked[0].get("rerank_used", False)
 
     bundle_path = None
@@ -764,6 +1032,8 @@ def _print_result(result):
         tags = []
         if r["source"] == "corpus":
             tags.append("CORPUS (verified)")
+        if r.get("fetch_failed"):
+            tags.append("FETCH FAILED (headline only)")
         if t.get("adverse_markers"):
             tags.append("ADVERSE: " + ",".join(t["adverse_markers"]))
         if len(r["matched_issues"]) > 1:
@@ -773,6 +1043,10 @@ def _print_result(result):
               f"{(t.get('title') or '')[:66]}{tag}")
         if t.get("url"):
             print(f"         {t['url']}")
+        for p in r.get("pinned", [])[:2]:
+            num = f"para {p['para_number']}" if p.get("para_number") else "para ?"
+            struct = f" [{p['structure']}]" if p.get("structure") else ""
+            print(f"         {num}{struct} ({p['score']}): {p['text'][:160].strip()}...")
     if result["bundle_path"]:
         print(f"\nbundle: {result['bundle_path']}")
 
@@ -787,9 +1061,12 @@ if __name__ == "__main__":
     )
     ap.add_argument("question", help="the user's free-text situation")
     ap.add_argument("--answer", default=None,
-                    help="the grounded answer text (its cited sections become an extra anchor)")
+                    help="the grounded answer text (used to drop already-cited corpus cases)")
     ap.add_argument("--no-bundle", action="store_true", help="don't write the review bundle")
+    ap.add_argument("--no-fetch", action="store_true",
+                    help="stop after headline ranking -- no full-document fetches / IK-doc credits")
     args = ap.parse_args()
 
-    res = get_related_judgments(args.question, args.answer, write_bundle=not args.no_bundle)
+    res = get_related_judgments(args.question, args.answer,
+                                write_bundle=not args.no_bundle, pin=not args.no_fetch)
     _print_result(res)

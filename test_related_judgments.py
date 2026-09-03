@@ -223,28 +223,28 @@ _anchor = {
     "doctrine_hooks": ["Article 22(1)"],
 }
 q = build_issue_query(_anchor, fromdate="01-01-2015")
-check('"never told us why"' in q, "trimmed verbatim fact phrase is quoted (leading stopword 'They' dropped)")
-check(" 50 " in f" {q} " and " 47 " in f" {q} ", "old (CrPC 50) and new (BNSS 47) section numbers both appear")
-check("Article 22 1" not in q and "Article 22" in q, "'Article 22(1)' -> 'Article 22' (subsection paren dropped)")
-check("doctypes:supremecourt,highcourts" in q, "court filter appended")
+check(q.startswith('"never told us why"'),
+      "the phrase query is the trimmed verbatim phrase ALONE (leading stopword 'They' dropped)")
+check("50" not in q and "47" not in q and "Article" not in q,
+      "the phrase query carries NO section numbers or doctrine names -- kept clean")
+check("doctypes:highcourts" in q, "court filter appended (High Courts only by default)")
 check("fromdate:01-01-2015" in q, "fromdate appended when given")
 
-qs = build_issue_queries(_anchor)
-check(len(qs) == 2, "a phrase + a keyword/section query are both emitted")
-check('"never told us why"' in qs[0] and '"never told us why"' not in qs[1],
-      "query 0 is the phrase query, query 1 is the phrase-less keyword query")
-check(any(w in qs[1] for w in ("grounds", "arrest", "communicated")),
+kw = build_issue_query(_anchor, include_phrase=False)
+check('"never told us why"' not in kw, "the keyword query drops the verbatim phrase")
+check(any(w in kw for w in ("grounds", "arrest", "communicated")),
       "the keyword query carries content words from the issue description")
+_nums = re.findall(r"(?<!\d)\d{1,3}[A-Z]?(?!\d)", kw.split("doctypes:")[0])
+check(len(_nums) <= 1, "the keyword query carries at most ONE section number")
 
-no_sec = {"issue": "arrest without any recorded reason", "hook_phrase": "police came to our house",
-          "new_sections": [], "old_sections": [], "doctrine_hooks": []}
-check(len(build_issue_queries(no_sec)) == 2,
-      "both a phrase and a keyword query even with no section numbers")
+qs = build_issue_queries(_anchor)
+check(len(qs) == 2 and '"never told us why"' in qs[0] and '"never told us why"' not in qs[1],
+      "a phrase query then a keyword query, in that order")
 
 empty = {"issue": "arrest procedure generally", "hook_phrase": "", "new_sections": [],
          "old_sections": [], "doctrine_hooks": []}
 eq = build_issue_query(empty)
-check("arrest" in eq and "procedure" in eq and eq.strip() != "doctypes:supremecourt,highcourts",
+check("arrest" in eq and "procedure" in eq and eq.strip() != "doctypes:highcourts",
       "a phrase-less anchor still produces a non-empty keyword query from the issue text")
 
 
@@ -410,11 +410,103 @@ def _boom_ik(q):
     raise RuntimeError("IK down")
 
 r = rj.get_related_judgments(
-    "arrested, name not in FIR", write_bundle=False, decompose_fn=_fake_decompose,
+    "arrested, name not in FIR", write_bundle=False, pin=False, decompose_fn=_fake_decompose,
     ik_search_fn=_boom_ik, local_search_fn=lambda q: [], rerank_fn=_fake_rerank,
     today=datetime.date(2026, 9, 3),
 )
 check(r["status"] in ("ok", "no_candidates"), "an IK exception is swallowed -- get_related_judgments still returns a dict")
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: fetch_and_pin -- fetch / clean / rerank all injected.
+# ---------------------------------------------------------------------------
+check(rj._para_number("14. The Court held that...") == 14, "leading 'N.' paragraph number extracted")
+check(rj._para_number("42) In this case") == 42, "leading 'N)' paragraph number extracted")
+check(rj._para_number("No number here") is None, "no leading number -> None")
+
+_HTML_500 = "<h2 class='doc_title'>Ramesh v State</h2>" + "".join(
+    f"<p data-structure='{s}' id='p_{i}'>{i}. {txt}</p>"
+    for i, (s, txt) in enumerate([
+        ("Facts", "The petitioner was arrested at his home."),
+        ("Analysis", "The petitioner was not named in the FIR and the arrest was challenged."),
+        ("Conclusion", "Not being named in the FIR does not by itself bar an arrest, but the Section 41A safeguards still apply."),
+    ], start=1)
+)
+
+
+def _fake_fetch(tid):
+    return {"doc": _HTML_500} if str(tid) == "500" else {"doc": ""}   # 501 -> empty -> fetch "fails"
+
+
+def _fake_clean(html):
+    # crude parse of the fake HTML -> the ik_text_cleaner.clean_document shape
+    import re as _re
+    paras = []
+    for m in _re.finditer(r"<p data-structure='([^']+)'[^>]*>(.*?)</p>", html):
+        paras.append({"tag": "p", "structure": m.group(1), "text": m.group(2),
+                      "has_citation": False, "citation_sentiments": []})
+    return {"title": "Ramesh v State", "paragraphs": paras, "paragraph_count": len(paras)}
+
+
+# Build a ranked list by hand: two IK candidates (500 fetchable, 501 not),
+# one corpus candidate.
+_r500 = {"source": "indiankanoon", "matched_issues": [0, 1], "queries": ["q"],
+         "raw": _ik_doc(500, "Ramesh v State"), "score": 0.6, "rerank_score": 0.6, "rerank_used": True,
+         "triage": {"tid": 500, "title": "Ramesh v State", "url": "u", "court_tier": "high_court",
+                    "adverse_markers": [], "is_corpus_case": False}}
+_r501 = {"source": "indiankanoon", "matched_issues": [0], "queries": ["q"],
+         "raw": _ik_doc(501, "Suresh v State"), "score": 0.55, "rerank_score": 0.55, "rerank_used": True,
+         "triage": {"tid": 501, "title": "Suresh v State", "url": "u", "court_tier": "high_court",
+                    "adverse_markers": [], "is_corpus_case": False}}
+_rc = {"source": "corpus", "matched_issues": [0], "queries": [], "record": {},
+       "score": 0.5, "rerank_score": 0.5, "rerank_used": True,
+       "triage": {"tid": None, "title": "D.K. Basu v State of West Bengal", "url": "u",
+                  "court_tier": "supreme_court", "adverse_markers": [], "is_corpus_case": True}}
+
+_r501_score_before = _r501["score"]
+with patch("related_judgments._corpus_para_pool", lambda name: [
+    {"text": "10. The arrestee may meet his lawyer during interrogation.", "structure": None, "para_number": 10},
+]):
+    pinned = rj.fetch_and_pin([_r500, _r501, _rc], "arrested though not named in the FIR, no chargesheet",
+                              fetch_fn=_fake_fetch, clean_fn=_fake_clean, rerank_fn=_fake_rerank)
+
+by_tid = {c["triage"]["tid"]: c for c in pinned}
+check(by_tid[500].get("pinned"), "the fetchable IK candidate (500) has pinned paragraphs")
+check(by_tid[500]["content_score"] is not None, "fetched candidate has a content_score")
+check(any(p["para_number"] in (1, 2, 3) for p in by_tid[500]["pinned"]),
+      "a pinned paragraph carries the judgment's own paragraph number")
+check(by_tid[501].get("fetch_failed") is True, "the IK candidate whose fetch returned empty HTML is flagged fetch_failed")
+check(by_tid[501]["pinned"] == [] and by_tid[501]["score"] < _r501_score_before,
+      "a fetch-failed candidate is demoted and has no pinned paragraphs, but is still present")
+corpus_c = next(c for c in pinned if c["source"] == "corpus")
+check(corpus_c.get("pinned") and corpus_c["pinned"][0]["para_number"] == 10,
+      "the corpus candidate is paragraph-pinned from its local chunk pool (no fetch)")
+
+# structure bonus: the 'Conclusion' paragraph should be pinnable above a
+# 'Facts' paragraph of similar raw relevance
+concl = [p for p in by_tid[500]["pinned"] if p["structure"] == "Conclusion"]
+check(concl, "the Conclusion-tagged paragraph is among those pinned (structure bonus applied)")
+
+# get_related_judgments with pin=True, everything injected
+with patch("related_judgments._corpus_para_pool", lambda name: []):
+    res2 = rj.get_related_judgments(
+        "arrested though his name was not in the FIR, and still no chargesheet",
+        grounded_answer_text="Section 35 of the BNSS governs arrest. Section 187 of the BNSS governs default bail.",
+        write_bundle=False, pin=True,
+        decompose_fn=_fake_decompose, ik_search_fn=_fake_ik_search,
+        local_search_fn=_fake_local_search, rerank_fn=_fake_rerank,
+        fetch_fn=_fake_fetch, clean_fn=_fake_clean, today=datetime.date(2026, 9, 3),
+    )
+check(res2["status"] == "ok", "pin=True full flow returns ok")
+check(any("pinned" in c for c in res2["candidates"]), "candidates carry a 'pinned' field after pin=True")
+
+res3 = rj.get_related_judgments(
+    "arrested though his name was not in the FIR", write_bundle=False, pin=False,
+    decompose_fn=_fake_decompose, ik_search_fn=_fake_ik_search,
+    local_search_fn=_fake_local_search, rerank_fn=_fake_rerank, today=datetime.date(2026, 9, 3),
+)
+check(all(not c.get("pinned") for c in res3["candidates"]),
+      "pin=False -> no paragraph fetching, no pinned paragraphs")
 
 
 # ---------------------------------------------------------------------------

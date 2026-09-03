@@ -444,20 +444,31 @@ def _trim_phrase(phrase: str, max_words: int = 5) -> str:
     return " ".join(words)
 
 
-def build_issue_query(anchor: dict, *, courts: str = "supremecourt,highcourts",
+def build_issue_query(anchor: dict, *, courts: str = "highcourts",
                       fromdate: str = None, include_phrase: bool = True) -> str:
     """One Indian Kanoon `formInput` string for a single issue anchor
     (from related_judgments.build_anchors).
 
-    anchor: {"issue", "hook_phrase", "new_sections", "old_sections",
-             "doctrine_hooks"}
-    courts: value for the `doctypes:` filter, or "" / None to omit it.
-    fromdate: "DD-MM-YYYY" for a `fromdate:` recency bias, or None.
-    include_phrase: if True, lead with a trimmed verbatim fact phrase;
-        if False, a broader query -- issue keywords + doctrine + sections
-        (the phrase-anchored query often returns nothing).
+    Two shapes, chosen by `include_phrase`:
+      True  -> the trimmed verbatim fact phrase ALONE (+ filters). Clean
+               and precise; when it hits, it hits well.
+      False -> issue keywords + at most ONE section number (+ filters).
+               The safety net.
 
-    Returns a plain query string. Never raises on a well-formed anchor.
+    They are kept deliberately SEPARATE. A first trial mixed phrase +
+    section numbers + doctrine names into one query and IK's ranking on
+    that noisy AND-ish string was poor -- landmark constitutional
+    judgments and unrelated bail petitions dominated. A quoted landmark
+    case name ("D K Basu") as a query term is especially bad: it pulls
+    that case's entire citing progeny. So doctrine/case-name hooks are NOT
+    put in the query at all here.
+
+    courts: `doctypes:` filter, default "highcourts" -- the Supreme
+        Court's famous landmarks are long and touch every procedural
+        concept, so they pollute a keyword search; recent High Court
+        judgments applying a doctrine to facts are what "a similar
+        situation" means.
+    fromdate: "DD-MM-YYYY" recency floor, or None.
     """
     parts = []
 
@@ -465,36 +476,19 @@ def build_issue_query(anchor: dict, *, courts: str = "supremecourt,highcourts",
         phrase = _trim_phrase(anchor.get("hook_phrase", ""))
         if phrase and len(phrase.split()) >= 2:
             parts.append(f'"{phrase}"')
-    else:
-        # keyword signal from the model's clean neutral issue description
-        parts.extend(_keywords(anchor.get("issue", ""), n=5))
-
-    for lbl in (anchor.get("doctrine_hooks") or [])[:2]:
-        # Drop a subsection parenthetical ("Article 22(1)" -> "Article 22").
-        cleaned = _clean_phrase(_re.sub(r"\s*\([^)]*\)", "", lbl))
-        if not cleaned:
-            continue
-        # Quote a multi-word CASE NAME ("D K Basu") -- a phrase match is
-        # what you want there. Leave a bare provision reference
-        # ("Article 22", "Section 50") UNQUOTED: quoting it made every
-        # preventive-detention constitutional judgment a top hit in the
-        # first Phase-1b trial.
-        is_provision_ref = bool(_re.match(r"(?i)(article|section|s\.?)\s+\d", cleaned))
-        if len(cleaned.split()) >= 2 and not is_provision_ref:
-            parts.append(f'"{cleaned}"')
         else:
-            parts.append(cleaned)
-
-    # Old (IPC/CrPC) numbers first -- most of IK's corpus is indexed under
-    # them -- then the new. Kept SHORT: a query stuffed with numbers
-    # matches on citation lists, not on the point of law.
-    secnums = _section_numbers_from_labels(
-        (anchor.get("old_sections") or [])[:2] + (anchor.get("new_sections") or [])[:1]
-    )
-    parts.extend(secnums)
-
-    if not parts:
-        parts.extend(_keywords(anchor.get("issue", ""), n=5) or ["criminal", "procedure"])
+            parts.extend(_keywords(anchor.get("issue", ""), n=4))
+    else:
+        parts.extend(_keywords(anchor.get("issue", ""), n=4)
+                     or ["criminal", "procedure"])
+        # exactly one section number -- the model's guessed section_hooks
+        # and their concordance mapping are noisy; more than one just
+        # matches citation lists.
+        secnums = _section_numbers_from_labels(
+            (anchor.get("old_sections") or [])[:1] + (anchor.get("new_sections") or [])[:1]
+        )
+        if secnums:
+            parts.append(secnums[0])
 
     query = " ".join(p for p in parts if p).strip()
     if courts:
