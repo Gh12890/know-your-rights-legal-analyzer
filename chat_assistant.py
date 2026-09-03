@@ -1141,3 +1141,86 @@ def answer_question(question):
         "response_text": response_text,
         "situation_detected": _looks_like_situation(response_text),
     }
+
+
+# ---------------------------------------------------------------------------
+# ARREST_SITUATION_EXTRACTION_PROMPT
+#
+# EXTRACTION ONLY -- the same allowed LLM role as analyze_document() and
+# interview_flow. It reports what the person SAID; run_arrest_compliance_
+# checks() then decides every verdict deterministically. "unclear" is the
+# honest answer whenever the conversation does not state a fact.
+# ---------------------------------------------------------------------------
+ARREST_SITUATION_EXTRACTION_PROMPT = """From the conversation below, extract only what the person has actually said about an arrest. Do NOT judge whether anything was lawful. Where the conversation does not state a fact, use "unclear" (for true/false fields) or null.
+
+Return ONLY a JSON object, no other text:
+{{
+  "sections_cited": ["bare BNS section numbers if the person names any, e.g. \\"303\\"; [] if none"],
+  "arrestee_gender": "male" | "female" | "third_gender" | "not stated",
+  "arrest_datetime_full": "DD-MM-YYYY HH:MM if both date and time are given, else null",
+  "production_datetime_full": "DD-MM-YYYY HH:MM if stated, else null",
+  "chargesheet_filed_date": "DD-MM-YYYY if stated, else null",
+  "punishment_years_upper_bound": number if the person states the maximum punishment, else null,
+  "41A_or_35_BNSS_notice_issued_before_arrest": true | false | "unclear",
+  "grounds_of_arrest_in_writing_furnished_to_arrestee": true | false | "unclear",
+  "witness_attested_memo": true | false | "unclear",
+  "family_or_friend_informed": true | false | "unclear",
+  "medical_exam_at_arrest_recorded": true | false | "unclear",
+  "female_officer_present_for_female_arrestee": true | false | "unclear" | "not applicable",
+  "matters_raised": ["short phrases, close to the person's own words, for each grievance about the arrest or custody that is NOT one of the fields above -- e.g. 'he was slapped and kept awake all night', 'he was handcuffed to the hospital bed', 'not allowed to meet a lawyer for two days'. [] if none."]
+}}
+
+Rules:
+- "false" means the person indicated it did NOT happen ("they never told him why", "no medical check-up"). "unclear" means the conversation simply does not say.
+- matters_raised is for allegations the compliance checks do not cover (assault, sleep deprivation, denial of food/water, handcuffing, denial of lawyer access). Keep each phrase short and faithful to what was said.
+- Do not invent dates, sections, or facts.
+
+Conversation:
+{conversation}"""
+
+
+def extract_arrest_situation(conversation_text):
+    """Pull the arrest-compliance fields + `matters_raised` out of a chat
+    conversation, for run_arrest_compliance_checks() + the draft. Returns
+    ({fields}, [matters]) or (None, []) if the model is unavailable / the
+    response can't be parsed. EXTRACTION ONLY -- no verdict here."""
+    if client is None or not (conversation_text or "").strip():
+        return None, []
+    try:
+        response = client.messages.create(
+            model=HAIKU_MODEL,
+            max_tokens=700,
+            messages=[{"role": "user", "content":
+                       ARREST_SITUATION_EXTRACTION_PROMPT.format(conversation=conversation_text[:4000])}],
+        )
+        raw = _extract_text_from_response(response).strip()
+    except Exception:
+        return None, []
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.lower().startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+    try:
+        parsed = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None, []
+    if not isinstance(parsed, dict):
+        return None, []
+
+    matters = [str(m).strip() for m in (parsed.get("matters_raised") or []) if str(m).strip()]
+    fields = {k: v for k, v in parsed.items() if k != "matters_raised"}
+    secs = fields.get("sections_cited")
+    secs = [str(s).strip() for s in secs if str(s).strip()] if isinstance(secs, list) else []
+
+    # If the person named an offence in plain words ("theft", "cheating")
+    # but no section number, anchor it deterministically -- the SAME
+    # _OFFENCE_KEYWORD_ANCHORS map Lane A uses. Without a section the
+    # arrest checks mostly return "Cannot Determine".
+    if not secs:
+        for m in _offence_keyword_matches(conversation_text):
+            n = m.get("section_number")
+            if n and n not in secs:
+                secs.append(n)
+    fields["sections_cited"] = secs
+    return fields, matters

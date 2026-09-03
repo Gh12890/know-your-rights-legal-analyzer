@@ -637,6 +637,7 @@ def rank_candidates(candidates, user_message, *, rerank_fn=None,
             cand["triage"] = {
                 "tid": None,
                 "title": name or None,
+                "citation": (rec.get("citation") or "").strip(),
                 "url": rec.get("source_url"),
                 "court": rec.get("court"),
                 "court_tier": "supreme_court",  # corpus is SC/foundational + a few HC
@@ -1376,6 +1377,63 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         "show_user": show_user,
         "whitelist": wl,
     }
+
+
+def _para_num_or_none(v):
+    if isinstance(v, int):
+        return v
+    return int(v) if isinstance(v, str) and v.isdigit() else None
+
+
+def authorities_from_result(result, *, max_items=6):
+    """A get_related_judgments() result -> a draft_layer `authorities`
+    list. One entry per displayed candidate (its top pinned paragraph),
+    quote verbatim. Corpus -> verified=True; live Indian Kanoon ->
+    verified=False (walled off in the draft's 'NOT VERIFIED' block)."""
+    out = []
+    for c in (result or {}).get("for_display", []):
+        pinned = c.get("pinned") or []
+        if not pinned:
+            continue
+        t = c.get("triage", {})
+        p = pinned[0]
+        out.append({
+            "case_name": t.get("title") or "Judgment",
+            "citation": t.get("citation") or "",
+            "court": t.get("court") or "",
+            "para_number": p.get("para_number"),
+            "quote": (p.get("text") or "").strip(),
+            "url": t.get("url") or "",
+            "verified": c.get("source") == "corpus",
+        })
+        if len(out) >= max_items:
+            break
+    return out
+
+
+def authorities_from_matches(matches, *, max_items=4):
+    """The chat's Lane-A retrieval matches -> `authorities`. Only judgment
+    matches (they carry 'case_name'; statute matches do not). All verified
+    (they are from the 22-case corpus)."""
+    out = []
+    for m in matches or []:
+        if not m.get("case_name"):
+            continue
+        quote = (m.get("text") or "").strip()
+        if len(quote) < 40:
+            continue
+        out.append({
+            "case_name": m["case_name"],
+            "citation": m.get("citation") or "",
+            "court": "",
+            "para_number": _para_num_or_none(m.get("paragraph_number")),
+            "quote": quote[:900],
+            "url": m.get("source_url") or "",
+            "verified": True,
+        })
+        if len(out) >= max_items:
+            break
+    return out
 
 
 def _print_result(result):

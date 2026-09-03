@@ -426,6 +426,56 @@ check(_find_ungrounded_sections("This is now Section 318 of the BNS.", rt) == []
       "an answer citing the concordance-supplied modern section is NOT flagged ungrounded")
 
 
+# ---------------------------------------------------------------------------
+# extract_arrest_situation -- the bounded fact-extraction for the chat draft
+# (client mocked, no API). EXTRACTION ONLY -- decides no verdict.
+# ---------------------------------------------------------------------------
+from chat_assistant import extract_arrest_situation
+
+_EXTRACT_JSON = """{
+  "sections_cited": ["303"],
+  "arrestee_gender": "male",
+  "arrest_datetime_full": null,
+  "production_datetime_full": null,
+  "chargesheet_filed_date": null,
+  "punishment_years_upper_bound": null,
+  "41A_or_35_BNSS_notice_issued_before_arrest": false,
+  "grounds_of_arrest_in_writing_furnished_to_arrestee": "unclear",
+  "witness_attested_memo": "unclear",
+  "family_or_friend_informed": "unclear",
+  "medical_exam_at_arrest_recorded": false,
+  "female_officer_present_for_female_arrestee": "not applicable",
+  "matters_raised": ["he was slapped and kept awake all night", "handcuffed to the hospital bed"]
+}"""
+
+with patch("chat_assistant.client") as mock_client:
+    mock_client.messages.create.side_effect = [_fake_response(_EXTRACT_JSON)]
+    fields, matters = extract_arrest_situation("user: my uncle was picked up for theft and beaten in custody")
+    check(fields is not None, "extract_arrest_situation parses a clean JSON response")
+    check(fields["sections_cited"] == ["303"] and fields["medical_exam_at_arrest_recorded"] is False,
+          "compliance fields come through; 'no medical' -> False, not 'unclear'")
+    check("matters_raised" not in fields, "matters_raised is split out of the fields dict")
+    check(matters == ["he was slapped and kept awake all night", "handcuffed to the hospital bed"],
+          "matters_raised carries the verbatim-ish grievance phrases")
+
+_EXTRACT_JSON_NO_SEC = _EXTRACT_JSON.replace('"sections_cited": ["303"]', '"sections_cited": []')
+with patch("chat_assistant.client") as mock_client:
+    mock_client.messages.create.side_effect = [_fake_response(_EXTRACT_JSON_NO_SEC)]
+    fields, _ = extract_arrest_situation("user: my uncle was picked up for theft and beaten in custody")
+    check(fields["sections_cited"] == ["303"],
+          "when the person says 'theft' but no number, the offence-keyword anchor supplies BNS 303")
+
+with patch("chat_assistant.client") as mock_client:
+    mock_client.messages.create.side_effect = [_fake_response("I can't do that")]
+    f, m = extract_arrest_situation("something")
+    check(f is None and m == [], "an unparseable response -> (None, []), never a raise")
+
+with patch("chat_assistant.client", None):
+    check(extract_arrest_situation("x") == (None, []), "client unavailable -> (None, [])")
+
+check(extract_arrest_situation("   ") == (None, []), "blank conversation -> (None, []), no call")
+
+
 print("\n" + "=" * 70)
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILURE(S)")

@@ -174,12 +174,16 @@ def _render_chat_match_currency_caveat(m):
         _render_citation_currency_caveat(record)
 
 
-def render_draft_section(full_analysis, key_prefix):
+def render_draft_section(full_analysis, key_prefix, *, authorities=None, matters_raised=None):
     """Project 3: turn the findings into a draft the person can act on.
     One body of content (assembled deterministically from the same
     findings shown above); the person chooses who it is addressed to.
     Covers arrest, freeze and cheque-bounce -- a no-op for any analysis
-    draft_layer has no template for."""
+    draft_layer has no template for.
+
+    authorities / matters_raised: optional -- verbatim judgment passages
+    and the person's own unassessed grievances, folded into the draft
+    (see draft_layer.assemble_for)."""
     from draft_layer import (
         detect_draft_domain, available_targets, TARGET_LABELS,
         draft_for, generate_draft_pdf,
@@ -193,7 +197,9 @@ def render_draft_section(full_analysis, key_prefix):
     st.subheader("Prepare a draft")
     st.caption(
         "This builds a draft from the findings above. It is a starting point to check and "
-        "complete with a lawyer, not a filed document. Fill in anything shown as [ ___ ]."
+        "complete with a lawyer, not a filed document. Fill in anything shown as [ ___ ]. "
+        "Any passage marked NOT VERIFIED is from an automatic search — read the judgment "
+        "and confirm it before you keep it."
     )
     choice_label = st.radio(
         "What do you want to do with this?",
@@ -206,8 +212,10 @@ def render_draft_section(full_analysis, key_prefix):
     # switching target makes a fresh key and re-seeds from the template
     text_key = f"{key_prefix}_draft_text_{target}"
     if text_key not in st.session_state:
-        st.session_state[text_key] = draft_for(full_analysis, target)
-    text = st.text_area("Draft (editable)", height=420, key=text_key)
+        st.session_state[text_key] = draft_for(
+            full_analysis, target, authorities=authorities, matters_raised=matters_raised
+        )
+    text = st.text_area("Draft (editable)", height=460, key=text_key)
 
     if st.button("Prepare PDF", key=f"{key_prefix}_draft_pdf_btn_{target}"):
         path = generate_draft_pdf(text, target, output_path=f"action_draft_{key_prefix}.pdf")
@@ -1671,6 +1679,80 @@ def _render_related_judgments_section():
         st.rerun()
 
 
+def _render_arrest_draft_section():
+    """Under an arrest-situation chat answer: an opt-in button that runs
+    the arrest compliance checklist on what the person described and
+    produces an editable draft (representation to the Magistrate /
+    complaint to the SP), with the retrieved judgment passages and the
+    person's own grievances folded in. Rendered on every pass so it
+    survives the button-click rerun, same as the related-judgments panel."""
+    import hashlib
+
+    la = st.session_state.get("chat_last_answer")
+    if not la or la.get("state") not in _RELATED_STATES or not la.get("situation"):
+        return
+
+    qhash = hashlib.md5(la["question"].encode()).hexdigest()[:12]
+    fa_key = f"chatdraft_{qhash}"
+
+    if fa_key not in st.session_state:
+        if not st.button("📝 Prepare a draft to send", key=f"chatdraft_btn_{qhash}",
+                         help="Runs the arrest checklist on what you've described and writes a "
+                              "representation you can edit and send to the Magistrate or the SP."):
+            return
+        with st.spinner("Preparing the draft…"):
+            try:
+                from chat_assistant import extract_arrest_situation
+                from main import run_arrest_compliance_checks, compute_severity
+                from related_judgments import authorities_from_matches, authorities_from_result
+                convo = "\n".join(
+                    f"{t['role']}: {t['content']}" for t in st.session_state.get("chat_history", [])
+                ) or la["question"]
+                fields, matters = extract_arrest_situation(convo)
+                if fields is None:
+                    st.session_state[fa_key] = {"error": True}
+                else:
+                    checks = run_arrest_compliance_checks(fields)
+                    fa = {
+                        "compliance": checks,
+                        "extracted_fields": fields,
+                        "severity": compute_severity(checks["compliance_checks"]),
+                    }
+                    auths = authorities_from_matches(la.get("matches"))
+                    rr = st.session_state.get(f"related_result_{qhash}")
+                    if rr:
+                        auths = authorities_from_result(rr) + auths
+                    st.session_state[fa_key] = {"fa": fa, "authorities": auths, "matters": matters}
+            except Exception:
+                st.session_state[fa_key] = {"error": True}
+        st.rerun()
+
+    stashed = st.session_state[fa_key]
+    if stashed.get("error"):
+        st.caption(
+            "I couldn't prepare a draft for this one. You can use the \"describe my situation\" "
+            "option above — it walks through the same checklist step by step."
+        )
+        return
+
+    from draft_layer import detect_draft_domain
+    if detect_draft_domain(stashed["fa"]) is None:
+        return
+
+    if st.session_state.get(f"related_result_{qhash}") and not stashed.get("_had_related"):
+        stashed["_had_related"] = True  # note only; the draft was built with them if present
+    render_draft_section(
+        stashed["fa"], key_prefix=fa_key,
+        authorities=stashed["authorities"], matters_raised=stashed["matters"],
+    )
+    if st.button("↻ Rebuild draft", key=f"chatdraft_again_{qhash}",
+                 help="Rebuild from scratch (e.g. after running 'Show related judgments')."):
+        for k in list(st.session_state):
+            if k.startswith(fa_key):
+                st.session_state.pop(k, None)
+        st.rerun()
+
+
 def run_chat_flow():
     st.write(
         "Ask about a police arrest, an FIR, or your rights during criminal proceedings "
@@ -1688,10 +1770,11 @@ def run_chat_flow():
 
     question = st.chat_input("Type your question here...")
     if not question:
-        # No new question this pass -- still render the opt-in related-
-        # judgments affordance for the most recent answer (it must survive
-        # the rerun a button click triggers) and the standing disclaimer.
+        # No new question this pass -- still render the opt-in affordances
+        # for the most recent answer (they must survive the rerun a button
+        # click triggers) and the standing disclaimer.
         _render_related_judgments_section()
+        _render_arrest_draft_section()
         st.caption(
             "This is general information based on Indian law and court judgments, not legal "
             "advice. For guidance on your specific situation, please consult a qualified lawyer."
@@ -1852,6 +1935,8 @@ def run_chat_flow():
     if state in _RELATED_STATES:
         st.session_state["chat_last_answer"] = {
             "question": question, "reply": reply, "state": state,
+            "situation": bool(result.get("situation_detected")),
+            "matches": result.get("matches") or [],
         }
         # Kick off the FREE half of Lane B in the background now, so a
         # later "Show related judgments" click only waits on the paid
@@ -1870,6 +1955,7 @@ def run_chat_flow():
         st.session_state.pop("chat_last_answer", None)
 
     _render_related_judgments_section()
+    _render_arrest_draft_section()
 
     st.caption(
         "This is general information based on Indian law and court judgments, not legal advice. "

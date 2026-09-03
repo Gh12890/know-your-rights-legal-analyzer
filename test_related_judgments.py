@@ -728,6 +728,38 @@ check(any(c["source"] == "corpus" for c in res_prep["candidates"]),
 
 
 # ---------------------------------------------------------------------------
+# authorities_from_result / authorities_from_matches -> draft_layer input
+# ---------------------------------------------------------------------------
+_res = {"for_display": [
+    {"source": "corpus", "triage": {"title": "D.K. Basu v State of West Bengal",
+        "citation": "(1997) 1 SCC 416", "court": "Supreme Court", "url": "https://indiankanoon.org/doc/235756/"},
+     "pinned": [{"para_number": 8, "text": "The arrestee should be subjected to medical examination every 48 hours."}]},
+    {"source": "indiankanoon", "triage": {"title": "Mujeeb Rahman v State of Kerala",
+        "citation": "", "court": "Kerala High Court", "url": "https://indiankanoon.org/doc/999/"},
+     "pinned": [{"para_number": 12, "text": "The right to be produced before a Magistrate within twenty-four hours is absolute."}]},
+    {"source": "indiankanoon", "triage": {"title": "No Pins v State"}, "pinned": []},
+]}
+auths = rj.authorities_from_result(_res)
+check(len(auths) == 2, "authorities_from_result: one entry per displayed candidate that has a pinned paragraph")
+check(auths[0]["verified"] is True and auths[1]["verified"] is False,
+      "corpus -> verified True, live Indian Kanoon -> verified False")
+check(auths[0]["quote"].startswith("The arrestee should") and auths[0]["para_number"] == 8,
+      "the pinned paragraph text is carried verbatim with its number")
+check(auths[1]["url"] == "https://indiankanoon.org/doc/999/", "the live hit keeps its source link")
+
+m_auths = rj.authorities_from_matches([
+    {"case_name": "Vihaan Kumar v State of Haryana", "citation": "2025 INSC 162",
+     "paragraph_number": 21, "text": "Non-compliance with Article 22(1) vitiates the arrest and the remand.",
+     "type": "judgment", "source_url": "https://indiankanoon.org/doc/74708490/"},
+    {"section_number": "303", "text": "Whoever commits theft...", "type": "statute"},  # not a judgment -> skipped
+])
+check(len(m_auths) == 1 and m_auths[0]["verified"] is True,
+      "authorities_from_matches keeps only judgment matches, all verified (from the 22-case corpus)")
+check(m_auths[0]["para_number"] == 21 and "vitiates the arrest" in m_auths[0]["quote"],
+      "the corpus paragraph and its number come through")
+
+
+# ---------------------------------------------------------------------------
 print()
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILED")
