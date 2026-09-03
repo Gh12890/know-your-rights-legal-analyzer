@@ -1644,6 +1644,11 @@ def _render_related_judgments_section():
 
     if result_key in st.session_state:
         _render_related_judgments_result(st.session_state[result_key])
+        if st.button("↻ Search again", key=f"related_again_{qhash}",
+                     help="Run the search again from scratch."):
+            st.session_state.pop(result_key, None)
+            st.session_state.pop(f"related_prep_{qhash}", None)
+            st.rerun()
         return
 
     if st.button("🔎 Show related court judgments", key=f"related_btn_{qhash}",
