@@ -68,7 +68,7 @@ else:
     
 
 
-#HAIKU_MODEL = "claude-haiku-4-5-20251001"
+HAIKU_MODEL = "claude-haiku-4-5-20251001"
 SONNET_MODEL = "claude-sonnet-5"  # per this environment's current model list
 
 
@@ -148,8 +148,16 @@ def classify_scope(question):
     if client is None:
         return None, None, None
     try:
+        # Haiku, not Sonnet: this is a bounded 4-way routing classification
+        # against an explicit rubric (the module docstring's step 1 always
+        # described it as "cheap Haiku call" -- the code had drifted to
+        # Sonnet). It does NOT decide any legal question -- misrouting only
+        # picks the wrong canned redirect / answer path, and a parse failure
+        # still falls back to the honest (None, None, None) "could not
+        # determine". The answer itself and its deterministic grounding
+        # checks stay on Sonnet (generate_grounded_response).
         response = client.messages.create(
-            model=SONNET_MODEL,
+            model=HAIKU_MODEL,
             max_tokens=1500,
             messages=[{"role": "user", "content": SCOPE_CLASSIFIER_PROMPT.format(question=question)}],
         )
