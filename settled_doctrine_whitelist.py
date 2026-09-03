@@ -82,14 +82,20 @@ _WHITELIST = {
     "dk_basu_safeguards": {
         "sections": {"CrPC 41B", "CrPC 41C", "CrPC 41D", "CrPC 46", "BNSS 43", "BNSS 46", "BNSS 48"},
         "patterns": [
-            re.compile(r"\b(D\.?\s?K\.?\s?Basu|arrest memo|memo of arrest)\b", re.I),
-            re.compile(r"\b(medical|doctor|physician).{0,25}\b(not|never|no|denied|refus|without)\b", re.I),
-            re.compile(r"\b(not|never|no|without)\b.{0,25}\b(medical (exam|examination|check|check-?up)?|doctor|physician)\b", re.I),
+            re.compile(r"\b(D\.?\s?K\.?\s?Basu|arrest memo|memo of arrest|inspection memo)\b", re.I),
+            re.compile(r"\b(medical|doctor|physician|check-?up)\w*.{0,25}\b(not|never|no|denial|denied|refus|without)\b", re.I),
+            re.compile(r"\b(not|never|no|denial|denied|refus|without)\b.{0,30}\b(medical|doctor|physician|check-?up)", re.I),
+            re.compile(r"\b(custodial (violence|torture|abuse|assault)|third[- ]degree)\b", re.I),
+            re.compile(r"\b(assault|beat(en|ing)?|slap(ped|ping)?|tortur|thrash|kept awake|sleep deprivation|not allowed to sleep)\b.{0,40}\b(custody|police station|lock[- ]?up|remand|interrogat|thana)\b", re.I),
+            re.compile(r"\b(custody|police station|lock[- ]?up|interrogat)\b.{0,40}\b(assault|beat(en|ing)?|slap(ped|ping)?|tortur|thrash|injur|bruis)\b", re.I),
+            re.compile(r"\b(injur(y|ies)|bruis|marks on (his|her|the) body).{0,40}\b(not (record|document|note)|no medical|not examined)\b", re.I),
             re.compile(r"\b(family|relative|friend|next friend).{0,30}\b(not (informed|told)|never informed)\b", re.I),
             re.compile(r"\bhandcuff", re.I),
         ],
         "note": "D.K. Basu v State of West Bengal (1997) 1 SCC 416 -- foundational "
-                "custodial safeguards; not in doubt.",
+                "custodial safeguards (arrest memo, medical exam every 48h, injury "
+                "recording, family intimation); not in doubt. Also the settled "
+                "prohibition on custodial violence (Nilabati Behera, Prakash Kadam).",
     },
     "twenty_four_hour_production": {
         "sections": {"BNSS 58", "CrPC 57"},
@@ -127,17 +133,24 @@ def _issue_section_labels(issue):
 
 
 def match_issue(issue):
-    """The whitelist topic name this issue maps to, or None. An issue
-    matches a topic if any of its section labels is one the topic marks,
-    OR its issue text matches one of the topic's patterns."""
+    """The whitelist topic name this issue maps to, or None.
+
+    A keyword-pattern match is tried across ALL topics FIRST, then a
+    section-number match. The decomposition's section_hooks are a coarse
+    guess -- a theft arrest gets 'BNSS 35' tagged onto every issue,
+    including 'denied a medical exam' -- so a specific phrase ('medical
+    check-up denied' -> D.K. Basu) must beat a broad section ('BNSS 35'
+    -> Arnesh Kumar). The gate decision (is_covered) is unaffected by the
+    order; the topic LABEL is what this fixes."""
     if not isinstance(issue, dict):
         return None
-    sections = _issue_section_labels(issue)
     text = f"{issue.get('issue', '')} {issue.get('hook_phrase', '')}"
     for name, entry in _WHITELIST.items():
-        if sections & entry["sections"]:
-            return name
         if any(p.search(text) for p in entry["patterns"]):
+            return name
+    sections = _issue_section_labels(issue)
+    for name, entry in _WHITELIST.items():
+        if sections & entry["sections"]:
             return name
     return None
 

@@ -43,6 +43,13 @@ check(wl.match_issue(I("was not allowed to meet a lawyer for two days")) == "rig
       "right-to-a-lawyer matches")
 check(wl.match_issue(I("my father was arrested and never taken to a doctor")) == "dk_basu_safeguards",
       "custodial medical-exam matches D.K. Basu safeguards")
+check(wl.match_issue(I("physical assault and mistreatment during police custody",
+                       "he was slapped and kept awake all night", ["BNSS 35"])) == "dk_basu_safeguards",
+      "custodial assault matches D.K. Basu even with a spurious 'BNSS 35' section hook -- "
+      "the keyword pattern beats the broad section (which would else give Arnesh Kumar)")
+check(wl.match_issue(I("visible injuries not medically documented or examined by a doctor",
+                       "", ["BNSS 35"])) == "dk_basu_safeguards",
+      "'injuries not medically documented' matches D.K. Basu, not the BNSS-35 section hook")
 
 
 # ---- NOT whitelisted topics do not match ----
