@@ -580,6 +580,23 @@ with patch("related_judgments._corpus_para_pool", lambda name: [
 check(wl_res["show_user"] is True, "all-whitelisted issues -> show_user True")
 check(wl_res["whitelist"]["covered"] is True, "whitelist report says covered")
 check(len(_gloss_calls) >= 1, "the gloss runs on the whitelisted path")
+check("for_display" in wl_res and len(wl_res["for_display"]) <= 5,
+      "for_display is a capped subset of the ranked candidates")
+check(all(rj._display_worthy(c) for c in wl_res["for_display"]),
+      "every for_display candidate passes _display_worthy")
+
+# _display_worthy: off-point gloss and low content are excluded
+check(rj._display_worthy({"source": "corpus", "gloss": None, "content_score": None}) is True,
+      "a corpus candidate is always display-worthy")
+check(rj._display_worthy({"source": "indiankanoon", "gloss": "This one may not be closely on point.",
+                          "content_score": 0.9}) is False,
+      "an off-point gloss excludes a candidate from the panel even at a high score")
+check(rj._display_worthy({"source": "indiankanoon", "gloss": "The court dealt with a similar delay.",
+                          "content_score": 0.2}) is False,
+      "a low content_score excludes an IK candidate from the panel")
+check(rj._display_worthy({"source": "indiankanoon", "gloss": "The court dealt with a similar delay.",
+                          "content_score": 0.55}) is True,
+      "a genuine on-point IK candidate is display-worthy")
 
 _gloss_calls.clear()
 nb_res = rj.get_related_judgments(

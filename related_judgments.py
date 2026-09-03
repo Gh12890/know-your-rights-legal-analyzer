@@ -1078,6 +1078,26 @@ def write_review_bundle(user_message, profile, anchors, ranked, *,
 
 _KILL_SWITCH_ENV = "KYR_DISABLE_LIVE_JUDGMENTS"
 
+# What the user-facing panel actually shows (the review bundle keeps
+# everything). A candidate is display-worthy only if its content is
+# genuinely on point.
+_DISPLAY_CONTENT_FLOOR = 0.40
+_MAX_DISPLAY = 5
+_OFF_POINT_RE = re.compile(r"not (be )?(closely |really )?on point", re.I)
+
+
+def _display_worthy(cand):
+    """True if this candidate should appear in the user-facing panel."""
+    gloss = cand.get("gloss")
+    if gloss and _OFF_POINT_RE.search(gloss):
+        return False
+    if cand.get("fetch_failed"):
+        return False
+    if cand["source"] == "corpus":
+        return True
+    cs = cand.get("content_score")
+    return cs is not None and cs >= _DISPLAY_CONTENT_FLOOR
+
 
 def get_related_judgments(user_message, grounded_answer_text=None, *,
                           write_bundle=True, pin=True, gloss=True,
@@ -1112,7 +1132,7 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
     """
     from settled_doctrine_whitelist import coverage_report
 
-    empty = {"status": None, "candidates": [], "bundle_path": None,
+    empty = {"status": None, "candidates": [], "for_display": [], "bundle_path": None,
              "profile": None, "anchors": [], "degraded": False,
              "show_user": False, "whitelist": None}
 
@@ -1170,9 +1190,12 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         except Exception:
             logger.exception("get_related_judgments: could not write review bundle")
 
+    for_display = [c for c in ranked if _display_worthy(c)][:_MAX_DISPLAY] if show_user else []
+
     return {
         "status": "ok" if ranked else "no_candidates",
-        "candidates": ranked,
+        "candidates": ranked,          # full ranked list -> the review bundle
+        "for_display": for_display,    # the subset the user-facing panel shows
         "bundle_path": bundle_path,
         "profile": profile,
         "anchors": anchors,
@@ -1194,9 +1217,12 @@ def _print_result(result):
         for i, iss in enumerate(result["profile"]["issues"]):
             topic = dict(wl.get("by_issue", [])).get(iss["issue"])
             print(f"  issue {i}: {iss['issue']}  <- {iss['hook_phrase']!r}  [{topic or 'NOT whitelisted'}]")
-    print(f"\n{len(result['candidates'])} ranked candidate(s):")
+    disp_ids = {id(c) for c in result.get("for_display", [])}
+    print(f"\n{len(result['candidates'])} ranked candidate(s)  "
+          f"({len(disp_ids)} would show in the user panel, marked >>):")
     for r in result["candidates"]:
         t = r["triage"]
+        mark = ">> " if id(r) in disp_ids else "   "
         tags = []
         if r["source"] == "corpus":
             tags.append("CORPUS (verified)")
@@ -1207,8 +1233,8 @@ def _print_result(result):
         if len(r["matched_issues"]) > 1:
             tags.append(f"{len(r['matched_issues'])} issues")
         tag = f"  [{' | '.join(tags)}]" if tags else ""
-        print(f"  {r['score']:.3f}  {t.get('court_tier', '?'):>13}  "
-              f"{(t.get('title') or '')[:66]}{tag}")
+        print(f"{mark}{r['score']:.3f}  {t.get('court_tier', '?'):>13}  "
+              f"{(t.get('title') or '')[:64]}{tag}")
         if t.get("url"):
             print(f"         {t['url']}")
         if r.get("gloss"):
