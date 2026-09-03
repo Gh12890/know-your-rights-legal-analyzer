@@ -25,6 +25,8 @@ IK's end; don't hardcode numbers here, they'll go stale silently).
 import os
 import time
 import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from dotenv import load_dotenv
@@ -36,12 +38,20 @@ logger = logging.getLogger("indiankanoon_client")
 BASE_URL = "https://api.indiankanoon.org"
 API_KEY = os.getenv("INDIANKANOON_API_KEY")
 
-# Conservative client-side rate limiting. IK doesn't publish a strict
-# RPS limit in the docs snippet we have; this is a safety margin, not
-# a confirmed contractual number. [Guessing] — adjust if IK support
-# confirms an actual rate limit.
-MIN_SECONDS_BETWEEN_CALLS = 0.5
+# Client-side rate limiting. IK doesn't publish a strict RPS limit; this
+# is a safety margin, not a contractual number. It is now a GLOBAL gap
+# between call STARTS (lock-guarded), so it holds whether calls come one
+# at a time or from the parallel helpers below -- a ~7/sec ceiling.
+MIN_SECONDS_BETWEEN_CALLS = 0.15
 _last_call_time = 0.0
+_throttle_lock = threading.Lock()
+
+# Concurrency cap for search_many / get_documents. Kept low: polite to
+# IK, and the global throttle above is the real limiter anyway.
+MAX_PARALLEL_CALLS = 4
+
+# Retries on a 429 (rate limited) before giving up.
+_MAX_429_RETRIES = 2
 
 
 class IndianKanoonError(Exception):
@@ -63,20 +73,22 @@ def _check_api_key() -> None:
 
 
 def _throttle() -> None:
-    """Client-side pacing so we never hammer the API faster than a
-    reasonable rate, independent of whatever IK's real server-side
-    limit is."""
+    """Global pacing: hold at least MIN_SECONDS_BETWEEN_CALLS between the
+    START of any two calls, whether serial or from the parallel helpers.
+    Lock-guarded so N threads still queue up behind one ~7/sec gate."""
     global _last_call_time
-    elapsed = time.time() - _last_call_time
-    if elapsed < MIN_SECONDS_BETWEEN_CALLS:
-        time.sleep(MIN_SECONDS_BETWEEN_CALLS - elapsed)
-    _last_call_time = time.time()
+    with _throttle_lock:
+        wait = MIN_SECONDS_BETWEEN_CALLS - (time.time() - _last_call_time)
+        if wait > 0:
+            time.sleep(wait)
+        _last_call_time = time.time()
 
 
-def _request(method: str, endpoint: str, **kwargs) -> dict:
+def _request(method: str, endpoint: str, _attempt: int = 0, **kwargs) -> dict:
     """Internal: single point of control for every API call. All auth,
     throttling, and error handling lives here so search() and
-    get_document() stay simple."""
+    get_document() stay simple. Retries a 429 (rate limited) with a
+    short backoff, up to _MAX_429_RETRIES."""
     _check_api_key()
     _throttle()
 
@@ -95,6 +107,14 @@ def _request(method: str, endpoint: str, **kwargs) -> dict:
             f"Check INDIANKANOON_API_KEY is valid and account is active. "
             f"Response: {resp.text[:300]}"
         )
+
+    if resp.status_code == 429:
+        if _attempt < _MAX_429_RETRIES:
+            delay = min(int(resp.headers.get("retry-after", "2") or "2"), 5)
+            logger.warning("IK 429 on %s; retry %d after %ss", endpoint, _attempt + 1, delay)
+            time.sleep(delay)
+            return _request(method, endpoint, _attempt=_attempt + 1, **kwargs)
+        raise IndianKanoonError(f"Rate limited (429) on {endpoint} after {_MAX_429_RETRIES} retries.")
 
     if resp.status_code != 200:
         body_lower = resp.text.lower()
@@ -192,4 +212,47 @@ def get_document_metainfo(doc_id: str) -> dict:
     result = _request("POST", f"/docmeta/{doc_id}/")
     logger.info("IK get_document_metainfo: doc_id=%s", doc_id)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Parallel helpers. Each still costs the same per-call money -- they only
+# remove the wall-clock cost of doing N independent HTTP round-trips one
+# after another. The global _throttle() keeps the aggregate rate polite.
+# Neither ever raises: a failed item maps to None (logged) so one bad
+# query / tid does not sink a whole batch.
+# ---------------------------------------------------------------------------
+
+def _run_parallel(fn, items, label, max_workers):
+    items = list(dict.fromkeys(items))  # dedupe, keep order
+    if not items:
+        return {}
+    workers = max(1, min(max_workers or MAX_PARALLEL_CALLS, MAX_PARALLEL_CALLS, len(items)))
+    out = {}
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(fn, it): it for it in items}
+        for fut in as_completed(futs):
+            it = futs[fut]
+            try:
+                out[it] = fut.result()
+            except Exception as e:  # noqa: BLE001 -- one item failing must not sink the batch
+                logger.warning("%s: %r failed: %s", label, it, e)
+                out[it] = None
+    return out
+
+
+def search_many(queries, max_workers: int = MAX_PARALLEL_CALLS) -> dict:
+    """Run search() for each query concurrently.
+
+    Returns {query: result_dict_or_None}. Order-preserving dedupe on the
+    input. A query that errors maps to None (logged), never raised."""
+    return _run_parallel(lambda q: search(q, 0), queries, "search_many", max_workers)
+
+
+def get_documents(doc_ids, max_workers: int = MAX_PARALLEL_CALLS) -> dict:
+    """Run get_document() for each id concurrently.
+
+    Returns {doc_id_str: result_dict_or_None}. A fetch that errors maps
+    to None (logged), never raised."""
+    ids = [str(d) for d in doc_ids if d]
+    return _run_parallel(get_document, ids, "get_documents", max_workers)
 

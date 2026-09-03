@@ -447,99 +447,127 @@ def _corpus_case_names():
     return sorted(names)
 
 
-def search_candidates(anchors, *, ik_search_fn=None, local_search_fn=None,
-                      per_query_cap=_PER_QUERY_CAP, fromdate="01-01-2015"):
-    """Run one Indian Kanoon search per issue query + one local-corpus
-    semantic search per issue, and pool the hits.
+def corpus_candidates(anchors, *, local_search_fn=None, local_search_many_fn=None):
+    """The FREE half of search_candidates: one local-corpus semantic
+    search per issue, pooled and deduped by case name. No Indian Kanoon,
+    no cost. Split out so it can be run speculatively at answer time
+    (prepare_related_judgments) while the paid IK half waits for a click.
 
-    ik_search_fn: callable(query:str)->dict like indiankanoon_client.search
-        (defaults to the real, PAID client).
-    local_search_fn: callable(query:str)->list like
-        semantic_retrieval.semantic_search (defaults to the real one; free).
-    fromdate: "DD-MM-YYYY" recency floor on the IK searches (default
-        ~2015 -- older High Court judgments are far less likely to be a
-        current, on-point application). "" / None to disable.
-
-    Returns a list of candidate dicts, each:
-        {
-          "source": "indiankanoon" | "corpus",
-          "matched_issues": [int, ...],   # which anchor indices surfaced it
-          "queries": [str, ...],          # the IK queries that surfaced it
-          "raw": {...},                   # the raw IK doc  (source=indiankanoon)
-          "record": {...},                # the corpus chunk (source=corpus)
-        }
-    Deduped: IK by tid, corpus by chunk_id. matched_issues/queries are
-    unioned across anchors. IK or local failures are logged and skipped --
-    a partial pool is fine, an empty pool is honest.
+    Each per-issue search is independent -> run them concurrently
+    (local_search_many_fn) when available.
     """
-    from ik_query_builder import build_issue_queries
-
-    if ik_search_fn is None:
-        try:
-            from indiankanoon_client import search as ik_search_fn
-        except Exception:
-            ik_search_fn = None
-    if local_search_fn is None:
+    if local_search_many_fn is None and local_search_fn is None:
         try:
             from semantic_retrieval import semantic_search as local_search_fn
         except Exception:
-            local_search_fn = None
+            return []
 
-    ik_by_tid = {}
-    corpus_by_chunk = {}
+    issues = [a.get("issue", "") for a in (anchors or [])]
+    if local_search_many_fn is not None:
+        results = local_search_many_fn(issues)  # {issue_text: [hits]}
+    elif len(issues) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(4, len(issues))) as ex:
+            got = list(ex.map(lambda q: _safe_call(local_search_fn, q), issues))
+        results = dict(zip(issues, got))
+    else:
+        results = {q: _safe_call(local_search_fn, q) for q in issues}
 
-    for i, anchor in enumerate(anchors or []):
-        # --- Indian Kanoon ---
-        if ik_search_fn is not None:
-            for query in build_issue_queries(anchor, fromdate=fromdate or None):
-                try:
-                    raw = ik_search_fn(query)
-                except Exception as exc:
-                    # transient (IK slow / down / balance) -- skip this
-                    # query, keep the rest. One line, not a traceback.
-                    logger.warning("search_candidates: IK search skipped for %r: %s", query, exc)
-                    continue
-                docs = raw.get("docs", []) if isinstance(raw, dict) else []
-                for doc in docs[:per_query_cap]:
-                    tid = doc.get("tid")
-                    if tid is None:
-                        continue
-                    entry = ik_by_tid.get(tid)
-                    if entry is None:
-                        entry = {"source": "indiankanoon", "matched_issues": set(),
-                                 "queries": set(), "raw": doc}
-                        ik_by_tid[tid] = entry
-                    entry["matched_issues"].add(i)
-                    entry["queries"].add(query)
+    corpus_by_name = {}
+    for i, issue_text in enumerate(issues):
+        for rec in (results.get(issue_text) or []):
+            if rec.get("type") != "judgment":
+                continue
+            name = rec.get("case_name") or rec.get("chunk_id")
+            if not name:
+                continue
+            entry = corpus_by_name.get(name)
+            if entry is None:
+                entry = {"source": "corpus", "matched_issues": set(),
+                         "queries": set(), "record": rec}
+                corpus_by_name[name] = entry
+            entry["matched_issues"].add(i)
+            if rec.get("score", 0.0) > entry["record"].get("score", 0.0):
+                entry["record"] = rec
 
-        # --- local corpus: OTHER verified cases relevant to this issue.
-        #     Deduped by CASE NAME (not chunk) -- showing six paragraphs of
-        #     Vihaan Kumar as six "related judgments" is noise; one row per
-        #     case, keeping the best-scoring paragraph, is the useful form.
-        if local_search_fn is not None:
-            try:
-                local_hits = local_search_fn(anchor.get("issue", "")) or []
-            except Exception as exc:
-                logger.warning("search_candidates: local search skipped: %s", exc)
-                local_hits = []
-            for rec in local_hits:
-                if rec.get("type") != "judgment":
-                    continue
-                name = rec.get("case_name") or rec.get("chunk_id")
-                if not name:
-                    continue
-                entry = corpus_by_chunk.get(name)
-                if entry is None:
-                    entry = {"source": "corpus", "matched_issues": set(),
-                             "queries": set(), "record": rec}
-                    corpus_by_chunk[name] = entry
-                entry["matched_issues"].add(i)
-                if rec.get("score", 0.0) > entry["record"].get("score", 0.0):
-                    entry["record"] = rec
-
-    pooled = list(ik_by_tid.values()) + list(corpus_by_chunk.values())
+    pooled = list(corpus_by_name.values())
     for e in pooled:
         e["matched_issues"] = sorted(e["matched_issues"])
+        e["queries"] = []
+    return pooled
+
+
+def _safe_call(fn, arg):
+    try:
+        return fn(arg) or []
+    except Exception as exc:
+        logger.warning("_safe_call: %s failed: %s", getattr(fn, "__name__", fn), exc)
+        return []
+
+
+def search_candidates(anchors, *, ik_search_many_fn=None, local_search_fn=None,
+                      local_search_many_fn=None, corpus_pool=None,
+                      per_query_cap=_PER_QUERY_CAP, fromdate="01-01-2015"):
+    """Indian Kanoon searches for every issue query (run CONCURRENTLY via
+    ik_search_many_fn) + the local-corpus half, pooled.
+
+    ik_search_many_fn: callable([query])->{query: result|None} like
+        indiankanoon_client.search_many (defaults to the real PAID one).
+    corpus_pool: if given, the already-computed corpus half (from
+        corpus_candidates / prepare_related_judgments) -- skips re-running
+        it. Otherwise corpus_candidates() runs here.
+
+    Returns the pooled candidate list (see corpus_candidates for the
+    corpus dict shape; IK entries carry 'raw' instead of 'record').
+    Deduped: IK by tid. A query / search that fails maps to no hits, never
+    raises.
+    """
+    from ik_query_builder import build_issue_queries
+
+    if ik_search_many_fn is None:
+        try:
+            from indiankanoon_client import search_many as ik_search_many_fn
+        except Exception:
+            ik_search_many_fn = None
+
+    # one flat, deduped batch of queries -> ONE parallel call
+    query_to_issues = {}
+    for i, anchor in enumerate(anchors or []):
+        for q in build_issue_queries(anchor, fromdate=fromdate or None):
+            query_to_issues.setdefault(q, set()).add(i)
+
+    ik_by_tid = {}
+    if ik_search_many_fn is not None and query_to_issues:
+        try:
+            results = ik_search_many_fn(list(query_to_issues))
+        except Exception as exc:
+            logger.warning("search_candidates: IK batch search failed: %s", exc)
+            results = {}
+        for query, issue_idxs in query_to_issues.items():
+            raw = results.get(query)
+            docs = raw.get("docs", []) if isinstance(raw, dict) else []
+            for doc in docs[:per_query_cap]:
+                tid = doc.get("tid")
+                if tid is None:
+                    continue
+                entry = ik_by_tid.get(tid)
+                if entry is None:
+                    entry = {"source": "indiankanoon", "matched_issues": set(),
+                             "queries": set(), "raw": doc}
+                    ik_by_tid[tid] = entry
+                entry["matched_issues"].update(issue_idxs)
+                entry["queries"].add(query)
+
+    if corpus_pool is None:
+        corpus_pool = corpus_candidates(
+            anchors, local_search_fn=local_search_fn,
+            local_search_many_fn=local_search_many_fn,
+        )
+
+    pooled = list(ik_by_tid.values()) + list(corpus_pool)
+    for e in pooled:
+        if isinstance(e["matched_issues"], set):
+            e["matched_issues"] = sorted(e["matched_issues"])
         e["queries"] = sorted(e["queries"])
     return pooled
 
@@ -723,25 +751,18 @@ def _corpus_para_pool(case_name):
     return pool[:_MAX_PARAS_PER_DOC]
 
 
-def _ik_para_pool(tid, fetch_fn, clean_fn):
-    """Fetch + clean one IK judgment into a paragraph pool. Returns None
-    on any failure (network, balance, or HTML that ik_text_cleaner
-    rejects) -- the caller demotes rather than drops the candidate."""
-    try:
-        raw = fetch_fn(str(tid))
-    except Exception as exc:
-        logger.warning("_ik_para_pool: get_document skipped for tid=%s: %s", tid, exc)
-        return None
-    html = raw.get("doc") if isinstance(raw, dict) else None
-    if not isinstance(html, str) or not html.strip():
-        logger.warning("_ik_para_pool: no 'doc' HTML for tid=%s", tid)
+def _paras_from_html(html, clean_fn):
+    """Clean one IK judgment's HTML into a paragraph pool. Returns None if
+    the HTML is empty or ik_text_cleaner rejects it -- the caller demotes
+    rather than drops the candidate. (The fetch itself is now done in
+    bulk by fetch_and_pin via indiankanoon_client.get_documents.)"""
+    if not isinstance(html, str) or not html.strip() or clean_fn is None:
         return None
     try:
         cleaned = clean_fn(html)
     except Exception:
-        logger.warning("_ik_para_pool: ik_text_cleaner rejected tid=%s", tid)
+        logger.warning("_paras_from_html: ik_text_cleaner rejected a document")
         return None
-
     pool = []
     for p in cleaned.get("paragraphs", []):
         text = (p.get("text") or "").strip()
@@ -749,8 +770,6 @@ def _ik_para_pool(tid, fetch_fn, clean_fn):
             continue
         pool.append({"text": text, "structure": p.get("structure"),
                      "para_number": _para_number(text)})
-        if len(pool) >= _MAX_PARAS_PER_DOC:
-            break
     return pool
 
 
@@ -769,44 +788,35 @@ def _content_words(text):
             if w not in _PIN_STOPWORDS}
 
 
-def fetch_and_pin(ranked, user_message, *, pin_query=None, fetch_fn=None,
+def fetch_and_pin(ranked, user_message, *, pin_query=None, fetch_many_fn=None,
                   clean_fn=None, rerank_fn=None, fetch_n=_FETCH_N, keep=_KEEP_FINAL):
-    """Fetch the top `fetch_n` IK candidates + every corpus candidate and
-    PIN their 1-3 on-point paragraphs (with the judgment's own paragraph
-    number). Does NOT re-order the candidate list -- a first trial showed
-    fragment-level reranking against a long narrative query re-orders
-    *worse* than the headline ranking. rank_candidates owns the order;
-    this step owns the paragraphs.
+    """Fetch the top `fetch_n` IK candidates (CONCURRENTLY, one batch call)
+    + every corpus candidate, and PIN their 1-3 on-point paragraphs (with
+    the judgment's own paragraph number).
 
-    Each candidate gains:
-      - 'pinned'        -- up to _MAX_PINNED_PARAS {para_number, structure,
-                           text, score}, best first ([] if unfetched or
-                           no paragraph cleared the relevance gate)
-      - 'content_score' -- best pinned paragraph's rerank score, or None
-      - 'fetch_failed'  -- True if the IK fetch/clean failed
-      - 'score'         -- RE-BASED on content when we have it: the
-                           fetched paragraph relevance is a far better
-                           signal than the one-line search headline, so
-                           when a paragraph is pinned the score becomes
-                           content_score + the same rank_candidates
-                           nudges. Fetched-but-nothing-pinned and
-                           unfetched IK candidates fall back to a demoted
-                           headline score. THIS re-orders the list.
+    Each candidate gains 'pinned', 'content_score', 'fetch_failed', and a
+    re-based 'score' (content is authoritative once a paragraph is pinned;
+    fetched-but-nothing / unfetched IK candidates fall back to a demoted
+    headline score -- THIS re-orders the list).
 
-    pin_query: the concise text to rank paragraphs against (default:
-        `user_message`). Callers should pass primary_grievance + issue
-        list -- shorter and sharper than the raw message.
+    Speed: the paragraph pool of each judgment is PRE-FILTERED to those
+    that share a content word with the situation (or carry a reasoning
+    structure tag) BEFORE the reranker sees them -- ~500 paragraphs down
+    to ~60, faster and less noise.
+
+    pin_query: the concise text to rank paragraphs against (default the
+        raw message; callers pass primary_grievance + issue list).
     """
     if not ranked:
         return []
     q = pin_query or user_message
     q_words = _content_words(q)
 
-    if fetch_fn is None:
+    if fetch_many_fn is None:
         try:
-            from indiankanoon_client import get_document as fetch_fn
+            from indiankanoon_client import get_documents as fetch_many_fn
         except Exception:
-            fetch_fn = None
+            fetch_many_fn = None
     if clean_fn is None:
         try:
             from ik_text_cleaner import clean_document as clean_fn
@@ -818,32 +828,62 @@ def fetch_and_pin(ranked, user_message, *, pin_query=None, fetch_fn=None,
         except Exception:
             rerank_fn = None
 
+    # which IK candidates to open, in current rank order
+    to_fetch = []   # [(cand_idx, tid_str)]
     ik_seen = 0
+    for idx, cand in enumerate(ranked):
+        if cand["source"] == "indiankanoon" and ik_seen < fetch_n:
+            ik_seen += 1
+            tid = cand["triage"].get("tid")
+            if tid is not None:
+                to_fetch.append((idx, str(tid)))
+
+    docs = {}
+    if fetch_many_fn and to_fetch:
+        try:
+            docs = fetch_many_fn([tid for _, tid in to_fetch]) or {}
+        except Exception as exc:
+            logger.warning("fetch_and_pin: batch fetch failed: %s", exc)
+
     pools = {}  # candidate index -> [paragraph dicts]
     for idx, cand in enumerate(ranked):
         if cand["source"] == "corpus":
             pools[idx] = _corpus_para_pool(cand["triage"].get("title") or "")
-        elif cand["source"] == "indiankanoon" and ik_seen < fetch_n:
-            ik_seen += 1
-            if fetch_fn and clean_fn:
-                pool = _ik_para_pool(cand["triage"].get("tid"), fetch_fn, clean_fn)
-                if pool is None:
-                    cand["fetch_failed"] = True
-                else:
-                    pools[idx] = pool
+    for idx, tid in to_fetch:
+        raw = docs.get(tid)
+        html = raw.get("doc") if isinstance(raw, dict) else None
+        pool = _paras_from_html(html, clean_fn)
+        if pool is None:
+            ranked[idx]["fetch_failed"] = True
+        else:
+            pools[idx] = pool
 
-    # One rerank pass over every candidate's paragraphs.
-    flat = [(cidx, p) for cidx, pool in pools.items() for p in pool]
+    ik_fetched_idxs = {idx for idx, _ in to_fetch}
+
+    # PRE-FILTER: only paragraphs worth reranking (share vocabulary with
+    # the situation, or a reasoning-structure tag). Caps the rerank
+    # payload hard and removes boilerplate before scoring.
+    flat = []
+    for cidx, pool in pools.items():
+        worth = [p for p in pool
+                 if (_content_words(p["text"]) & q_words)
+                 or (p.get("structure") in _STRUCTURE_BONUS)]
+        worth = (worth or pool[:8])[:_MAX_PARAS_PER_DOC]
+        for p in worth:
+            flat.append((cidx, p))
+
     para_scores = {}
     if rerank_fn and flat:
         result = rerank_fn(q, [p["text"] for _, p in flat], top_k=None)
         for r in (result or []):
             para_scores[id(flat[r["index"]][1])] = r["score"]
 
-    ik_fetched_idxs = {i for i in pools if ranked[i]["source"] == "indiankanoon"}
+    paras_by_cand = {}
+    for cidx, p in flat:
+        paras_by_cand.setdefault(cidx, []).append(p)
 
     for idx, cand in enumerate(ranked):
-        pool = pools.get(idx) or []
+        pool = paras_by_cand.get(idx) or []
         scored = []
         for p in pool:
             s = para_scores.get(id(p), 0.0)
@@ -976,30 +1016,45 @@ def _verify_gloss(gloss, pinned_text):
     return g
 
 
+_GLOSS_MAX_WORKERS = 5
+
+
 def gloss_and_verify(candidates, user_message, *, gloss_fn=None):
     """Attach a verified one-sentence 'what this case dealt with' gloss to
     each candidate that has pinned paragraphs. `cand['gloss']` is the
     sentence, or None if the model was unavailable / the sentence failed
     verification. Never raises.
 
-    gloss_fn: callable(situation, paragraphs_text)->str, injected for
-        tests. Defaults to a real Sonnet call.
+    The gloss calls (one Sonnet call each) are INDEPENDENT -> run them
+    concurrently. gloss_fn: callable(situation, paragraphs_text)->str,
+    injected for tests. Defaults to a real Sonnet call.
     """
     if gloss_fn is None:
         gloss_fn = _default_gloss_fn
 
+    jobs = []  # (cand, paras_text)
     for cand in candidates or []:
         cand.setdefault("gloss", None)
         pinned = cand.get("pinned") or []
-        if not pinned:
-            continue
-        paras_text = "\n\n".join(p["text"] for p in pinned[:2])
+        if pinned:
+            jobs.append((cand, "\n\n".join(p["text"] for p in pinned[:2])))
+
+    def _one(job):
+        cand, paras_text = job
         try:
             raw = gloss_fn(user_message, paras_text)
-        except Exception:
-            logger.exception("gloss_and_verify: gloss call failed")
-            continue
+        except Exception as exc:
+            logger.warning("gloss_and_verify: gloss call failed: %s", exc)
+            return
         cand["gloss"] = _verify_gloss(raw, paras_text)
+
+    if len(jobs) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(_GLOSS_MAX_WORKERS, len(jobs))) as ex:
+            list(ex.map(_one, jobs))
+    else:
+        for job in jobs:
+            _one(job)
     return candidates
 
 
@@ -1101,14 +1156,81 @@ def _display_worthy(cand):
     return cs is not None and cs >= _DISPLAY_CONTENT_FLOOR
 
 
+def prepare_related_judgments(user_message, *, decompose_fn=None,
+                              local_search_fn=None, local_search_many_fn=None,
+                              rerank_fn=None, grounded_answer_text=None, today=None):
+    """The FREE, no-Indian-Kanoon half of the pipeline: decompose the
+    situation, build the anchors, search the local 22-case corpus, and
+    rank those corpus candidates. Costs one Haiku call + Voyage (free
+    tier) and ~3-4s.
+
+    Meant to be run speculatively the moment the grounded answer is
+    produced (in a background thread -- this touches no Streamlit state),
+    so that when the user clicks "Show related judgments" only the paid
+    Indian Kanoon + gloss work remains.
+
+    Returns {'profile', 'anchors', 'corpus_ranked', 'today'} or None. Pass
+    the whole dict back as get_related_judgments(prepared=...).
+    """
+    decompose = decompose_fn or decompose_situation
+    try:
+        profile = decompose(user_message)
+    except Exception as exc:
+        logger.warning("prepare_related_judgments: decompose failed: %s", exc)
+        return None
+    if not profile:
+        return None
+
+    anchors = build_anchors(profile)
+    corpus_pool = corpus_candidates(
+        anchors, local_search_fn=local_search_fn,
+        local_search_many_fn=local_search_many_fn,
+    )
+    corpus_ranked = rank_candidates(
+        list(corpus_pool), user_message, rerank_fn=rerank_fn,
+        grounded_answer_text=grounded_answer_text, today=today,
+        keep=_KEEP_FINAL,
+    )
+    return {"profile": profile, "anchors": anchors,
+            "corpus_ranked": corpus_ranked, "today": today}
+
+
+_PREP_EXECUTOR = None
+
+
+def submit_prepare(user_message, grounded_answer_text=None):
+    """Kick off prepare_related_judgments() on a small background pool and
+    return the Future. The app calls this the moment a grounded answer is
+    shown; by the time the user clicks "Show related judgments" the free
+    half (decompose + corpus search + rank) is already done, so the click
+    only pays for the Indian Kanoon + gloss work.
+
+    prepare_related_judgments touches no Streamlit state, so running it in
+    a plain worker thread is safe."""
+    global _PREP_EXECUTOR
+    if _PREP_EXECUTOR is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _PREP_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="rj-prep")
+    return _PREP_EXECUTOR.submit(
+        prepare_related_judgments, user_message,
+        grounded_answer_text=grounded_answer_text,
+    )
+
+
 def get_related_judgments(user_message, grounded_answer_text=None, *,
-                          write_bundle=True, pin=True, gloss=True,
-                          ik_search_fn=None, local_search_fn=None, rerank_fn=None,
-                          decompose_fn=None, fetch_fn=None, clean_fn=None,
+                          write_bundle=True, pin=True, gloss=True, prepared=None,
+                          ik_search_many_fn=None, local_search_fn=None,
+                          local_search_many_fn=None, rerank_fn=None,
+                          decompose_fn=None, fetch_many_fn=None, clean_fn=None,
                           gloss_fn=None, today=None):
     """Lane B entry point: decompose -> anchor -> search -> rank -> fetch
     top few + pin paragraphs -> settled-doctrine whitelist gate -> (if
     covered) one bounded gloss per candidate + verification.
+
+    prepared: the dict from prepare_related_judgments() -- if given,
+        decomposition + anchors + the corpus search/rank are reused
+        instead of recomputed, so the call starts straight at the paid
+        Indian Kanoon searches.
 
     Returns a dict with 'status' always set:
       'disabled'          -- KYR_DISABLE_LIVE_JUDGMENTS is set
@@ -1141,20 +1263,54 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
     if os.getenv(_KILL_SWITCH_ENV):
         return {**empty, "status": "disabled"}
 
-    decompose = decompose_fn or decompose_situation
-    profile = decompose(user_message)
-    if not profile:
-        return {**empty, "status": "no_decomposition"}
+    if prepared and prepared.get("profile"):
+        profile = prepared["profile"]
+        anchors = prepared["anchors"]
+        corpus_pool = None  # already in prepared["corpus_ranked"]
+        seeded = list(prepared.get("corpus_ranked") or [])
+        if today is None:
+            today = prepared.get("today")
+    else:
+        decompose = decompose_fn or decompose_situation
+        profile = decompose(user_message)
+        if not profile:
+            return {**empty, "status": "no_decomposition"}
+        anchors = build_anchors(profile)
+        corpus_pool = corpus_candidates(
+            anchors, local_search_fn=local_search_fn,
+            local_search_many_fn=local_search_many_fn,
+        )
+        seeded = []
 
-    anchors = build_anchors(profile)
+    # The paid half: Indian Kanoon searches (concurrent). When we have a
+    # prepared corpus pool, search_candidates only does the IK part and we
+    # merge the pre-ranked corpus candidates back in afterwards.
+    if seeded:
+        ik_only = search_candidates(
+            anchors, ik_search_many_fn=ik_search_many_fn, corpus_pool=[],
+        )
+        ranked = rank_candidates(
+            ik_only, user_message, rerank_fn=rerank_fn,
+            grounded_answer_text=grounded_answer_text, today=today,
+        )
+        # merge: keep both, re-sort by score, cap
+        by_key = {(c["source"], c["triage"].get("tid") or c["triage"].get("title")): c
+                  for c in ranked}
+        for c in seeded:
+            by_key.setdefault(
+                (c["source"], c["triage"].get("tid") or c["triage"].get("title")), c)
+        ranked = sorted(by_key.values(), key=lambda c: c.get("score", 0.0), reverse=True)[:_KEEP_FINAL]
+    else:
+        pooled = search_candidates(
+            anchors, ik_search_many_fn=ik_search_many_fn,
+            local_search_fn=local_search_fn,
+            local_search_many_fn=local_search_many_fn, corpus_pool=corpus_pool,
+        )
+        ranked = rank_candidates(
+            pooled, user_message, rerank_fn=rerank_fn,
+            grounded_answer_text=grounded_answer_text, today=today,
+        )
 
-    pooled = search_candidates(
-        anchors, ik_search_fn=ik_search_fn, local_search_fn=local_search_fn
-    )
-    ranked = rank_candidates(
-        pooled, user_message, rerank_fn=rerank_fn,
-        grounded_answer_text=grounded_answer_text, today=today
-    )
     if pin and ranked:
         pin_query = " ".join(
             [profile.get("primary_grievance", "")]
@@ -1163,7 +1319,7 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         try:
             ranked = fetch_and_pin(
                 ranked, user_message, pin_query=pin_query,
-                fetch_fn=fetch_fn, clean_fn=clean_fn, rerank_fn=rerank_fn,
+                fetch_many_fn=fetch_many_fn, clean_fn=clean_fn, rerank_fn=rerank_fn,
             )
         except Exception:
             logger.exception("get_related_judgments: fetch_and_pin failed; using headline ranking")
@@ -1172,10 +1328,18 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
     wl = coverage_report(profile.get("issues", []))
     show_user = wl["covered"]
 
-    # --- the one bounded generative step, whitelisted path only ---
+    # --- the one bounded generative step, whitelisted path only.
+    #     Gloss ONLY the candidates that could plausibly be shown -- a
+    #     content score above the floor (+ 1 buffer). No point spending a
+    #     Sonnet call on a judgment that won't clear _display_worthy.
     if show_user and gloss and ranked:
+        glossable = [c for c in ranked
+                     if c["source"] == "corpus"
+                     or (c.get("content_score") is not None
+                         and c["content_score"] >= _DISPLAY_CONTENT_FLOOR)]
+        glossable = glossable[:_MAX_DISPLAY + 1]
         try:
-            ranked = gloss_and_verify(ranked, user_message, gloss_fn=gloss_fn)
+            gloss_and_verify(glossable, user_message, gloss_fn=gloss_fn)
         except Exception:
             logger.exception("get_related_judgments: gloss_and_verify failed")
 

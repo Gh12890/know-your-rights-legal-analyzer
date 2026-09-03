@@ -308,20 +308,24 @@ ANCHORS = [
      "new_sections": ["BNSS 187"], "old_sections": ["CrPC 167"], "doctrine_hooks": []},
 ]
 
-# IK returns the SAME tid 500 for both issues (cross-issue), plus tid 501 for
-# issue 0 only, plus tid 502 which is really a corpus case (Arnesh Kumar).
-_IK_RESULTS = {
-    0: {"docs": [_ik_doc(500, "Ramesh v State"), _ik_doc(501, "Suresh v State"),
-                 _ik_doc(502, "Arnesh Kumar vs State Of Bihar on 2 July, 2014", court="Supreme Court of India")]},
-    1: {"docs": [_ik_doc(500, "Ramesh v State")]},
-}
+# tid 500 comes back for a query mentioning "41" / the FIR phrase (issue 0),
+# 501 too; a query mentioning "167" (issue 1) returns just 500. 502 is
+# really a corpus case (Arnesh Kumar).
+_IK_ISSUE0 = {"docs": [_ik_doc(500, "Ramesh v State"), _ik_doc(501, "Suresh v State"),
+                       _ik_doc(502, "Arnesh Kumar vs State Of Bihar on 2 July, 2014",
+                               court="Supreme Court of India")]}
+_IK_ISSUE1 = {"docs": [_ik_doc(500, "Ramesh v State")]}
 
 
-def _fake_ik_search(query):
-    # crude: route by which section number appears in the query
-    if " 41 " in f" {query} " or "41" in query.split() or "name was not in the FIR" in query:
-        return _IK_RESULTS[0]
-    return _IK_RESULTS[1]
+def _fake_ik_search_many(queries):
+    """indiankanoon_client.search_many stand-in: {query: result}."""
+    out = {}
+    for q in queries:
+        if "41" in q.split() or "not named" in q or "FIR" in q or "name was not in the FIR" in q:
+            out[q] = _IK_ISSUE0
+        else:
+            out[q] = _IK_ISSUE1
+    return out
 
 
 def _fake_local_search(query):
@@ -344,7 +348,7 @@ def _fake_rerank(q, docs, top_k=None):
 
 CORPUS_NAMES = ["Arnesh Kumar v State of Bihar", "D.K. Basu v State of West Bengal"]
 
-pool = rj.search_candidates(ANCHORS, ik_search_fn=_fake_ik_search, local_search_fn=_fake_local_search)
+pool = rj.search_candidates(ANCHORS, ik_search_many_fn=_fake_ik_search_many, local_search_fn=_fake_local_search)
 by_tid = {c["raw"]["tid"]: c for c in pool if c["source"] == "indiankanoon"}
 check(set(by_tid) == {500, 501, 502}, "IK hits pooled and deduped by tid across issues")
 check(by_tid[500]["matched_issues"] == [0, 1], "a tid returned for two issues has both indices unioned")
@@ -381,7 +385,7 @@ res = rj.get_related_judgments(
     "arrested though his name was not in the FIR, and still no chargesheet after 2 months",
     grounded_answer_text="Section 35 of the BNSS governs arrest; Section 187 governs default bail.",
     write_bundle=False,
-    decompose_fn=_fake_decompose, ik_search_fn=_fake_ik_search,
+    decompose_fn=_fake_decompose, ik_search_many_fn=_fake_ik_search_many,
     local_search_fn=_fake_local_search, rerank_fn=_fake_rerank,
     today=datetime.date(2026, 9, 3),
 )
@@ -406,12 +410,12 @@ with patch.dict("os.environ", {"KYR_DISABLE_LIVE_JUDGMENTS": "1"}):
 r = rj.get_related_judgments("x", write_bundle=False, decompose_fn=lambda m: None)
 check(r["status"] == "no_decomposition", "decomposition failure -> status 'no_decomposition', never a raise")
 
-def _boom_ik(q):
+def _boom_ik_many(queries):
     raise RuntimeError("IK down")
 
 r = rj.get_related_judgments(
     "arrested, name not in FIR", write_bundle=False, pin=False, decompose_fn=_fake_decompose,
-    ik_search_fn=_boom_ik, local_search_fn=lambda q: [], rerank_fn=_fake_rerank,
+    ik_search_many_fn=_boom_ik_many, local_search_fn=lambda q: [], rerank_fn=_fake_rerank,
     today=datetime.date(2026, 9, 3),
 )
 check(r["status"] in ("ok", "no_candidates"), "an IK exception is swallowed -- get_related_judgments still returns a dict")
@@ -434,8 +438,9 @@ _HTML_500 = "<h2 class='doc_title'>Ramesh v State</h2>" + "".join(
 )
 
 
-def _fake_fetch(tid):
-    return {"doc": _HTML_500} if str(tid) == "500" else {"doc": ""}   # 501 -> empty -> fetch "fails"
+def _fake_fetch_many(tids):
+    # 500 -> real HTML; anything else -> empty doc -> "fetch fails" downstream
+    return {str(t): ({"doc": _HTML_500} if str(t) == "500" else {"doc": ""}) for t in tids}
 
 
 def _fake_clean(html):
@@ -468,7 +473,7 @@ with patch("related_judgments._corpus_para_pool", lambda name: [
     {"text": "10. The arrestee may meet his lawyer during interrogation.", "structure": None, "para_number": 10},
 ]):
     pinned = rj.fetch_and_pin([_r500, _r501, _rc], "arrested though not named in the FIR, no chargesheet",
-                              fetch_fn=_fake_fetch, clean_fn=_fake_clean, rerank_fn=_fake_rerank)
+                              fetch_many_fn=_fake_fetch_many, clean_fn=_fake_clean, rerank_fn=_fake_rerank)
 
 by_tid = {c["triage"]["tid"]: c for c in pinned}
 check(by_tid[500].get("pinned"), "the fetchable IK candidate (500) has pinned paragraphs")
@@ -493,16 +498,16 @@ with patch("related_judgments._corpus_para_pool", lambda name: []):
         "arrested though his name was not in the FIR, and still no chargesheet",
         grounded_answer_text="Section 35 of the BNSS governs arrest. Section 187 of the BNSS governs default bail.",
         write_bundle=False, pin=True,
-        decompose_fn=_fake_decompose, ik_search_fn=_fake_ik_search,
+        decompose_fn=_fake_decompose, ik_search_many_fn=_fake_ik_search_many,
         local_search_fn=_fake_local_search, rerank_fn=_fake_rerank,
-        fetch_fn=_fake_fetch, clean_fn=_fake_clean, today=datetime.date(2026, 9, 3),
+        fetch_many_fn=_fake_fetch_many, clean_fn=_fake_clean, today=datetime.date(2026, 9, 3),
     )
 check(res2["status"] == "ok", "pin=True full flow returns ok")
 check(any("pinned" in c for c in res2["candidates"]), "candidates carry a 'pinned' field after pin=True")
 
 res3 = rj.get_related_judgments(
     "arrested though his name was not in the FIR", write_bundle=False, pin=False,
-    decompose_fn=_fake_decompose, ik_search_fn=_fake_ik_search,
+    decompose_fn=_fake_decompose, ik_search_many_fn=_fake_ik_search_many,
     local_search_fn=_fake_local_search, rerank_fn=_fake_rerank, today=datetime.date(2026, 9, 3),
 )
 check(all(not c.get("pinned") for c in res3["candidates"]),
@@ -573,8 +578,8 @@ with patch("related_judgments._corpus_para_pool", lambda name: [
     wl_res = rj.get_related_judgments(
         "arrested though his name was not in the FIR and still no chargesheet after two months",
         write_bundle=False, pin=True, decompose_fn=_decompose_whitelisted,
-        ik_search_fn=_fake_ik_search, local_search_fn=_fake_local_search,
-        rerank_fn=_fake_rerank, fetch_fn=_fake_fetch, clean_fn=_fake_clean,
+        ik_search_many_fn=_fake_ik_search_many, local_search_fn=_fake_local_search,
+        rerank_fn=_fake_rerank, fetch_many_fn=_fake_fetch_many, clean_fn=_fake_clean,
         gloss_fn=_tracking_gloss, today=datetime.date(2026, 9, 3),
     )
 check(wl_res["show_user"] is True, "all-whitelisted issues -> show_user True")
@@ -601,7 +606,7 @@ check(rj._display_worthy({"source": "indiankanoon", "gloss": "The court dealt wi
 _gloss_calls.clear()
 nb_res = rj.get_related_judgments(
     "the police froze my bank account without telling me", write_bundle=False, pin=False,
-    decompose_fn=_decompose_not_whitelisted, ik_search_fn=_fake_ik_search,
+    decompose_fn=_decompose_not_whitelisted, ik_search_many_fn=_fake_ik_search_many,
     local_search_fn=lambda q: [], rerank_fn=_fake_rerank, gloss_fn=_tracking_gloss,
     today=datetime.date(2026, 9, 3),
 )
@@ -628,6 +633,79 @@ check(_dd[0]["triage"]["title"] == "Mujeeb Rahman v State of Kerala",
       "the higher-scored row of the batch pair is the one kept")
 check(any(c["triage"]["court"].startswith("Punjab") for c in _dd),
       "a genuinely different judgment (different court/date/para) is NOT deduped away")
+
+
+# ---------------------------------------------------------------------------
+# Speedup: indiankanoon_client parallel helpers + prepare_related_judgments
+# ---------------------------------------------------------------------------
+import indiankanoon_client as ik
+
+_calls = []
+def _slow_search(q, page=0):
+    import time as _t
+    _calls.append(q); _t.sleep(0.05)
+    if "boom" in q:
+        raise RuntimeError("nope")
+    return {"found": "1 of 1", "docs": [{"tid": abs(hash(q)) % 100000, "title": q}]}
+
+with patch("indiankanoon_client.search", _slow_search), \
+     patch("indiankanoon_client._check_api_key", lambda: None):
+    import time as _t
+    t0 = _t.time()
+    out = ik.search_many(["q one", "q two", "q three", "q boom"])
+    elapsed = _t.time() - t0
+    check(set(out) == {"q one", "q two", "q three", "q boom"}, "search_many returns a result per query")
+    check(out["q boom"] is None, "a query that errors maps to None, not a raise")
+    check(all(isinstance(out[q], dict) for q in ("q one", "q two", "q three")),
+          "the other queries return their dicts")
+    check(elapsed < 0.18, f"4 x 50ms searches ran concurrently (took {elapsed:.2f}s, not ~0.2s serial)")
+
+_dcalls = []
+def _slow_doc(tid):
+    import time as _t
+    _dcalls.append(tid); _t.sleep(0.05)
+    return {"doc": f"<html>{tid}</html>"}
+
+with patch("indiankanoon_client.get_document", _slow_doc), \
+     patch("indiankanoon_client._check_api_key", lambda: None):
+    out = ik.get_documents([10, 11, 12, 10])  # dupe 10
+    check(set(out) == {"10", "11", "12"}, "get_documents dedupes and keys by string id")
+    check(out["11"]["doc"] == "<html>11</html>", "each doc comes back correctly")
+
+
+# prepare_related_judgments: the free half, reusable via prepared=
+prep = rj.prepare_related_judgments(
+    "arrested though his name was not in the FIR, and no chargesheet after two months",
+    decompose_fn=_decompose_whitelisted, local_search_fn=_fake_local_search,
+    rerank_fn=_fake_rerank, today=datetime.date(2026, 9, 3),
+)
+check(prep is not None and "profile" in prep and "anchors" in prep,
+      "prepare_related_judgments returns the profile + anchors (the free half)")
+check(all(c["source"] == "corpus" for c in prep["corpus_ranked"]),
+      "prepare_related_judgments' corpus_ranked holds only corpus candidates (no IK yet)")
+
+_prep_decomp_calls = []
+def _counting_decompose(msg):
+    _prep_decomp_calls.append(1)
+    return _decompose_whitelisted(msg)
+
+with patch("related_judgments._corpus_para_pool", lambda name: [
+    {"text": "9. Article 22 of the Constitution: arrested shall be detained only per procedure.", "structure": None, "para_number": 9}]):
+    res_prep = rj.get_related_judgments(
+        "arrested though his name was not in the FIR, and no chargesheet after two months",
+        grounded_answer_text="Section 35 of the BNSS governs arrest. Section 187 governs default bail.",
+        write_bundle=False, prepared=prep,
+        decompose_fn=_counting_decompose,
+        ik_search_many_fn=_fake_ik_search_many, rerank_fn=_fake_rerank,
+        fetch_many_fn=_fake_fetch_many, clean_fn=_fake_clean, gloss_fn=lambda s, p: "The court considered a similar delay.",
+        today=datetime.date(2026, 9, 3),
+    )
+check(len(_prep_decomp_calls) == 0,
+      "get_related_judgments(prepared=...) does NOT re-run decomposition")
+check(res_prep["status"] == "ok" and res_prep["profile"] is prep["profile"],
+      "a prepared run reuses the profile and still completes")
+check(any(c["source"] == "corpus" for c in res_prep["candidates"]),
+      "the prepared corpus candidates are merged back into the final ranked list")
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 import re
 from main import (
     analyze_document,
@@ -1644,13 +1645,19 @@ def _render_related_judgments_section():
         return
 
     if st.button("🔎 Show related court judgments", key=f"related_btn_{qhash}",
-                 help="Searches Indian court judgments for a situation like the one you described. "
-                      "Takes up to a minute."):
+                 help="Searches Indian court judgments for a situation like the one you described."):
+        prepared = None
+        fut = st.session_state.get(f"related_prep_{qhash}")
+        if fut is not None:
+            try:
+                prepared = fut.result(timeout=20)   # the free half; usually already done
+            except Exception:
+                prepared = None
         with st.spinner("Searching Indian court judgments for a similar situation…"):
             try:
                 from related_judgments import get_related_judgments
                 st.session_state[result_key] = get_related_judgments(
-                    la["question"], la.get("reply")
+                    la["question"], la.get("reply"), prepared=prepared
                 )
             except Exception:
                 st.session_state[result_key] = {"show_user": False, "for_display": []}
@@ -1839,6 +1846,19 @@ def run_chat_flow():
         st.session_state["chat_last_answer"] = {
             "question": question, "reply": reply, "state": state,
         }
+        # Kick off the FREE half of Lane B in the background now, so a
+        # later "Show related judgments" click only waits on the paid
+        # Indian Kanoon + gloss part. Best-effort -- if it fails, the
+        # click just does the whole thing.
+        if not os.getenv("KYR_DISABLE_LIVE_JUDGMENTS"):
+            import hashlib as _hl
+            pk = f"related_prep_{_hl.md5(question.encode()).hexdigest()[:12]}"
+            if pk not in st.session_state:
+                try:
+                    from related_judgments import submit_prepare
+                    st.session_state[pk] = submit_prepare(question, reply)
+                except Exception:
+                    pass
     else:
         st.session_state.pop("chat_last_answer", None)
 
