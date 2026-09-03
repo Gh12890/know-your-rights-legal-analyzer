@@ -510,6 +510,110 @@ check(all(not c.get("pinned") for c in res3["candidates"]),
 
 
 # ---------------------------------------------------------------------------
+# Phase 3: the settled-doctrine whitelist gate (via get_related_judgments)
+# Phase 4: the bounded gloss + its verification
+# ---------------------------------------------------------------------------
+
+# _verify_gloss -- the output gate
+_PARA = "12. The right to be produced before a Magistrate within 24 hours under Section 57 is mandatory."
+check(rj._verify_gloss("The court considered a delay in producing an arrested person and observed that the 24-hour rule is mandatory.", _PARA)
+      is not None, "a clean descriptive one-sentence gloss passes")
+check(rj._verify_gloss("Your arrest was illegal because you were not produced in time.", _PARA) is None,
+      "a gloss with a verdict about the person ('your arrest was illegal') is rejected")
+check(rj._verify_gloss("This is binding precedent that must be followed in your case.", _PARA) is None,
+      "a gloss claiming 'binding' / 'must be followed' / 'your case' is rejected")
+check(rj._verify_gloss("The court applied Section 167 to extend custody.", _PARA) is None,
+      "a gloss citing Section 167, which is NOT in the paragraph, is rejected")
+check(rj._verify_gloss("The court applied Section 57 to the facts.", _PARA) is not None,
+      "a gloss citing Section 57, which IS in the paragraph, passes")
+check(rj._verify_gloss("", _PARA) is None, "an empty gloss is rejected")
+
+
+# gloss_and_verify -- gloss_fn injected
+_cands = [
+    {"source": "indiankanoon", "matched_issues": [0], "triage": {"tid": 1, "title": "X v State"},
+     "pinned": [{"para_number": 12, "structure": "Section", "text": _PARA, "score": 0.6}]},
+    {"source": "indiankanoon", "matched_issues": [0], "triage": {"tid": 2, "title": "Y v State"},
+     "pinned": []},  # nothing pinned -> no gloss attempted
+]
+rj.gloss_and_verify(_cands, "not produced before a magistrate in time",
+                    gloss_fn=lambda situation, paras: "The judgment dealt with a delayed production and the court observed the rule is mandatory.")
+check(_cands[0]["gloss"] and "mandatory" in _cands[0]["gloss"], "a passing gloss is attached to the pinned candidate")
+check(_cands[1]["gloss"] is None, "a candidate with no pinned paragraph gets gloss=None (no call)")
+
+rj.gloss_and_verify(_cands, "situation", gloss_fn=lambda s, p: "This applies to you and your arrest was illegal.")
+check(_cands[0]["gloss"] is None, "a gloss that fails verification is dropped (set to None), not shown")
+
+rj.gloss_and_verify(_cands, "situation", gloss_fn=lambda s, p: (_ for _ in ()).throw(RuntimeError("model down")))
+check(True, "a gloss_fn exception is swallowed -- gloss_and_verify does not raise")
+
+
+# get_related_judgments: whitelist gate drives show_user + whether gloss runs
+def _decompose_whitelisted(msg):
+    return {"primary_grievance": "held without grounds", "procedural_stage": "pre-chargesheet",
+            "issues": [
+                {"issue": "arrest of a person not named in the FIR", "hook_phrase": "name was not in the FIR", "section_hooks": ["BNSS 35"]},
+                {"issue": "chargesheet not filed within the time limit", "hook_phrase": "no chargesheet", "section_hooks": ["BNSS 187"]},
+            ]}
+
+def _decompose_not_whitelisted(msg):
+    return {"primary_grievance": "account frozen", "procedural_stage": "unknown",
+            "issues": [
+                {"issue": "police froze the bank account", "hook_phrase": "bank account was frozen", "section_hooks": ["BNSS 107"]},
+            ]}
+
+_gloss_calls = []
+def _tracking_gloss(situation, paras):
+    _gloss_calls.append(1)
+    return "The judgment dealt with a similar delay and the court made observations about it."
+
+with patch("related_judgments._corpus_para_pool", lambda name: [
+    {"text": "9. Article 22 of the Constitution reads thus: arrested shall be detained.", "structure": None, "para_number": 9},
+]):
+    wl_res = rj.get_related_judgments(
+        "arrested though his name was not in the FIR and still no chargesheet after two months",
+        write_bundle=False, pin=True, decompose_fn=_decompose_whitelisted,
+        ik_search_fn=_fake_ik_search, local_search_fn=_fake_local_search,
+        rerank_fn=_fake_rerank, fetch_fn=_fake_fetch, clean_fn=_fake_clean,
+        gloss_fn=_tracking_gloss, today=datetime.date(2026, 9, 3),
+    )
+check(wl_res["show_user"] is True, "all-whitelisted issues -> show_user True")
+check(wl_res["whitelist"]["covered"] is True, "whitelist report says covered")
+check(len(_gloss_calls) >= 1, "the gloss runs on the whitelisted path")
+
+_gloss_calls.clear()
+nb_res = rj.get_related_judgments(
+    "the police froze my bank account without telling me", write_bundle=False, pin=False,
+    decompose_fn=_decompose_not_whitelisted, ik_search_fn=_fake_ik_search,
+    local_search_fn=lambda q: [], rerank_fn=_fake_rerank, gloss_fn=_tracking_gloss,
+    today=datetime.date(2026, 9, 3),
+)
+check(nb_res["show_user"] is False, "a non-whitelisted issue -> show_user False (panel hidden)")
+check(nb_res["whitelist"]["uncovered"] == ["police froze the bank account"],
+      "the whitelist report names the issue that hid the panel")
+check(len(_gloss_calls) == 0, "the gloss does NOT run when the panel will not be shown (no Sonnet spend)")
+check(nb_res["status"] in ("ok", "no_candidates"),
+      "the run still completes and a bundle would still be written for hand-curation")
+
+
+# _dedupe_batch -- a batch order gives one IK doc per connected petition
+_batch = [
+    {"score": 0.8, "triage": {"title": "Mujeeb Rahman v State of Kerala", "court": "Kerala High Court", "publish_date": "2026-08-21"},
+     "pinned": [{"text": "12. The right to be produced before a Magistrate within twenty-four hours is mandatory and absolute."}]},
+    {"score": 0.79, "triage": {"title": "Rashad Muhammed v State of Kerala", "court": "Kerala High Court", "publish_date": "2026-08-21"},
+     "pinned": [{"text": "12. The right to be produced before a Magistrate within twenty-four hours is mandatory and absolute."}]},
+    {"score": 0.7, "triage": {"title": "Someone Else v State of Punjab", "court": "Punjab & Haryana High Court", "publish_date": "2025-03-01"},
+     "pinned": [{"text": "4. A wholly different holding about default bail arithmetic."}]},
+]
+_dd = rj._dedupe_batch(_batch)
+check(len(_dd) == 2, "a 3-row list with 2 batch-identical rows collapses to 2")
+check(_dd[0]["triage"]["title"] == "Mujeeb Rahman v State of Kerala",
+      "the higher-scored row of the batch pair is the one kept")
+check(any(c["triage"]["court"].startswith("Punjab") for c in _dd),
+      "a genuinely different judgment (different court/date/para) is NOT deduped away")
+
+
+# ---------------------------------------------------------------------------
 print()
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILED")

@@ -31,12 +31,18 @@ The pipeline (this file builds it phase by phase):
      this re-orders the pool on actual content (search headlines alone
      don't discriminate) and pins the 1-3 on-point paragraphs, with the
      judgment's own paragraph number.
-  6. (later phases) whitelist gate -> one bounded gloss -> verbatim-
-     substring verification -> render.
+  6. settled_doctrine_whitelist.coverage_report() -- the gate: the panel
+     is shown to the user ('show_user') ONLY when EVERY decomposed issue
+     is a settled doctrine. Otherwise the review bundle is still written
+     (for hand-curation) but nothing is shown.
+  7. gloss_and_verify()     -- whitelisted path only: one bounded Sonnet
+     sentence per candidate ("what this case dealt with"), then Python
+     rejects any gloss with verdict / binding-ness language or a section
+     number the pinned paragraph doesn't contain.
+  8. (later) the app.py UI panel + an eval harness.
 
-Phases 0-2 are built (steps 1-5). The whitelist gate, the gloss, and the
-UI are later. get_related_judgments() is the entry point; its result is
-NEVER fed back into the grounded-answer pipeline.
+Phases 0-4 are built (steps 1-7). get_related_judgments() is the entry
+point; its result is NEVER fed back into the grounded-answer pipeline.
 """
 
 import json
@@ -50,6 +56,7 @@ logger = logging.getLogger("related_judgments")
 # Same model string as every other Haiku call site in this project
 # (main.py, interview_flow.py, chat_assistant.classify_scope, ...).
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
+_SONNET_MODEL = "claude-sonnet-5"
 
 # Resolve the Anthropic client the same way chat_assistant.py does: reuse
 # main's client when importable (real app + most tests), else None. Tests
@@ -876,7 +883,135 @@ def fetch_and_pin(ranked, user_message, *, pin_query=None, fetch_fn=None,
                 cand["score"] = 0.7 * head + nudges
 
     ranked.sort(key=lambda c: c["score"], reverse=True)
-    return ranked[:keep]
+    return _dedupe_batch(ranked)[:keep]
+
+
+def _dedupe_batch(ranked):
+    """Collapse near-identical rows from a BATCH judgment -- one order
+    disposing of many connected petitions produces one IK document per
+    petition (same court, same date, same reasoning, same pinned
+    paragraph). Keep the highest-scored, drop the rest. Key: court +
+    publish date + first ~120 chars of the top pinned paragraph."""
+    seen, out = set(), []
+    for c in ranked:
+        t = c["triage"]
+        top_para = (c.get("pinned") or [{}])[0].get("text", "")
+        key = (t.get("court"), t.get("publish_date"),
+               re.sub(r"\s+", " ", top_para[:120]).strip().lower())
+        if all(key):
+            if key in seen:
+                logger.info("_dedupe_batch: dropped batch duplicate %r", t.get("title"))
+                continue
+            seen.add(key)
+        out.append(c)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 -- the one bounded generative step, and its verification gate.
+#
+# For each displayed judgment, one Sonnet call writes ONE sentence: what
+# the case dealt with and what the court observed. Then Python checks the
+# output: no verdict / currency / binding-ness language, and no section
+# number the pinned paragraph does not itself contain. A gloss that fails
+# is dropped -- the paragraph still shows, just without the sentence.
+#
+# This is the SAME discipline as generate_grounded_response: the model
+# phrases, Python verifies. The gloss never advises and never says the
+# case applies to the user.
+# ---------------------------------------------------------------------------
+
+JUDGMENT_GLOSS_PROMPT = """A person described this situation to a legal-information tool:
+"{situation}"
+
+Below is a paragraph (or two) from a real Indian court judgment that a search suggested might be related. Write ONE sentence for the person that says, in plain words:
+- what factual situation that judgment was dealing with, and
+- what the court observed or held about it.
+
+Rules -- breaking any of these makes the sentence unusable:
+- ONE sentence only, at most ~35 words.
+- Describe the judgment. Do NOT say it is "binding", "settled law", "good law", or "the position". Do NOT say it applies to this person, or use "you"/"your"/"in your case".
+- Do NOT give a verdict about this person's situation ("your arrest was illegal", "you are entitled to bail").
+- Do NOT mention a section number or a holding that is not in the paragraph text below.
+- If the paragraph is not actually about a situation like the person's, say only: "This one may not be closely on point."
+
+Judgment paragraph(s):
+{paragraphs}
+
+The one sentence:"""
+
+
+# Lowercased substrings that must not appear in a gloss.
+_GLOSS_FORBIDDEN = (
+    "your arrest", "your case", "your situation", "in your case", "applies to you",
+    "you are entitled", "you were entitled", "you should", "you can seek", "you may seek",
+    "binding", "settled law", "good law", "the settled position", "must be followed",
+    "your bank", "your account", "your bail", "illegal in your", "unlawful in your",
+)
+_GLOSS_SECTION_RE = re.compile(r"\bSection\s+(\d{1,3})", re.IGNORECASE)
+
+
+def _verify_gloss(gloss, pinned_text):
+    """Return the gloss if it passes, else None. Rejects verdict /
+    currency / binding-ness language and any Section N not present in the
+    paragraph text the gloss was written from."""
+    if not gloss or not gloss.strip():
+        return None
+    g = gloss.strip()
+    low = g.lower()
+    if any(bad in low for bad in _GLOSS_FORBIDDEN):
+        logger.info("_verify_gloss: rejected for forbidden phrase: %r", g)
+        return None
+    para_sections = set(_GLOSS_SECTION_RE.findall(pinned_text or ""))
+    for sec in _GLOSS_SECTION_RE.findall(g):
+        if sec not in para_sections:
+            logger.info("_verify_gloss: rejected -- Section %s not in the paragraph", sec)
+            return None
+    # one sentence, not a paragraph
+    if g.count(". ") > 1 and len(g.split()) > 45:
+        logger.info("_verify_gloss: rejected -- more than one sentence")
+        return None
+    return g
+
+
+def gloss_and_verify(candidates, user_message, *, gloss_fn=None):
+    """Attach a verified one-sentence 'what this case dealt with' gloss to
+    each candidate that has pinned paragraphs. `cand['gloss']` is the
+    sentence, or None if the model was unavailable / the sentence failed
+    verification. Never raises.
+
+    gloss_fn: callable(situation, paragraphs_text)->str, injected for
+        tests. Defaults to a real Sonnet call.
+    """
+    if gloss_fn is None:
+        gloss_fn = _default_gloss_fn
+
+    for cand in candidates or []:
+        cand.setdefault("gloss", None)
+        pinned = cand.get("pinned") or []
+        if not pinned:
+            continue
+        paras_text = "\n\n".join(p["text"] for p in pinned[:2])
+        try:
+            raw = gloss_fn(user_message, paras_text)
+        except Exception:
+            logger.exception("gloss_and_verify: gloss call failed")
+            continue
+        cand["gloss"] = _verify_gloss(raw, paras_text)
+    return candidates
+
+
+def _default_gloss_fn(situation, paragraphs_text):
+    if client is None:
+        return None
+    resp = client.messages.create(
+        model=_SONNET_MODEL,
+        max_tokens=160,
+        messages=[{"role": "user", "content": JUDGMENT_GLOSS_PROMPT.format(
+            situation=situation[:1200], paragraphs=paragraphs_text[:2500],
+        )}],
+    )
+    return _extract_text_from_response(resp).strip()
 
 
 def _slugify(text, maxlen=60):
@@ -886,6 +1021,7 @@ def _slugify(text, maxlen=60):
 
 def write_review_bundle(user_message, profile, anchors, ranked, *,
                         grounded_answer_text=None, degraded=False,
+                        whitelist_report=None,
                         out_dir="related_judgments_review"):
     """Write the pooled/ranked candidates + how they were found to
     <out_dir>/<slug>.json, for a human to read and curate genuinely-good
@@ -920,6 +1056,7 @@ def write_review_bundle(user_message, profile, anchors, ranked, *,
                 "matched_issue_indices": r["matched_issues"],
                 "queries": r.get("queries", []),
                 "triage": r["triage"],
+                "gloss": r.get("gloss"),
                 "pinned_paragraphs": r.get("pinned", []),
             }
             for r in ranked
@@ -931,6 +1068,8 @@ def write_review_bundle(user_message, profile, anchors, ranked, *,
             "keyword flag for a human, never a verdict."
         ),
     }
+    if whitelist_report is not None:
+        bundle["whitelist"] = whitelist_report
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(bundle, fh, indent=2, ensure_ascii=False)
     logger.info("wrote related-judgments review bundle: %s", path)
@@ -941,32 +1080,41 @@ _KILL_SWITCH_ENV = "KYR_DISABLE_LIVE_JUDGMENTS"
 
 
 def get_related_judgments(user_message, grounded_answer_text=None, *,
-                          write_bundle=True, pin=True, ik_search_fn=None,
-                          local_search_fn=None, rerank_fn=None,
+                          write_bundle=True, pin=True, gloss=True,
+                          ik_search_fn=None, local_search_fn=None, rerank_fn=None,
                           decompose_fn=None, fetch_fn=None, clean_fn=None,
-                          today=None):
-    """Lane B entry point (Phase 2 form: decompose -> anchor -> search ->
-    rank -> fetch top few + pin paragraphs. Whitelist gate / gloss / UI
-    are later phases).
+                          gloss_fn=None, today=None):
+    """Lane B entry point: decompose -> anchor -> search -> rank -> fetch
+    top few + pin paragraphs -> settled-doctrine whitelist gate -> (if
+    covered) one bounded gloss per candidate + verification.
 
     Returns a dict with 'status' always set:
       'disabled'          -- KYR_DISABLE_LIVE_JUDGMENTS is set
       'no_decomposition'  -- the situation could not be broken into issues
       'no_candidates'     -- searches ran but nothing survived ranking
-      'ok'                -- 'candidates' holds the ranked list, each with
-                             'pinned' paragraphs where a fetch succeeded
-    plus 'candidates' (possibly []), 'bundle_path' (or None), 'profile',
-    'anchors', 'degraded' (True if the reranker was unavailable).
+      'ok'                -- 'candidates' holds the ranked list
+    plus:
+      'candidates'   -- ranked list, each with 'pinned' paragraphs and
+                        (when show_user) a verified 'gloss'
+      'show_user'    -- True only when EVERY issue is a whitelisted
+                        settled doctrine. When False the panel must NOT
+                        be shown to the user; the review bundle is still
+                        written for hand-curation.
+      'whitelist'    -- coverage_report(): which topic each issue mapped
+                        to, and which issue (if any) kept show_user False
+      'bundle_path', 'profile', 'anchors', 'degraded'
 
-    pin=False stops after ranking (no full-document fetches / no IK-doc
-    credits) -- useful for a quick look.
+    pin=False stops after ranking (no IK-doc credits). gloss=False skips
+    the Sonnet call even when whitelisted.
 
-    NEVER raises for an operational failure -- every path returns a dict
-    the caller can render or ignore. This function's result is NEVER fed
-    back into the grounded-answer pipeline.
+    NEVER raises for an operational failure. This function's result is
+    NEVER fed back into the grounded-answer pipeline.
     """
+    from settled_doctrine_whitelist import coverage_report
+
     empty = {"status": None, "candidates": [], "bundle_path": None,
-             "profile": None, "anchors": [], "degraded": False}
+             "profile": None, "anchors": [], "degraded": False,
+             "show_user": False, "whitelist": None}
 
     if os.getenv(_KILL_SWITCH_ENV):
         return {**empty, "status": "disabled"}
@@ -998,6 +1146,17 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         except Exception:
             logger.exception("get_related_judgments: fetch_and_pin failed; using headline ranking")
 
+    # --- the whitelist gate: only settled doctrine reaches the user ---
+    wl = coverage_report(profile.get("issues", []))
+    show_user = wl["covered"]
+
+    # --- the one bounded generative step, whitelisted path only ---
+    if show_user and gloss and ranked:
+        try:
+            ranked = gloss_and_verify(ranked, user_message, gloss_fn=gloss_fn)
+        except Exception:
+            logger.exception("get_related_judgments: gloss_and_verify failed")
+
     degraded = bool(ranked) and not ranked[0].get("rerank_used", False)
 
     bundle_path = None
@@ -1006,6 +1165,7 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
             bundle_path = write_review_bundle(
                 user_message, profile, anchors, ranked,
                 grounded_answer_text=grounded_answer_text, degraded=degraded,
+                whitelist_report=wl,
             )
         except Exception:
             logger.exception("get_related_judgments: could not write review bundle")
@@ -1017,15 +1177,23 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         "profile": profile,
         "anchors": anchors,
         "degraded": degraded,
+        "show_user": show_user,
+        "whitelist": wl,
     }
 
 
 def _print_result(result):
     print(f"\nstatus: {result['status']}   degraded(rerank down): {result['degraded']}")
+    wl = result.get("whitelist") or {}
+    print(f"show to user: {result.get('show_user')}   "
+          f"(whitelist covered: {wl.get('covered')})")
+    if wl.get("uncovered"):
+        print(f"  NOT whitelisted -- panel hidden because of: {wl['uncovered']}")
     if result["profile"]:
         print(f"grievance: {result['profile'].get('primary_grievance')}")
         for i, iss in enumerate(result["profile"]["issues"]):
-            print(f"  issue {i}: {iss['issue']}  <- {iss['hook_phrase']!r}")
+            topic = dict(wl.get("by_issue", [])).get(iss["issue"])
+            print(f"  issue {i}: {iss['issue']}  <- {iss['hook_phrase']!r}  [{topic or 'NOT whitelisted'}]")
     print(f"\n{len(result['candidates'])} ranked candidate(s):")
     for r in result["candidates"]:
         t = r["triage"]
@@ -1043,6 +1211,8 @@ def _print_result(result):
               f"{(t.get('title') or '')[:66]}{tag}")
         if t.get("url"):
             print(f"         {t['url']}")
+        if r.get("gloss"):
+            print(f"         gloss: {r['gloss']}")
         for p in r.get("pinned", [])[:2]:
             num = f"para {p['para_number']}" if p.get("para_number") else "para ?"
             struct = f" [{p['structure']}]" if p.get("structure") else ""
@@ -1065,8 +1235,11 @@ if __name__ == "__main__":
     ap.add_argument("--no-bundle", action="store_true", help="don't write the review bundle")
     ap.add_argument("--no-fetch", action="store_true",
                     help="stop after headline ranking -- no full-document fetches / IK-doc credits")
+    ap.add_argument("--no-gloss", action="store_true",
+                    help="skip the one-sentence gloss even when whitelisted (no Sonnet call)")
     args = ap.parse_args()
 
     res = get_related_judgments(args.question, args.answer,
-                                write_bundle=not args.no_bundle, pin=not args.no_fetch)
+                                write_bundle=not args.no_bundle, pin=not args.no_fetch,
+                                gloss=not args.no_gloss)
     _print_result(res)
