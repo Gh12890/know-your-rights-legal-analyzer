@@ -494,8 +494,10 @@ def search_candidates(anchors, *, ik_search_fn=None, local_search_fn=None,
             for query in build_issue_queries(anchor, fromdate=fromdate or None):
                 try:
                     raw = ik_search_fn(query)
-                except Exception:
-                    logger.exception("search_candidates: IK search failed for %r", query)
+                except Exception as exc:
+                    # transient (IK slow / down / balance) -- skip this
+                    # query, keep the rest. One line, not a traceback.
+                    logger.warning("search_candidates: IK search skipped for %r: %s", query, exc)
                     continue
                 docs = raw.get("docs", []) if isinstance(raw, dict) else []
                 for doc in docs[:per_query_cap]:
@@ -517,8 +519,8 @@ def search_candidates(anchors, *, ik_search_fn=None, local_search_fn=None,
         if local_search_fn is not None:
             try:
                 local_hits = local_search_fn(anchor.get("issue", "")) or []
-            except Exception:
-                logger.exception("search_candidates: local search failed")
+            except Exception as exc:
+                logger.warning("search_candidates: local search skipped: %s", exc)
                 local_hits = []
             for rec in local_hits:
                 if rec.get("type") != "judgment":
@@ -727,8 +729,8 @@ def _ik_para_pool(tid, fetch_fn, clean_fn):
     rejects) -- the caller demotes rather than drops the candidate."""
     try:
         raw = fetch_fn(str(tid))
-    except Exception:
-        logger.exception("_ik_para_pool: get_document failed for tid=%s", tid)
+    except Exception as exc:
+        logger.warning("_ik_para_pool: get_document skipped for tid=%s: %s", tid, exc)
         return None
     html = raw.get("doc") if isinstance(raw, dict) else None
     if not isinstance(html, str) or not html.strip():
