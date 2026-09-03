@@ -628,12 +628,12 @@ def rank_candidates(candidates, user_message, *, rerank_fn=None,
         else:
             rec = cand["record"]
             name = rec.get("case_name") or ""
-            # A corpus case the grounded answer ALREADY names is not a
-            # "related" judgment -- the user has it.
+            # If the grounded answer NAMES this case ("the Supreme Court in
+            # D.K. Basu said..."), showing it is MORE useful, not less --
+            # the answer only mentions it, the panel gives the actual
+            # paragraph + a link to read. Flag it so the panel can say
+            # "the judgment cited above".
             short = re.split(r"\s+v\.?\s+| vs\.? ", name, maxsplit=1)[0].strip().lower()
-            if short and len(short) > 3 and short in answer_lc:
-                logger.info("rank_candidates: dropped corpus case already in the answer: %r", name)
-                continue
             cand["triage"] = {
                 "tid": None,
                 "title": name or None,
@@ -642,6 +642,7 @@ def rank_candidates(candidates, user_message, *, rerank_fn=None,
                 "court_tier": "supreme_court",  # corpus is SC/foundational + a few HC
                 "publish_date": None,
                 "is_corpus_case": True,
+                "cited_in_answer": bool(short and len(short) > 3 and short in answer_lc),
                 "post_three_code_commencement": None,
                 "adverse_markers": [],
                 "snippet": (rec.get("text") or "")[:600],

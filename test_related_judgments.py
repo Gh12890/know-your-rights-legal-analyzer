@@ -372,6 +372,18 @@ degraded = rj.rank_candidates(pool, "q", rerank_fn=lambda *a, **k: None,
 check(degraded and all(not r["rerank_used"] for r in degraded),
       "reranker returning None -> ranking still produces a list, marked not rerank_used")
 
+# A corpus case the grounded answer NAMES is kept (not dropped) and flagged
+ranked_named = rj.rank_candidates(
+    pool, "arrest without warrant, no chargesheet",
+    rerank_fn=_fake_rerank, corpus_case_names=CORPUS_NAMES,
+    grounded_answer_text="The Supreme Court in D.K. Basu v State of West Bengal laid down safeguards.",
+    today=datetime.date(2026, 9, 3),
+)
+dkb = [r for r in ranked_named if r["source"] == "corpus" and "Basu" in (r["triage"]["title"] or "")]
+check(len(dkb) == 1, "a corpus case named in the grounded answer is KEPT, not dropped")
+check(dkb[0]["triage"].get("cited_in_answer") is True,
+      "and it is flagged cited_in_answer so the panel can say 'the judgment cited above'")
+
 
 # ---- get_related_judgments: full flow, everything injected ----
 def _fake_decompose(msg):

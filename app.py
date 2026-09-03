@@ -1600,7 +1600,9 @@ def _render_related_judgments_result(result):
             t = c.get("triage", {})
             title = t.get("title") or "Judgment"
             bits = [f"**{title}**"]
-            if c.get("source") == "corpus":
+            if t.get("cited_in_answer"):
+                bits.append("_the judgment cited in the answer above_")
+            elif c.get("source") == "corpus":
                 bits.append("in our verified library")
             elif t.get("court"):
                 bits.append(t["court"])
