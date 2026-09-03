@@ -603,8 +603,15 @@ check(all(rj._display_worthy(c) for c in wl_res["for_display"]),
       "every for_display candidate passes _display_worthy")
 
 # _display_worthy: off-point gloss and low content are excluded
-check(rj._display_worthy({"source": "corpus", "gloss": None, "content_score": None}) is True,
-      "a corpus candidate is always display-worthy")
+check(rj._display_worthy({"source": "corpus", "gloss": None, "content_score": 0.55,
+                          "triage": {}}) is True,
+      "a corpus candidate with a real content score is display-worthy")
+check(rj._display_worthy({"source": "corpus", "gloss": None, "content_score": 0.30,
+                          "triage": {}}) is False,
+      "a corpus candidate whose only match is a weak stray paragraph is NOT shown")
+check(rj._display_worthy({"source": "corpus", "gloss": None, "content_score": 0.30,
+                          "triage": {"cited_in_answer": True}}) is True,
+      "...unless the grounded answer named it -- then it always shows")
 check(rj._display_worthy({"source": "indiankanoon", "gloss": "This one may not be closely on point.",
                           "content_score": 0.9}) is False,
       "an off-point gloss excludes a candidate from the panel even at a high score")

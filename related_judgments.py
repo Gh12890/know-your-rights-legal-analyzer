@@ -1151,10 +1151,16 @@ def _display_worthy(cand):
         return False
     if cand.get("fetch_failed"):
         return False
-    if cand["source"] == "corpus":
+    # A case the grounded answer named always shows -- the user wants to
+    # read the judgment it cited.
+    if cand.get("triage", {}).get("cited_in_answer"):
         return True
     cs = cand.get("content_score")
-    return cs is not None and cs >= _DISPLAY_CONTENT_FLOOR
+    # Corpus cases are verified, but a weak content score means the match
+    # is a stray paragraph, not the point of the case -- hold them to a
+    # slightly higher bar than live IK hits.
+    floor = _DISPLAY_CONTENT_FLOOR + (0.02 if cand["source"] == "corpus" else 0.0)
+    return cs is not None and cs >= floor
 
 
 def prepare_related_judgments(user_message, *, decompose_fn=None,
