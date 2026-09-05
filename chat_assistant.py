@@ -1625,6 +1625,19 @@ def answer_question(question):
             if (m["act"], m["section_number"]) not in seen
         ]
 
+    # General "this is probably an IT Act matter too" orientation note
+    # (loc-transit-remand-plan, confirmed real gap found via live user
+    # testing 2026-09-05): a cyber-crime-agency + online-post + arrest/
+    # detention-shaped question (e.g. the LOC/transit-remand scenario)
+    # was answering with ONLY BNSS 58/187 and never mentioning the IT Act
+    # at all. Fires ONLY when no ITACT-specific match already exists
+    # (an explicit "Section 66A"/numbered mention, or a keyword-anchored
+    # offence like hacking) -- those are more specific and this general
+    # note would only dilute them, never add to them.
+    if not any((o.get("act") or "").upper() == "ITACT" for o in statute_overrides):
+        from itact_section_status import get_cyber_backstory_note
+        statute_overrides = statute_overrides + get_cyber_backstory_note(question)
+
     result = find_relevant_sections(question)
 
     if result["state"] == "unavailable":

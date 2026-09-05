@@ -13,6 +13,8 @@ No API cost -- pure Python, no LLM/embedding/Indian Kanoon calls.
 from itact_section_status import (
     get_itact_section_status,
     ITACT_SECTION_STATUS,
+    match_cyber_backstory_no_confirmed_section,
+    get_cyber_backstory_note,
     NOT_YET_VERIFIED,
     match_66a_mention,
     get_itact_status_override,
@@ -123,6 +125,67 @@ for key, entry in ITACT_SECTION_STATUS.items():
         check(bool(entry["verified_note"]), f"{key}: verified_note is non-empty")
         check(bool(entry["user_facing_note"]), f"{key}: STRUCK_DOWN carries a real user_facing_note")
     check(key.startswith("ITACT "), f"{key}: key is prefixed with the act name ('ITACT ')")
+
+
+# ---------------------------------------------------------------------------
+# match_cyber_backstory_no_confirmed_section / get_cyber_backstory_note
+# (2026-09-05, real bug found via live user testing: the LOC/transit-
+# remand scenario's chat answer discussed ONLY BNSS 58/187 and never
+# mentioned the IT Act at all, despite the situation being driven by a
+# deleted Twitter post that "Chennai Cyber Crime" police were
+# investigating -- exactly the fact pattern Phase 3 exists for).
+# ---------------------------------------------------------------------------
+
+# the exact real-world scenario that surfaced the gap
+_LOC_SCENARIO = (
+    "I have been detained by Immigration at Delhi IGI Airport due to a "
+    "Look Out Circular (LOC) issued by the Chennai Cyber Crime / Tamil "
+    "Nadu Police regarding a X Twitter Post in June, which is already "
+    "deleted. We need a criminal defense lawyer in Delhi/NCR who can "
+    "immediately reach the IGI Airport Police Station or Patiala House "
+    "Court to handle the situation and contest the upcoming transit "
+    "remand."
+)
+check(match_cyber_backstory_no_confirmed_section(_LOC_SCENARIO),
+      "REGRESSION: the real LOC/transit-remand scenario (cyber crime + Twitter "
+      "post + LOC/detained/remand) triggers the general IT Act orientation note")
+
+_POSITIVE_CASES = [
+    "the cyber cell called me in over a Facebook post and I'm afraid of being arrested",
+    "I got a police notice from the cyber crime branch about a WhatsApp message I sent",
+    "an FIR was registered against me by cyber police for a video I uploaded",
+]
+for q in _POSITIVE_CASES:
+    check(match_cyber_backstory_no_confirmed_section(q), f"cyber backstory detected: {q!r}")
+
+_NEGATIVE_CASES = [
+    "what is the cyber crime cell",  # no online-content word, no accusation
+    "I posted a video of my wedding",  # no cyber agency, no accusation
+    "the police arrested me for theft of a goat",  # no cyber agency, no online content
+    "my bank account was frozen by the police",  # unrelated
+    "",
+]
+for q in _NEGATIVE_CASES:
+    check(not match_cyber_backstory_no_confirmed_section(q), f"cyber backstory NOT falsely detected: {q!r}")
+
+note = get_cyber_backstory_note(_LOC_SCENARIO)
+check(len(note) == 1, "get_cyber_backstory_note returns exactly one entry for the LOC scenario")
+check(note[0]["act"] == "ITACT" and note[0]["source"] == "curated_override",
+      "the note is tagged ITACT / curated_override")
+check(note[0]["section_number"] != "66A",
+      "the general note does NOT claim to be Section 66A specifically -- no section is confirmed")
+check("information technology act" in note[0]["text"].lower(),
+      "the note names the IT Act generally")
+check("fir or remand copy" in note[0]["text"].lower() or "fir" in note[0]["text"].lower(),
+      "the note tells the person how to find out the ACTUAL section (ask for the FIR/remand copy)")
+check("66a" in note[0]["text"].lower() and "shreya singhal" in note[0]["text"].lower(),
+      "the note conditionally flags the 66A struck-down fact ('if that is the section shown')")
+check("if that is the section" in note[0]["text"].lower(),
+      "the 66A mention is explicitly conditional, never asserted as the actual charge")
+
+check(get_cyber_backstory_note("what is the weather today") == [],
+      "no trigger -> empty note list")
+check(get_cyber_backstory_note("") == [], "empty question -> empty note list, never crashes")
 
 
 print()

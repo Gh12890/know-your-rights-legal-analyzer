@@ -1122,6 +1122,73 @@ check(rj.approved_candidates({"issues": []}, path="/nonexistent/nope.json") == [
 
 
 # ---------------------------------------------------------------------------
+# REGRESSION (2026-09-05, caught via live user testing): the same real
+# judgment reached the Lane B panel TWICE -- once as a fresh corpus hit
+# (source='corpus') and once via the approved-store reuse cache
+# (source='approved', tid also None there). The old dedup key in BOTH
+# _merge_ranked and prepare_related_judgments' seed-merge was
+# (source, tid-or-title) -- including source let the same judgment
+# survive under two different keys ("Arnesh Kumar v State of Bihar"
+# showed up once as "in our verified library" and once as "you kept
+# this in a draft before"). Fixed via _judgment_identity(), which drops
+# source from the key entirely.
+# ---------------------------------------------------------------------------
+_arnesh_corpus = {"source": "corpus", "score": 0.55,
+                  "triage": {"tid": None, "title": "Arnesh Kumar v State of Bihar"}}
+_arnesh_approved = {"source": "approved", "score": 0.6,
+                    "triage": {"tid": None, "title": "Arnesh Kumar v State of Bihar",
+                               "previously_approved": True}}
+_other = {"source": "indiankanoon", "score": 0.5, "triage": {"tid": 999, "title": "Some Other Case"}}
+
+merged = rj._merge_ranked([_arnesh_corpus, _other], [_arnesh_approved])
+check(len(merged) == 2,
+      "_merge_ranked collapses the same judgment found via corpus AND the approved store into one entry")
+check(merged[0]["source"] == "corpus",
+      "the fresh corpus entry wins over the 'you kept this in a draft before' framing (first list wins)")
+
+_arnesh_approved_upper = {**_arnesh_approved,
+                          "triage": {**_arnesh_approved["triage"], "title": "ARNESH KUMAR V STATE OF BIHAR"}}
+check(len(rj._merge_ranked([_arnesh_corpus], [_arnesh_approved_upper])) == 1,
+      "_merge_ranked's dedup is case-insensitive on title")
+
+check(len(rj._merge_ranked(
+    [{"source": "corpus", "score": 0.4, "triage": {"tid": 42, "title": "X v Y"}}],
+    [{"source": "approved", "score": 0.9, "triage": {"tid": 42, "title": "X v Y (approved copy)"}}],
+)) == 1, "_merge_ranked dedupes by tid even when the title string differs")
+
+# the same bug also lived in prepare_related_judgments' own seed-vs-corpus
+# merge (line ~1411) -- exercise that call site directly, with
+# approved_candidates() stubbed so no real store file is touched.
+_arnesh_seed = [{
+    "source": "approved", "matched_issues": [0], "queries": [],
+    "pinned": [{"para_number": 7, "structure": None, "text": "Arrest should be the last option."}],
+    "gloss": None, "content_score": 0.6, "rerank_score": 0.6, "rerank_used": True,
+    "_nudges": 0.0, "score": 0.6,
+    "triage": {"tid": None, "title": "Arnesh Kumar v State of Bihar", "citation": "(2014) 8 SCC 273",
+               "court": "Supreme Court", "court_tier": "high_court",
+               "url": "https://indiankanoon.org/doc/2982624/", "publish_date": None,
+               "is_corpus_case": False, "cited_in_answer": False, "adverse_markers": [],
+               "previously_approved": True},
+}]
+
+with patch("related_judgments.approved_candidates", lambda profile: _arnesh_seed), \
+     patch("related_judgments._corpus_case_names", lambda: set(CORPUS_NAMES)):
+    prep2 = rj.prepare_related_judgments(
+        "police want to arrest me without any justification, what are my rights",
+        decompose_fn=_decompose_whitelisted,
+        local_search_fn=lambda q: [_corpus_rec("Arnesh Kumar v State of Bihar", "7",
+                                                "Arrest should be the last option.", score=0.7)],
+        rerank_fn=_fake_rerank, today=datetime.date(2026, 9, 5),
+    )
+titles2 = [c["triage"]["title"] for c in prep2["corpus_ranked"]]
+check(titles2.count("Arnesh Kumar v State of Bihar") == 1,
+      "prepare_related_judgments' seed-merge no longer lets the same judgment in twice "
+      "(fresh corpus hit + approved-store copy)")
+check(prep2["corpus_ranked"][titles2.index("Arnesh Kumar v State of Bihar")]["source"] == "corpus",
+      "the surviving entry is the fresh corpus hit, not the approved-store copy")
+
+
+# ---------------------------------------------------------------------------
 print()
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILED")

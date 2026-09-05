@@ -1408,9 +1408,9 @@ def prepare_related_judgments(user_message, *, decompose_fn=None,
     # -- pre-pinned, no IK call. Merged ahead of the corpus ones.
     seed = approved_candidates(profile)
     if seed:
-        seen = {(c["source"], c["triage"].get("tid") or c["triage"].get("title")) for c in corpus_ranked}
+        seen = {_judgment_identity(c) for c in corpus_ranked}
         corpus_ranked = [c for c in seed
-                         if (c["source"], c["triage"].get("tid") or c["triage"].get("title")) not in seen
+                         if _judgment_identity(c) not in seen
                          ] + corpus_ranked
     return {"profile": profile, "anchors": anchors,
             "corpus_ranked": corpus_ranked, "today": today}
@@ -1782,14 +1782,35 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
     }
 
 
+def _judgment_identity(c):
+    """Identity for dedup: the IK tid when known, else the case title
+    (case-insensitive) -- deliberately NOT the candidate's 'source'.
+
+    BUG this fixes (caught via live user testing, 2026-09-05): the same
+    real judgment can reach a merge both as a fresh corpus/IK hit
+    (source='corpus') and via the user-approved reuse cache
+    (source='approved', tid usually None too since it was itself
+    originally a corpus hit). Keying on source as well as tid-or-title
+    let both survive as "different" candidates -- Arnesh Kumar v State
+    of Bihar appeared twice in the Lane B panel, once framed as
+    "in our verified library" and once as "you kept this in a draft
+    before". Tagging which half of the tid-or-title fallback fired
+    avoids a tid (int) ever colliding with a title (str) by accident."""
+    t = c.get("triage", {})
+    tid = t.get("tid")
+    if tid:
+        return ("tid", tid)
+    return ("title", (t.get("title") or "").strip().lower())
+
+
 def _merge_ranked(*lists, keep=_KEEP_FINAL):
-    """Union candidate lists, deduped by (source, tid-or-title), sorted by
-    score desc, capped at `keep`. First occurrence of a key wins."""
+    """Union candidate lists, deduped by judgment identity (see
+    _judgment_identity -- NOT source), sorted by score desc, capped at
+    `keep`. First occurrence of a key wins."""
     by_key = {}
     for lst in lists:
         for c in lst or []:
-            t = c.get("triage", {})
-            by_key.setdefault((c["source"], t.get("tid") or t.get("title")), c)
+            by_key.setdefault(_judgment_identity(c), c)
     return sorted(by_key.values(), key=lambda c: c.get("score", 0.0), reverse=True)[:keep]
 
 

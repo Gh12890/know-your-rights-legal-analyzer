@@ -191,3 +191,111 @@ def get_itact_status_override(question: str) -> list:
         "context_note": record["user_facing_note"],
         "source": "curated_override",
     }]
+
+
+# ---------------------------------------------------------------------------
+# General "this is probably an IT Act matter, but no specific section is
+# confirmed" orientation note. Added 2026-09-05 after live user testing of
+# the LOC/transit-remand scenario (Chennai Cyber Crime Police, a deleted
+# Twitter post) surfaced a real, reported gap: the chat answer discussed
+# ONLY BNSS 58/187 (arrest/transit-remand procedure) and said nothing at
+# all about the IT Act, even though this exact fact pattern -- an arrest/
+# detention/LOC driven by a social-media post that the cyber-crime police
+# are investigating -- is precisely the scenario Phase 3 of the
+# loc-transit-remand-plan set out to bring into scope.
+#
+# WHY THIS IS SEPARATE FROM match_66a_mention/get_itact_status_override
+# ABOVE, NOT A RELAXATION OF IT: that function is deliberately narrow by
+# design (see its own docstring) -- it refuses to infer 66A "from fact-
+# pattern language alone... since that would risk asserting a specific
+# charge the person never mentioned." This function does NOT relax that:
+# it never names a specific section as the one actually charged. It only
+# states the general, unavoidably-true fact that a post-driven cyber case
+# is ordinarily investigated under the IT Act, 2000 (a body of law, not a
+# single section), and separately flags -- conditionally, "if that is the
+# section shown" -- that 66A specifically is void law, which is worth
+# knowing regardless of which section actually turns out to apply, given
+# real search already confirmed 66A is still being misused nationwide
+# (see ITACT_SECTION_STATUS above). No new fact is asserted about THIS
+# person's case that they did not already supply themselves.
+#
+# Deliberately fires independently of match_66a_mention -- chat_assistant.py
+# decides, at the point it merges statute_overrides, whether a more
+# specific ITACT match (66A named explicitly, or a keyword-anchored
+# section like hacking/66) already covers the ground, and skips this
+# general note when one does, so a specific match is never diluted by a
+# vaguer one sitting alongside it.
+# ---------------------------------------------------------------------------
+_CYBER_AGENCY_PATTERN = re.compile(r"\bcyber\s*(crime|cell|police|wing)\b", re.I)
+_ONLINE_CONTENT_PATTERN = re.compile(
+    r"\b(post|posted|posting|tweet|tweeted|twitter|facebook|instagram|whatsapp|"
+    r"social\s*media|video|photo|picture|message|messaged|comment|commented|"
+    r"upload|uploaded|reel|story|blog)\b",
+    re.I,
+)
+_PROCEDURE_OR_ACCUSATION_PATTERN = re.compile(
+    r"\b(fir|arrest|arrested|arresting|detain|detained|detention|remand|"
+    r"look\s*out\s*circular|lookout\s*circular|complaint|summon|summoned|"
+    r"notice|case\s+(has\s+been|was)\s+(filed|registered)|chargesheet)\b",
+    re.I,
+)
+
+
+def match_cyber_backstory_no_confirmed_section(question: str) -> bool:
+    """True when the question describes an arrest/detention/FIR-shaped
+    situation (_PROCEDURE_OR_ACCUSATION_PATTERN) tied to something posted
+    online (_ONLINE_CONTENT_PATTERN) that a cyber-crime agency is involved
+    with (_CYBER_AGENCY_PATTERN) -- all three, since any one alone is too
+    weak a signal (e.g. "cyber cell" alone could be purely informational;
+    "posted" alone is not cyber-crime-specific). Does NOT check for an
+    explicit section mention itself -- chat_assistant.py's call site
+    handles not double-firing alongside a more specific ITACT match."""
+    if not question or not question.strip():
+        return False
+    return bool(
+        _CYBER_AGENCY_PATTERN.search(question)
+        and _ONLINE_CONTENT_PATTERN.search(question)
+        and _PROCEDURE_OR_ACCUSATION_PATTERN.search(question)
+    )
+
+
+def get_cyber_backstory_note(question: str) -> list:
+    """Chat-facing entry point, same return contract as
+    get_itact_status_override(). Returns a list (empty if the trigger
+    doesn't match) with ONE general orientation entry -- deliberately NOT
+    tied to a real section_number (there isn't one to confirm), so
+    section_number is a short descriptive label rather than a number;
+    downstream consumers (_section_act_map, _find_sections_missing_act)
+    only ever match REAL digit section numbers extracted from the
+    model's own response text, so this label never collides with or is
+    mistaken for an actual cited section."""
+    if not match_cyber_backstory_no_confirmed_section(question):
+        return []
+
+    record = get_itact_section_status("66A")
+    text = (
+        "This situation involves content posted online (not a fresh "
+        "in-person allegation), so the underlying case is ordinarily "
+        "investigated under the Information Technology Act, 2000, in "
+        "addition to any BNS/BNSS procedure. Exactly which IT Act "
+        "section is invoked matters a great deal -- it affects whether "
+        "the offence is bailable and how serious the maximum punishment "
+        "is. Ask the investigating officer or a lawyer for the FIR or "
+        "remand copy, which will state the exact section(s) relied on."
+    )
+    if record["status"] == "STRUCK_DOWN":
+        text += (
+            " One specific thing worth knowing regardless: Section 66A "
+            "of the IT Act was struck down as unconstitutional by the "
+            "Supreme Court in 2015 (Shreya Singhal v Union of India) and "
+            "cannot lawfully be used to charge anyone -- if that is the "
+            "section shown on the FIR, that alone is a strong, "
+            "well-established ground to challenge the case immediately."
+        )
+    return [{
+        "act": "ITACT",
+        "section_number": "general orientation",
+        "text": text,
+        "context_note": None,
+        "source": "curated_override",
+    }]
