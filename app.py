@@ -1,6 +1,9 @@
 import streamlit as st
 import os
 import re
+import logging
+
+logger = logging.getLogger("app")
 from main import (
     analyze_document,
     extract_text_from_pdf,
@@ -1780,6 +1783,22 @@ def _render_related_judgments_section():
                     la["question"], la.get("reply"), prepared=prepared
                 )
             except Exception:
+                # CONFIRMED REAL GAP (2026-09-05, reported by the user: the
+                # button "when clicked didn't show" on a real run): this
+                # bare except previously swallowed ANY failure -- a live
+                # Indian Kanoon timeout, a decompose_situation() API error,
+                # anything -- into the exact same empty dict a genuinely-
+                # empty search produces, with zero logging. The user (and
+                # this project) had no way to tell "nothing found" apart
+                # from "something broke," the same failure class already
+                # found and fixed twice today for classify_scope. Logging
+                # the real exception here doesn't fix whatever the
+                # underlying transient failure was, but makes it
+                # diagnosable the next time it happens instead of invisible.
+                logger.exception(
+                    "_render_related_judgments_section: get_related_judgments failed for qhash=%s",
+                    qhash,
+                )
                 st.session_state[result_key] = {"show_user": False, "for_display": [], "unverified_for_display": []}
         st.rerun()
 
