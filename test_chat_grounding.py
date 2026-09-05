@@ -44,6 +44,10 @@ from chat_assistant import (
     _gather_offence_variants,
     _find_cognizable_bailable_mismatches,
     _format_mismatch,
+    _section_act_map,
+    _find_sections_missing_act,
+    _find_missing_companion_sections,
+    _find_unsupported_case_generalizations,
     generate_grounded_response,
 )
 
@@ -237,8 +241,86 @@ check(_offence_keyword_matches("attempted to murder")[0]["section_number"] == "1
 check(_offence_keyword_matches("what are my rights if the police arrest me") == [],
       "a message describing no specific offence yields no anchor")
 
-check(len(_offence_keyword_matches("they say i stole the goat and also cheated the buyer")) == 1,
-      "capped at one anchor even when the message names two offences -- no laundry list")
+_combo = _offence_keyword_matches("they say i stole the goat and also cheated the buyer")
+check(len(_combo) == 2 and {m["section_number"] for m in _combo} == {"303", "318"},
+      "REAL-SHAPED GAP FIX (2026-09-04): two distinct named offences both anchor now -- "
+      "capping at one silently dropped a genuinely alleged second offence")
+
+_overlap = _offence_keyword_matches("he attempted to murder his neighbour")
+check(len(_overlap) == 1 and _overlap[0]["section_number"] == "109",
+      "a more specific pattern's own words (\"murder\" inside \"attempted to murder\") do not "
+      "ALSO trigger the more general pattern -- span-overlap suppression, not just list order")
+
+# ---------------------------------------------------------------------------
+# CONFIRMED SERIOUS BUG CLASS (2026-09-04), found via eval_chat_answers.py's
+# dowry-wife-complaint case: "my wife has filed a dowry case against me" (the
+# wife is ALIVE, this is a harassment complaint) was retrieved and explained
+# against BNS 80 (dowry DEATH, 7 years to life) purely on generic "dowry"
+# vocabulary overlap. Fixed with an order-sensitive anchor pair -- the death-
+# specific pattern must be checked BEFORE the general "dowry" pattern (same
+# convention as "attempt to murder" before bare "murder").
+# ---------------------------------------------------------------------------
+check(_offence_keyword_matches("my wife has filed a dowry case against me and police are "
+                                "asking me to come")[0]["section_number"] == "85",
+      "REPRODUCES THE CONFIRMED BUG, FIXED: a living wife's dowry-harassment complaint anchors "
+      "to BNS 85 (cruelty by husband/relatives), NOT 80 (dowry death)")
+check(_offence_keyword_matches("my daughter-in-law keeps demanding dowry and harassing my "
+                                "son")[0]["section_number"] == "85",
+      "a second dowry-harassment phrasing (no death implied) also anchors to 85")
+check(_offence_keyword_matches("my sister died within a year of her marriage after being "
+                                "harassed for dowry by her husband")[0]["section_number"] == "80",
+      "a GENUINE dowry-death fact pattern (explicit 'died', within the marriage) still anchors "
+      "to 80 -- the death-specific pattern is not disabled, only no longer the default for "
+      "every 'dowry' mention")
+check(_offence_keyword_matches("my sister was burned to death by her in-laws over a dowry "
+                                "demand")[0]["section_number"] == "80",
+      "a second death-word ('burned to death') also correctly anchors to 80")
+_death_case = _offence_keyword_matches("my sister died within a year of her marriage after "
+                                        "being harassed for dowry by her husband")
+check({m["section_number"] for m in _death_case} == {"80"},
+      "a genuine dowry-death case anchors to 80 only -- the general 85 pattern is correctly "
+      "suppressed since its match falls entirely inside the death pattern's wider span")
+
+
+# ---------------------------------------------------------------------------
+# answer_question: 'situation_detected' must survive the statute-override
+# FALLBACK paths too, not just the main single_match / conflicting_matches
+# branches.
+#
+# CONFIRMED REAL FAILURE (2026-09-04): when find_relevant_sections()
+# returns "no_match" (or "unavailable") and a curated statute_override
+# still produces an answer, that fallback returned {"state":
+# "single_match", ...} WITHOUT a 'situation_detected' key at all -- so
+# app.py's la.get("situation") silently defaulted to falsy and the
+# "Prepare a draft to send" button never appeared, for a real arrest
+# situation whose only matches were statute overrides. This became more
+# likely to actually fire after the out-of-domain judgment-match fix
+# above (fewer false-positive judgment_matches padding a real no_match
+# result out into the normal single_match branch), which is exactly how
+# it was first found live.
+# ---------------------------------------------------------------------------
+from chat_assistant import answer_question as _answer_question
+
+
+def _classify_in_scope_response():
+    return _fake_response('{"category": "in_scope", "redirect_domain": null, "reasoning": "arrest, cheating"}')
+
+
+with patch("chat_assistant.client") as mock_client, \
+     patch("semantic_retrieval.find_relevant_sections", lambda q: {"state": "no_match", "results": []}):
+    mock_client.messages.create.side_effect = [
+        _classify_in_scope_response(),
+        _fake_response("**Right now**\n1. Ask for a copy of the FIR.\n\nSection 318 of the BNS covers cheating."),
+    ]
+    fb_result = _answer_question("he cheated me and the police arrested me for it")
+    check(fb_result["state"] == "single_match",
+          "the no_match + statute_override fallback still answers as single_match")
+    check("situation_detected" in fb_result,
+          "REAL-SHAPED GAP FIX: the fallback branch now carries 'situation_detected' like every "
+          "other answering branch, so the draft button's la.get('situation') check never silently "
+          "defaults to falsy for this path")
+    check(fb_result["situation_detected"] is True,
+          "and it correctly reads True for an answer that opens with the 'Right now' block")
 
 
 # ---- Phase 2: cognizable/bailable verification -- real BNS_SECTION_DATA, no API cost ----
@@ -381,6 +463,275 @@ with patch("chat_assistant.client") as mock_client:
     check(mock_client.messages.create.call_count == 1,
           "backward compatibility: matches=None makes zero difference to the ungrounded-only path")
     check(result == "Section 35 of the BNSS covers this.", "unchanged result for a call with no matches param")
+
+
+# ---------------------------------------------------------------------------
+# Act-name verification (2026-09-04): CONFIRMED REAL BUG -- a live 'Right
+# now' answer named Section 36, 58, 166, 164 (all real BNSS sections)
+# without ever saying "BNSS" anywhere in the whole answer. BNS and BNSS
+# both number from 1, so a bare "Section 36" doesn't tell the reader
+# which code applies.
+# ---------------------------------------------------------------------------
+
+check(
+    _section_act_map([{"act": "BNSS", "section_number": "36"}, {"act": "BNS", "section_number": "318(4)"}])
+    == {"36": "BNSS", "318": "BNS"},
+    "_section_act_map keys on the base section number, subsection dropped",
+)
+check(
+    _section_act_map([{"act": "BNSS", "section_number": "36"}, {"section_number": "58"}, {"act": "BNS"}]) == {"36": "BNSS"},
+    "_section_act_map skips matches missing either 'act' or 'section_number'",
+)
+check(_section_act_map([]) == {} and _section_act_map(None) == {}, "_section_act_map handles an empty/None match list")
+
+_ACT_MAP = {"36": "BNSS", "58": "BNSS", "166": "BNSS"}
+check(
+    _find_sections_missing_act(
+        "Section 36 of the BNSS requires an arrest memo. Section 58 caps custody at 24 hours.", _ACT_MAP
+    ) == [],
+    "every cited section's Act is named somewhere in the answer -- nothing flagged",
+)
+check(
+    _find_sections_missing_act(
+        "1. Ask for the arrest memo under Section 36. 2. Section 58 caps custody at 24 hours. "
+        "3. Section 166 lets a Magistrate intervene in the land dispute.",
+        _ACT_MAP,
+    ) == ["36", "58", "166"],
+    "REPRODUCES THE CONFIRMED BUG: three real BNSS sections cited with 'BNSS' named nowhere in the "
+    "whole answer are all flagged",
+)
+check(
+    _find_sections_missing_act("Under the BNSS: Section 36 requires an arrest memo.", _ACT_MAP) == [],
+    "naming the Act once, anywhere in the answer, clears every section from that Act -- no per-mention "
+    "proximity requirement",
+)
+check(
+    _find_sections_missing_act("Section 36 requires an arrest memo.", {}) == [],
+    "an empty section_act_map (no matches carried an 'act', e.g. a judgment-only answer) is a pure no-op",
+)
+check(
+    _find_sections_missing_act("nothing about any section here", _ACT_MAP) == [],
+    "a response naming no section is trivially not flagged",
+)
+
+_ACT_RETRIEVED_TEXT = "[BNSS Section 36]\n36. Every police officer... shall furnish an entry regarding the arrest."
+
+with patch("chat_assistant.client") as mock_client:
+    # First response never names the Act; retry names it -> corrected retry text returned.
+    mock_client.messages.create.side_effect = [
+        _fake_response("Section 36 requires an arrest memo."),
+        _fake_response("Section 36 of the BNSS requires an arrest memo."),
+    ]
+    result = generate_grounded_response(
+        "test question", _ACT_RETRIEVED_TEXT,
+        matches=[{"act": "BNSS", "section_number": "36"}],
+    )
+    check(mock_client.messages.create.call_count == 2, "a section cited with no Act name triggers exactly one retry")
+    check(result == "Section 36 of the BNSS requires an arrest memo.", "the corrected retry text is returned")
+
+with patch("chat_assistant.client") as mock_client:
+    # Both the original AND the retry omit the Act -> give up honestly (None).
+    mock_client.messages.create.side_effect = [
+        _fake_response("Section 36 requires an arrest memo."),
+        _fake_response("Section 36 still requires an arrest memo."),
+    ]
+    result = generate_grounded_response(
+        "test question", _ACT_RETRIEVED_TEXT,
+        matches=[{"act": "BNSS", "section_number": "36"}],
+    )
+    check(result is None, "returns None when even the retry still omits the Act name")
+
+with patch("chat_assistant.client") as mock_client:
+    # Already names the Act -> no retry call.
+    mock_client.messages.create.side_effect = [
+        _fake_response("Section 36 of the BNSS requires an arrest memo."),
+    ]
+    result = generate_grounded_response(
+        "test question", _ACT_RETRIEVED_TEXT,
+        matches=[{"act": "BNSS", "section_number": "36"}],
+    )
+    check(mock_client.messages.create.call_count == 1, "no retry call when the Act is already named")
+    check(result == "Section 36 of the BNSS requires an arrest memo.", "the original text is returned unchanged")
+
+
+# ---------------------------------------------------------------------------
+# Companion-section verification (2026-09-04): CONFIRMED REAL GAP -- a
+# boundary-plus-shared-irrigation-channel dispute retrieved BOTH BNSS 164
+# (possession) and BNSS 166 (right of user), both well within the kept
+# matches, but across two live runs of the same fact pattern the model
+# named only one of the pair each time.
+# ---------------------------------------------------------------------------
+
+_COMPANION_MAP = {"164": "BNSS", "166": "BNSS"}
+_SINGLE_MAP = {"164": "BNSS"}
+
+check(
+    _find_missing_companion_sections("Section 164 of the BNSS and Section 166 of the BNSS both apply.", _COMPANION_MAP) == [],
+    "both companion sections cited -- nothing flagged",
+)
+check(
+    _find_missing_companion_sections("Section 164 of the BNSS lets a Magistrate intervene.", _COMPANION_MAP) == ["166"],
+    "REPRODUCES THE CONFIRMED GAP: both 164 and 166 reached the prompt but only 164 was cited -- 166 flagged",
+)
+check(
+    _find_missing_companion_sections("Section 164 of the BNSS lets a Magistrate intervene.", _SINGLE_MAP) == [],
+    "only 164 reached the prompt (166 never retrieved) -- never flagged, this question may genuinely not involve a right-of-user dispute",
+)
+check(
+    _find_missing_companion_sections("nothing about any section here", _COMPANION_MAP) == ["164", "166"],
+    "neither companion section cited when both were available -- both flagged",
+)
+check(
+    _find_missing_companion_sections("Section 164 of the BNSS applies.", {}) == [],
+    "an empty section_act_map is a pure no-op",
+)
+
+_COMPANION_RETRIEVED_TEXT = (
+    "[BNSS Section 164]\n164. (1) Whenever an Executive Magistrate is satisfied ... concerning any "
+    "land or water or the boundaries thereof ...\n\n---\n\n"
+    "[BNSS Section 166]\n166. (1) Whenever an Executive Magistrate is satisfied ... regarding any "
+    "alleged right of user of any land or water ..."
+)
+_COMPANION_MATCHES = [
+    {"act": "BNSS", "section_number": "164"},
+    {"act": "BNSS", "section_number": "166"},
+]
+
+with patch("chat_assistant.client") as mock_client:
+    # First response names only 164; retry adds 166 -> corrected retry text returned.
+    mock_client.messages.create.side_effect = [
+        _fake_response("Section 164 of the BNSS lets a Magistrate intervene in the boundary dispute."),
+        _fake_response("Section 164 of the BNSS covers the boundary; Section 166 of the BNSS covers the "
+                        "irrigation channel's right of use."),
+    ]
+    result = generate_grounded_response("test question", _COMPANION_RETRIEVED_TEXT, matches=_COMPANION_MATCHES)
+    check(mock_client.messages.create.call_count == 2, "a missing companion section triggers exactly one retry")
+    check("166" in result, "the retry text that added the companion section is returned")
+
+with patch("chat_assistant.client") as mock_client:
+    # Retry STILL omits the companion section -- unlike ungrounded/mismatch/missing-act,
+    # this must NOT discard the answer; the retry text is still returned.
+    mock_client.messages.create.side_effect = [
+        _fake_response("Section 164 of the BNSS lets a Magistrate intervene in the boundary dispute."),
+        _fake_response("Section 164 of the BNSS still just covers the boundary dispute."),
+    ]
+    result = generate_grounded_response("test question", _COMPANION_RETRIEVED_TEXT, matches=_COMPANION_MATCHES)
+    check(result is not None and "164" in result,
+          "a companion section still missing after retry does NOT give up -- an otherwise-correct "
+          "answer is still returned, unlike the other three (correctness) checks")
+
+with patch("chat_assistant.client") as mock_client:
+    # Both companion sections already cited -- no retry call.
+    mock_client.messages.create.side_effect = [
+        _fake_response("Section 164 of the BNSS covers the boundary; Section 166 of the BNSS covers "
+                        "the channel's right of use."),
+    ]
+    result = generate_grounded_response("test question", _COMPANION_RETRIEVED_TEXT, matches=_COMPANION_MATCHES)
+    check(mock_client.messages.create.call_count == 1, "no retry call when both companion sections are already cited")
+
+
+# ---------------------------------------------------------------------------
+# Case-generalization verification (2026-09-04): CONFIRMED REAL BUG -- a
+# live answer cited "L. Muruganantham v. State of Tamil Nadu" as
+# illustrating "how courts do scrutinise whether an arrest in a personal
+# dispute was properly justified", but the excerpt actually fed in was
+# pure background-fact narrative (what the appellant ALLEGED), never the
+# court's own reasoning.
+# ---------------------------------------------------------------------------
+
+_MURUGANANTHAM_FACT_MATCH = [{
+    "case_name": "L. Muruganantham v State of Tamil Nadu",
+    "text": ("It is alleged by the appellant that due to a civil dispute, a false complaint was "
+              "lodged against him, and the same was registered as an FIR. Based on the said FIR, "
+              "the appellant was arrested and produced before the Judicial Magistrate, who remanded "
+              "him to judicial custody."),
+}]
+_MURUGANANTHAM_HOLDING_MATCH = [{
+    "case_name": "L. Muruganantham v State of Tamil Nadu",
+    "text": ("Both the SHRC and the High Court unequivocally held that the FIR, arrest, and "
+              "incarceration of the appellant were carried out at the behest of his paternal uncle. "
+              "The arrest was illegal and did not comply with the safeguards prescribed by this Court."),
+}]
+
+check(
+    _find_unsupported_case_generalizations(
+        "In L. Muruganantham v State of Tamil Nadu, the court illustrates how personal disputes "
+        "can lead to arrest.",
+        _MURUGANANTHAM_FACT_MATCH,
+    ) == ["L. Muruganantham v State of Tamil Nadu"],
+    "REPRODUCES THE CONFIRMED BUG: a generalization about a case whose only excerpt is pure "
+    "background facts (no holding language) is flagged",
+)
+check(
+    _find_unsupported_case_generalizations(
+        "In L. Muruganantham v State of Tamil Nadu, the court illustrates how personal disputes "
+        "can lead to arrest.",
+        _MURUGANANTHAM_HOLDING_MATCH,
+    ) == [],
+    "the SAME generalization is NOT flagged when the case's excerpt actually contains the court's "
+    "own holding language ('held that...')",
+)
+check(
+    _find_unsupported_case_generalizations(
+        "A similar situation was described in L. Muruganantham v State of Tamil Nadu.",
+        _MURUGANANTHAM_FACT_MATCH,
+    ) == [],
+    "a plain factual mention of a case, with no generalization language, is never flagged",
+)
+check(
+    _find_unsupported_case_generalizations(
+        "Section 318 of the BNS covers cheating.", _MURUGANANTHAM_FACT_MATCH
+    ) == [],
+    "an answer with no generalization language at all is trivially not flagged",
+)
+check(
+    _find_unsupported_case_generalizations(
+        "This illustrates a general principle.", []
+    ) == [],
+    "an empty/None match list is a pure no-op even when generalization language is present",
+)
+
+_MURUGANANTHAM_RETRIEVED_TEXT = (
+    "[L. Muruganantham v State of Tamil Nadu, Section/Para 4]\n" + _MURUGANANTHAM_FACT_MATCH[0]["text"]
+)
+
+with patch("chat_assistant.client") as mock_client:
+    # First response makes the unsupported generalization; retry drops it -> corrected text returned.
+    mock_client.messages.create.side_effect = [
+        _fake_response("In L. Muruganantham v State of Tamil Nadu, the case illustrates how courts "
+                        "scrutinise arrests in personal disputes."),
+        _fake_response("A similar situation was described in L. Muruganantham v State of Tamil Nadu, "
+                        "where a false complaint led to an arrest."),
+    ]
+    result = generate_grounded_response(
+        "test question", _MURUGANANTHAM_RETRIEVED_TEXT, matches=_MURUGANANTHAM_FACT_MATCH
+    )
+    check(mock_client.messages.create.call_count == 2, "an unsupported case generalization triggers exactly one retry")
+    check("illustrates" not in (result or ""), "the corrected retry text (generalization dropped) is returned")
+
+with patch("chat_assistant.client") as mock_client:
+    # Retry STILL makes the unsupported generalization -- unlike ungrounded/mismatch/missing-act,
+    # this must NOT discard the answer; the retry text is still returned.
+    mock_client.messages.create.side_effect = [
+        _fake_response("L. Muruganantham v State of Tamil Nadu illustrates arrest scrutiny."),
+        _fake_response("L. Muruganantham v State of Tamil Nadu still illustrates arrest scrutiny."),
+    ]
+    result = generate_grounded_response(
+        "test question", _MURUGANANTHAM_RETRIEVED_TEXT, matches=_MURUGANANTHAM_FACT_MATCH
+    )
+    check(result is not None and "Muruganantham" in result,
+          "a case generalization still unsupported after retry does NOT give up -- an otherwise-correct "
+          "answer is still returned, unlike the other three (correctness) checks")
+
+with patch("chat_assistant.client") as mock_client:
+    # No generalization language at all -- no retry call.
+    mock_client.messages.create.side_effect = [
+        _fake_response("A similar situation was described in L. Muruganantham v State of Tamil Nadu."),
+    ]
+    result = generate_grounded_response(
+        "test question", _MURUGANANTHAM_RETRIEVED_TEXT, matches=_MURUGANANTHAM_FACT_MATCH
+    )
+    check(mock_client.messages.create.call_count == 1, "no retry call when the response makes no case generalization")
 
 
 # ---- old IPC/CrPC -> BNS/BNSS translation in retrieved judgment text ----

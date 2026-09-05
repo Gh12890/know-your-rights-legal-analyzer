@@ -106,17 +106,28 @@ CASES = [
     {
         "id": "dowry-wife-complaint",
         "question": "my wife has filed a dowry case against me and police are asking me to come",
-        "expect_state": ("in_scope_answer", "adjacent_uncovered"),
-        "must_include": [],
-        "must_not": ["dowry death", "Section 80", "seven years to life",
-                     "your arrest was illegal"],
-        "notes": "CONFIRMED SERIOUS BUG CLASS: a living wife's ongoing complaint was "
-                 "once matched to Section 80 (dowry DEATH) -- must NOT recur. "
-                 "KNOWN CLASSIFIER GAP: 'dowry case' reads as a 'dowry-specific act' "
-                 "(adjacent_uncovered) when in practice it is almost always a BNS "
-                 "85/86 cruelty FIR + a notice-to-appear question, which IS in scope. "
-                 "Accepting adjacent_uncovered here for now; fix belongs in a "
-                 "classifier-tuning pass, not this prompt work.",
+        "expect_state": "in_scope_answer",
+        "must_include": [["85", "cruelty"]],
+        "must_not": ["your arrest was illegal"],
+        "notes": "BOTH gaps this case exists to catch are now fixed (2026-09-04). "
+                 "(1) CONFIRMED SERIOUS BUG CLASS: a living wife's ongoing complaint "
+                 "was once matched to Section 80 (dowry DEATH) as if it were the "
+                 "applicable law -- fixed by adding an order-sensitive pair of "
+                 "_OFFENCE_KEYWORD_ANCHORS entries (chat_assistant.py): a genuine "
+                 "death/suicide/burning word near 'dowry' anchors to 80, every other "
+                 "'dowry' mention anchors to the actually-applicable 85 (cruelty by "
+                 "husband/relatives). (2) KNOWN CLASSIFIER GAP: 'dowry case' used to "
+                 "read as a 'dowry-specific act' (adjacent_uncovered) -- fixed by a "
+                 "SCOPE_CLASSIFIER_PROMPT rule distinguishing an offence's civil/family "
+                 "BACKSTORY from the actual event being asked about. expect_state is "
+                 "now unconditionally in_scope_answer, and must_include requires 85 "
+                 "actually be cited -- proof the RIGHT section leads, not just that "
+                 "the WRONG one is absent. must_not no longer blanket-bans 'dowry "
+                 "death'/'Section 80'/'seven years to life': once 85 correctly leads, "
+                 "a properly hedged aside noting Section 80 would apply only if death "
+                 "were involved is accurate, useful content, not a recurrence of the "
+                 "original bug (which was 80 presented as the applicable law, not 80 "
+                 "mentioned at all).",
     },
     {
         "id": "freeze-route",

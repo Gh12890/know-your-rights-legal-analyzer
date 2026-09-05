@@ -76,15 +76,17 @@ SCOPE_CLASSIFIER_PROMPT = """You are a scope classifier for a legal tool that he
 
 The WIDER tool (outside this chat feature, via document upload) ALSO has working, real compliance-check logic for two other domains: bank account freezing (BNS Sections 106/107) and cheque bounce notices (Section 138, Negotiable Instruments Act). This chat feature's own search corpus does not yet include those domains' case law, but the tool as a whole genuinely handles them -- a question about them should be redirected to the document-upload feature, NOT told "this isn't covered" or "consult a lawyer", since that would be inaccurate.
 
-CRITICAL: this chat feature does NOT cover every Indian criminal law. A question can genuinely be about "arrest" or "cognizable/non-cognizable" and still be out of this CHAT feature's scope, if the specific offence involved is governed by a law neither this chat feature nor the wider tool covers (e.g. POCSO, UAPA, NDPS, dowry-specific acts, company/tax law offences). Do NOT classify a question as in_scope just because it uses words like "arrest", "cognizable", "police", or "FIR" -- check whether the SPECIFIC OFFENCE NAMED (if any) is actually a BNS/BNSS offence, a bank-freeze/cheque-bounce matter (see below), or a procedural question with no specific other-law offence attached.
+CRITICAL: this chat feature does NOT cover every Indian criminal law. A question can genuinely be about "arrest" or "cognizable/non-cognizable" and still be out of this CHAT feature's scope, if the specific offence involved is governed by a law neither this chat feature nor the wider tool covers (e.g. POCSO, UAPA, NDPS, a Dowry Prohibition Act-SPECIFIC offence, company/tax law offences). Do NOT classify a question as in_scope just because it uses words like "arrest", "cognizable", "police", or "FIR" -- check whether the SPECIFIC OFFENCE NAMED (if any) is actually a BNS/BNSS offence, a bank-freeze/cheque-bounce matter (see below), or a procedural question with no specific other-law offence attached.
+
+IMPORTANT -- do not confuse the OFFENCE with its BACKSTORY: a message can spend most of its length describing civil/family/property background (a disputed will, a power of attorney, a land or inheritance dispute, a dowry demand, a business falling-out) purely as CONTEXT for why an arrest or FIR happened. That background does NOT make the question out of scope, and it does NOT matter how much of the message it takes up relative to the arrest itself -- judge scope by the ACTUAL EVENT the person is asking about: was someone (them, or someone close to them) arrested, or is there an FIR/police complaint, for an offence that is itself a real BNS/BNSS offence? Forgery, cheating, criminal breach of trust, criminal intimidation, rioting, theft, assault, and cruelty by husband/relatives (BNS 85/86 -- this covers most real-world "dowry harassment" fact patterns, even though a SEPARATE, narrower Dowry Prohibition Act also exists) are ALL genuine BNS/BNSS offences with their own sections -- BNS is the direct successor to the IPC covering the exact same conduct under new numbers, NOT a different or narrower law, so an offence "sounding like an IPC offence" is never by itself a reason to classify adjacent_uncovered. Only classify adjacent_uncovered for the CIVIL side of such a scenario (e.g. "how do I get my father's will declared void", "can I recover my share of the land") when no arrest/FIR/police action is actually described, or when the offence actually named is a genuinely different, specialized offence this chat doesn't cover (POCSO, UAPA, NDPS, a dowry-DEATH or dowry-Act-specific charge, etc.).
 
 Classify the user's question into exactly one category:
 
-"in_scope" -- plausibly about arrest, FIR, police procedure, bail, or a criminal offence's classification (cognizable/non-cognizable) under BNS/BNSS specifically, where the offence involved (if named) is genuinely a BNS/BNSS offence, or the question is purely about general arrest PROCEDURE with no other-law offence named. Includes vague or layman-phrased questions about "being arrested", "police took my X", "is this a crime", specific BNS offence names (theft, cheating, assault, rioting, etc.), FIR copies, notice before arrest, etc.
+"in_scope" -- plausibly about arrest, FIR, police procedure, bail, or a criminal offence's classification (cognizable/non-cognizable) under BNS/BNSS specifically, where the offence involved (if named) is genuinely a BNS/BNSS offence, or the question is purely about general arrest PROCEDURE with no other-law offence named. Includes vague or layman-phrased questions about "being arrested", "police took my X", "is this a crime", specific BNS offence names (theft, cheating, forgery, assault, rioting, cruelty, etc.), FIR copies, notice before arrest, etc. -- REGARDLESS of how much civil/family/property backstory surrounds the description of the arrest itself (see above).
 
 "covered_elsewhere_in_tool" -- specifically about bank account freezing (BNS 106/107) or cheque bounce (Section 138 NI Act), including arrest threats or police involvement in either. This wider tool has real, working compliance logic for these via document upload, even though this chat feature's own search corpus does not yet include their case law.
 
-"adjacent_uncovered" -- genuinely about Indian law, but NOT about BNS/BNSS criminal procedure, bank freezing, or cheque bounce. Examples: POCSO, UAPA, NDPS, dowry-specific acts, civil suits, property disputes, family law/divorce, employment law, consumer complaints, contract disputes, tax law, company law offences.
+"adjacent_uncovered" -- genuinely about Indian law, but NOT about BNS/BNSS criminal procedure, bank freezing, or cheque bounce -- either a purely civil question with no arrest/FIR involved, or an arrest for an offence genuinely outside BNS/BNSS. Examples: POCSO, UAPA, NDPS, a dowry-DEATH or dowry-Act-specific charge, a civil suit or property dispute with NO arrest/FIR described, family law/divorce, employment law, consumer complaints, contract disputes, tax law, company law offences.
 
 "unrelated" -- not a legal question at all, small talk, or about something with no connection to Indian law (e.g. "what's the weather", "who are you", general chit-chat).
 
@@ -223,10 +225,12 @@ RESPONSE_GENERATION_PROMPT = """You are a warm, careful guide helping a layperso
 ## Hard rules (never break)
 - Use ONLY the legal information given below. Never add a section number, case holding, punishment, or the NAME of any act/law from your own knowledge -- even if you are sure it is right.
 - Never write "the Indian Penal Code" or "IPC" unless those exact words appear below. Refer only to the act named below (BNS or BNSS).
+- The FIRST time you cite each section number, name its Act using the act shown for it below (e.g. "Section 36 of the BNSS", "Section 318(4) of the BNS") -- never a bare "Section 36" with no Act attached. A reader cannot tell BNS from BNSS by the number alone, and this chat can discuss both in the same answer.
 - Never reveal the machinery: no "the retrieved text", "the information I have", "the material below", "the classification table". State the law directly ("Section 303 covers..."); if something genuinely isn't covered, say "I don't have information on...".
 - Never give a compliance verdict about the person's own situation ("your arrest was illegal", "this was lawful"). Explain what the law requires and what would matter; whether it was followed needs facts you don't have.
 - When you name a section that has subsections in the material below, always include the exact subsection ("Section 318(4)", not "Section 318").
 - If you have already stated a condition clearly ("the punishment is X, or Y if Z"), do NOT then add a vaguer caveat implying the detail is incomplete. Only flag a gap when you are genuinely missing a specific fact you cannot state.
+- When citing a case, only describe what that case's own excerpt below literally says the court held, reasoned, or found -- never a generalization like "this case illustrates that courts scrutinise X" or "shows that Y" unless the excerpt itself explicitly says so. If the only excerpt given for a case is background facts (what a party alleged, not what the court decided), describe it as exactly that ("in one case, a person alleged similar facts..."), never as if it were the court's ruling on the point.
 
 ## What to include, what to leave out
 - The material below is roughly in order of relevance. Pick the 2-4 provisions (plus any one case) that actually answer the question and build the answer around those.
@@ -320,6 +324,216 @@ IMPORTANT CORRECTION: your previous answer to this exact question referenced Sec
 
 _MISMATCH_RETRY_INSTRUCTION = """
 IMPORTANT CORRECTION: your previous answer to this exact question stated the wrong cognizable/bailable status for one or more sections. {details} These are fixed facts from the statute's own official classification table, not a matter of interpretation. Write a new, complete answer from scratch, stating each of these correctly, following all the same rules."""
+
+
+_MISSING_ACT_RETRY_INSTRUCTION = """
+IMPORTANT CORRECTION: your previous answer named Section(s) {sections} without ever stating which Act they are from. BNS and BNSS are two different codes that both number their sections starting from 1, so a bare "Section {first_section}" does not tell the reader which one applies. Write a new, complete answer from scratch, and the first time you cite each section number, name its Act exactly as shown for it in the information above (e.g. "Section {first_section} of the {first_act}"), following all the same rules."""
+
+
+_MISSING_COMPANION_RETRY_INSTRUCTION = """
+IMPORTANT CORRECTION: your previous answer to this exact question omitted Section(s) {sections}, which are genuinely relevant here alongside the sections you did cite -- they address a different legal basis (not a duplicate of what you already cited) and both are directly supported by facts in the person's question. Write a new, complete answer from scratch, and address Section(s) {sections} as well as the sections you already correctly identified, following all the same rules (including the 4-section limit -- drop a less relevant one if needed to fit)."""
+
+
+_UNSUPPORTED_GENERALIZATION_RETRY_INSTRUCTION = """
+IMPORTANT CORRECTION: your previous answer made a claim about what {cases} "illustrates" or "shows" that is NOT supported by the excerpt you were actually given for it -- the excerpt only contains background facts (what a party alleged), not a court's own reasoning or ruling on that point. Write a new, complete answer from scratch, and either drop this case entirely or describe it only as what the excerpt literally shows (facts a party alleged, not a court's finding), following all the same rules."""
+
+
+def _section_act_map(matches) -> dict:
+    """base section number -> its Act ("BNS" or "BNSS"), read from the
+    same `matches` fed into retrieved_text (each statute match carries
+    'act' + 'section_number', the same fields format_retrieved_text_for_prompt
+    uses to build each block's own [ACT Section N] header -- see that
+    function). Judgment matches (case_name, no 'act') contribute nothing.
+    A first-seen-wins map: BNS and BNSS number independently, so the same
+    base number appearing in both would be a genuinely different section
+    in each, not a collision to resolve -- rare enough in practice
+    (matches are capped at 4 per RESPONSE_GENERATION_PROMPT) that this
+    is not worth the complexity of tracking per-act separately here."""
+    out = {}
+    for m in matches or []:
+        act = (m.get("act") or "").upper()
+        num = m.get("section_number")
+        if not act or not num:
+            continue
+        base = str(num).split("(")[0].strip()
+        if base and base not in out:
+            out[base] = act
+    return out
+
+
+def _find_sections_missing_act(response_text: str, section_act_map: dict) -> list:
+    """CONFIRMED REAL BUG (2026-09-04), found via live user testing: a
+    real 'Right now' answer named "Section 36", "Section 58", "Section
+    166", "Section 164" -- every one of them a real, correctly-numbered
+    BNSS section -- without EVER stating "BNS" or "BNSS" anywhere in the
+    whole answer. BNS and BNSS both number from 1, so a layperson reading
+    "Section 36" in isolation has no way to know which code applies (BNS
+    36 and BNSS 36 are completely different provisions). RESPONSE_GENERATION_PROMPT
+    now instructs the model to name each section's Act on first citing
+    it, but per this project's standing discipline (see
+    _find_ungrounded_sections above), a prompt instruction alone is never
+    trusted -- this is the deterministic check.
+
+    Deliberately whole-answer, not a per-mention proximity check: it asks
+    only "does this section's correct Act appear ANYWHERE in the answer
+    text", not "immediately next to every mention of it". A section is
+    usually named once in 'Right now' and again in the law explanation:
+    requiring the Act right next to EVERY occurrence would force
+    stilted, repetitive prose ("Section 36 of the BNSS ... Section 36 of
+    the BNSS requires ...") for no safety benefit once the Act has
+    genuinely been established once. This still catches the confirmed
+    real failure (the Act was named nowhere at all) and would equally
+    catch the mixed-Act case (some cited sections' Acts never named while
+    others are), without flagging a well-written answer that names the
+    Act once up front and then uses the bare number.
+
+    Returns the sorted list of base section numbers whose known Act
+    (from section_act_map) never appears anywhere in response_text.
+    Empty list -- the common case -- means every cited section that has
+    a known Act had it named somewhere."""
+    if not section_act_map:
+        return []
+    referenced = _extract_section_numbers(response_text)
+    missing = []
+    for num in sorted(referenced, key=int):
+        act = section_act_map.get(num)
+        if act and not re.search(rf"\b{re.escape(act)}\b", response_text or "", re.IGNORECASE):
+            missing.append(num)
+    return missing
+
+
+# Known pairs of BNSS sections that address genuinely DIFFERENT legal
+# bases but are triggered by the same real-world fact pattern often
+# enough that dropping one silently loses real coverage. Kept as a short,
+# explicit, hand-curated list (same spirit as STATUTE_DOCTRINE_MAP) --
+# not a general "always cite every retrieved section" rule, which would
+# fight the prompt's deliberate 2-4-section brevity limit for the
+# (large) majority of questions where trimming to the most relevant ones
+# is correct.
+#
+# ("164", "166"): BNSS 164 is an Executive Magistrate's power over a
+# dispute concerning actual POSSESSION of land/water/its boundaries;
+# BNSS 166 is the separate power over a disputed RIGHT OF USER (e.g. an
+# easement) of land or water -- confirmed by reading both sections' real
+# text side by side (retrieval.get_statute_section("BNSS", "164") /
+# ("BNSS", "166")). A boundary-plus-shared-irrigation-channel dispute
+# genuinely implicates BOTH: the fence/boundary is a possession question
+# (164), the "you can't use the channel again" threat is a right-of-user
+# question (166).
+_COMPANION_SECTION_PAIRS = (("164", "166"),)
+
+
+def _find_missing_companion_sections(response_text: str, section_act_map: dict) -> list:
+    """CONFIRMED REAL GAP (2026-09-04), found via live user testing: for
+    a boundary-dispute-plus-shared-irrigation-channel scenario, semantic
+    retrieval correctly surfaced BOTH BNSS 164 and BNSS 166 well within
+    the kept-matches score gap (0.353 and 0.3513, both comfortably above
+    STATUTE_SIMILARITY_THRESHOLD=0.34 and inside MATCH_SCORE_GAP of the
+    top match) -- both genuinely reached the prompt. But
+    RESPONSE_GENERATION_PROMPT's "pick 2-4 provisions" instruction left
+    the model free to choose, and across two runs of the SAME underlying
+    fact pattern it named only one of the pair each time (164 once, both
+    once) -- a real, user-confirmed loss of coverage of the water/right-
+    of-user basis for a fact pattern that explicitly described a threat
+    over using a shared channel again.
+
+    Only fires when BOTH members of a known pair are actually present in
+    section_act_map (i.e. both reached the prompt as real matches, per
+    _section_act_map built from the same `matches` list) -- so this can
+    never fire for a question that only genuinely concerns one of them
+    (section_act_map would only ever contain that one).
+
+    Returns the sorted list of companion section numbers missing from
+    response_text. Empty list -- the common case -- means either no
+    known pair was fully present, or every section of every fully-
+    present pair was actually cited."""
+    if not section_act_map:
+        return []
+    referenced = _extract_section_numbers(response_text)
+    missing = []
+    for pair in _COMPANION_SECTION_PAIRS:
+        if not all(n in section_act_map for n in pair):
+            continue
+        for n in pair:
+            if n not in referenced and n not in missing:
+                missing.append(n)
+    return sorted(missing, key=int)
+
+
+# Verbs the response uses to assert a GENERALIZATION about what a case
+# stands for ("this case illustrates that courts scrutinise X"), as
+# opposed to plainly reporting facts from it. Deliberately narrow --
+# only the phrasing that asserts a broader legal proposition, not every
+# mention of a case.
+_CASE_GENERALIZATION_PAT = re.compile(r"\b(illustrates?|shows? that|demonstrates?|establishes?)\b", re.IGNORECASE)
+
+# Language that indicates the retrieved excerpt is actually reporting
+# the COURT's own reasoning/ruling, not just a party's allegation or
+# procedural history.
+_HOLDING_LANGUAGE_PAT = re.compile(
+    r"\b(held|holds|ruled|rules|directed|directs|concluded|concludes|found\s+that)\b", re.IGNORECASE
+)
+
+
+def _find_unsupported_case_generalizations(response_text: str, matches) -> list:
+    """CONFIRMED REAL BUG (2026-09-04), found via live user testing: asked
+    about a land-boundary/irrigation-channel dispute, the model cited "L.
+    Muruganantham v. State of Tamil Nadu" as "a useful precedent" that
+    "illustrates how courts do scrutinise whether an arrest in a personal
+    dispute was properly justified" -- a real case, genuinely retrieved
+    (score 0.4344), but the specific excerpt actually fed into the prompt
+    for it (paragraph 4: "It is alleged... a false complaint was
+    lodged... the appellant was arrested... remanded to judicial
+    custody") is PURE BACKGROUND FACTS -- what the appellant alleged, not
+    what any court found or ruled. The case's real holding (the SC's
+    actual reasoning) is about disability-rights violations in custody
+    and Human Rights Commission compensation, not about scrutinising
+    arrest legality -- a generalization the model asserted with no
+    textual support in what it was actually given. (Separately, the
+    corpus itself was re-curated the same day -- see
+    chunks/l_muruganantham_v_state_of_tamil_nadu_chunks.json -- to stop
+    surfacing this case's fact-only paragraphs for unrelated
+    arrest/dispute queries at all; this check is a general safety net
+    for the same class of failure with ANY judgment, not a fix specific
+    to this one case.)
+
+    Only fires when the response uses generalization language
+    (_CASE_GENERALIZATION_PAT) about a specific case AND that case's own
+    retrieved excerpt(s) (from `matches`) contain NO holding-attribution
+    language (_HOLDING_LANGUAGE_PAT) anywhere -- i.e. everything actually
+    given for that case was fact/allegation narrative, never the court's
+    own reasoning. A plain factual mention of a case ("a similar
+    situation was described in X v Y") is never flagged -- this guards
+    specifically against ASSERTING what a case stands for without
+    support, not against citing it at all.
+
+    Deliberately a SOFT check, unlike the grounding/mismatch/missing-act
+    checks: "this generalization isn't textually supported" is a
+    judgment call about a nuance, not a checkable fact like a section
+    number or a classification table value, so a retry is attempted but
+    a still-unsupported generalization after the retry does not discard
+    an otherwise-fine answer (see the give-up comment in
+    generate_grounded_response).
+
+    Returns the list of case names whose generalization is unsupported."""
+    if not response_text or not _CASE_GENERALIZATION_PAT.search(response_text):
+        return []
+    by_case = {}
+    for m in matches or []:
+        name = m.get("case_name")
+        if not name:
+            continue
+        by_case.setdefault(name, []).append(m.get("text") or "")
+
+    flagged = []
+    response_lower = response_text.lower()
+    for name, texts in by_case.items():
+        first_party = re.split(r"\s+vs?\.?\s+", name, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+        if len(first_party) < 4 or first_party.lower() not in response_lower:
+            continue
+        if not _HOLDING_LANGUAGE_PAT.search(" ".join(texts)):
+            flagged.append(name)
+    return flagged
 
 
 _SECTION_WITH_SUBSECTION_PAT = re.compile(r"\bSection\s+(\d{1,3})(?:\((\d+[a-z]?)\))?", re.IGNORECASE)
@@ -518,8 +732,39 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
     2 positional args) behaves exactly as before -- with no matches, the
     mismatch check is a guaranteed no-op.
 
-    Either problem triggers ONE combined retry with an explicit
-    correction. If the retry still has either problem, returns None --
+    ACT-NAME VERIFICATION (added 2026-09-04): separately, checks that
+    every cited section's Act (BNS or BNSS) is actually named somewhere
+    in the answer, via _find_sections_missing_act() -- see its docstring
+    for the confirmed real answer that named four real BNSS sections
+    (36, 58, 166, 164) without ever saying "BNSS" once, leaving no way
+    for the reader to tell them apart from same-numbered BNS sections.
+
+    COMPANION-SECTION VERIFICATION (added 2026-09-04): separately, checks
+    that when a known pair of genuinely-different-basis sections (e.g.
+    BNSS 164 possession vs. BNSS 166 right-of-user) BOTH reached the
+    prompt, the answer doesn't silently name only one -- via
+    _find_missing_companion_sections(). Unlike the other three checks,
+    this is a completeness gap, not a correctness error: a retry is
+    attempted, but a still-missing companion section after the retry
+    does NOT discard an otherwise-correct answer (see the comment at the
+    give-up check below).
+
+    CASE-GENERALIZATION VERIFICATION (added 2026-09-04): separately,
+    checks that when the answer asserts what a cited case "illustrates"
+    or "shows" (_CASE_GENERALIZATION_PAT), that case's own retrieved
+    excerpt(s) actually contain holding-attribution language -- via
+    _find_unsupported_case_generalizations(). See its docstring for the
+    confirmed real answer that cited a real, genuinely-retrieved case
+    ("L. Muruganantham v. State of Tamil Nadu") but asserted a
+    generalization about it ("illustrates how courts scrutinise...")
+    that had no support in the pure-background-facts excerpt actually
+    given. Like the companion-section check, this is soft: a retry is
+    attempted, but a still-unsupported generalization after the retry
+    does not discard an otherwise-correct answer.
+
+    Any of the five problems triggers ONE combined retry with an
+    explicit correction. If the retry still has an ungrounded section, a
+    cognizable/bailable mismatch, or a missing Act name, returns None --
     the same "give up honestly" signal already used for a failed API
     call, so callers fall back to showing the raw retrieved text rather
     than ever displaying a claim that could not be verified."""
@@ -542,10 +787,14 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
         response_text = _extract_text_from_response(response).strip()
 
         variants = _gather_offence_variants(matches)
+        section_act_map = _section_act_map(matches)
         ungrounded = _find_ungrounded_sections(response_text, retrieved_text)
         mismatches = _find_cognizable_bailable_mismatches(response_text, variants)
+        missing_act = _find_sections_missing_act(response_text, section_act_map)
+        missing_companion = _find_missing_companion_sections(response_text, section_act_map)
+        unsupported_cases = _find_unsupported_case_generalizations(response_text, matches)
 
-        if ungrounded or mismatches:
+        if ungrounded or mismatches or missing_act or missing_companion or unsupported_cases:
             retry_prompt = prompt
             if ungrounded:
                 retry_prompt += _UNGROUNDED_RETRY_INSTRUCTION.format(sections=", ".join(ungrounded))
@@ -553,14 +802,32 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
                 retry_prompt += _MISMATCH_RETRY_INSTRUCTION.format(
                     details=" ".join(_format_mismatch(p) for p in mismatches)
                 )
+            if missing_act:
+                retry_prompt += _MISSING_ACT_RETRY_INSTRUCTION.format(
+                    sections=", ".join(missing_act), first_section=missing_act[0],
+                    first_act=section_act_map[missing_act[0]],
+                )
+            if missing_companion:
+                retry_prompt += _MISSING_COMPANION_RETRY_INSTRUCTION.format(sections=", ".join(missing_companion))
+            if unsupported_cases:
+                retry_prompt += _UNSUPPORTED_GENERALIZATION_RETRY_INSTRUCTION.format(
+                    cases=", ".join(unsupported_cases)
+                )
             retry_response = client.messages.create(
                 model=model,
                 max_tokens=2000,
                 messages=[{"role": "user", "content": retry_prompt}],
             )
             retry_text = _extract_text_from_response(retry_response).strip()
+            # A still-missing companion section or still-unsupported case
+            # generalization is a completeness/nuance gap, not a
+            # correctness error like the other three checks -- neither
+            # justifies discarding an otherwise-correct answer outright.
+            # Give up (None) only for the checks that guard against
+            # showing an actively WRONG or unverifiable claim.
             if (_find_ungrounded_sections(retry_text, retrieved_text)
-                    or _find_cognizable_bailable_mismatches(retry_text, variants)):
+                    or _find_cognizable_bailable_mismatches(retry_text, variants)
+                    or _find_sections_missing_act(retry_text, section_act_map)):
                 return None
             return retry_text
 
@@ -650,12 +917,35 @@ _OFFENCE_KEYWORD_ANCHORS = [
     (re.compile(r"\b(cheat(ed|ing)?|defraud\w*)\b", re.I), "318"),
     (re.compile(r"\b(extort\w*|blackmail\w*)\b", re.I), "308"),
     (re.compile(r"\b(robbery|robbed|mugg\w*)\b", re.I), "309"),
-    (re.compile(r"\b(criminal\s+breach\s+of\s+trust|misappropriat\w*|embezzl\w*)\b", re.I), "316"),
+    # "criminal" made optional 2026-09-04: CONFIRMED REAL GAP -- a layman
+    # describing an accusation says "breach of trust", not the formal
+    # legal phrase "criminal breach of trust"; the stricter pattern
+    # matched neither, silently dropping BNS 316 from a real scenario.
+    (re.compile(r"\b((?:criminal\s+)?breach\s+of\s+trust|misappropriat\w*|embezzl\w*)\b", re.I), "316"),
     (re.compile(r"\b(kidnap\w*|abduct\w*)\b", re.I), "137"),
     (re.compile(r"\b(rape|raped|raping)\b", re.I), "64"),
     (re.compile(r"\b(forg(ed|ery|ing)|fake\s+(document|signature|cheque))\b", re.I), "336"),
     (re.compile(r"\b(defam\w*)\b", re.I), "356"),
     (re.compile(r"\b(criminal\s+intimidation|threaten\w*\s+to\s+(kill|hurt|harm))\b", re.I), "351"),
+    # CONFIRMED SERIOUS BUG (2026-09-04), found via eval_chat_answers.py's
+    # dowry-wife-complaint case: "my wife has filed a dowry case against me
+    # and police are asking me to come" -- a LIVING wife's harassment/
+    # cruelty complaint -- retrieved and confidently explained BNS 80
+    # ("dowry death", 7 years to life) purely on generic semantic overlap
+    # with the word "dowry", despite no death being alleged anywhere in
+    # the message. This is the exact regression class this eval case's
+    # own docstring was written to catch. The two patterns below are
+    # ORDER-SENSITIVE (death-specific first, matching this file's existing
+    # "attempt to murder before bare murder" convention): a genuine dowry-
+    # DEATH case (an explicit death/suicide/burning word near "dowry")
+    # anchors to 80; every other "dowry" mention -- the overwhelming
+    # majority of real dowry-harassment questions, where nobody has died
+    # -- anchors instead to 85 (cruelty by husband or relatives), the
+    # section that actually governs a living wife's complaint.
+    (re.compile(r"\bdowry\b[\s\S]{0,80}\b(die[ds]?|death|dead|suicide|burn(?:ed|t)?|killed|hang(?:ed|ing)?)\b"
+                r"|\b(die[ds]?|death|dead|suicide|burn(?:ed|t)?|killed|hang(?:ed|ing)?)\b[\s\S]{0,80}\bdowry\b",
+                re.I), "80"),
+    (re.compile(r"\bdowry\b", re.I), "85"),
 ]
 
 
@@ -680,16 +970,48 @@ def _bns_section_as_match(num: str) -> "dict | None":
 
 
 def _offence_keyword_matches(question: str) -> list:
-    """At most ONE anchor -- the first _OFFENCE_KEYWORD_ANCHORS pattern
-    the question matches -- as a high-confidence statute match. Deliberately
-    capped at one: a person's message usually describes a single alleged
-    offence, and firing several would recreate the laundry-list problem
-    this is meant to fix."""
+    """Every DISTINCT offence _OFFENCE_KEYWORD_ANCHORS pattern the message
+    names, as high-confidence statute matches -- e.g. "arrested for
+    cheating and breach of trust" anchors BOTH BNS 318 and BNS 316, not
+    just whichever pattern happens to come first in the list.
+
+    Patterns are still checked in list order (most specific first -- e.g.
+    attempt-to-murder before bare murder) and a later, more general
+    pattern is SKIPPED if its match falls entirely inside a span an
+    earlier pattern already claimed -- so "attempted to murder" still
+    anchors only 109, not 109 AND 103, even though the word "murder" also
+    appears inside that phrase. Distinct offences named in different parts
+    of the message don't share a span and so both survive.
+
+    CORRECTED 2026-09-04: previously stopped at the FIRST matching
+    pattern only, on the theory that "a person's message usually
+    describes a single alleged offence". CONFIRMED REAL FAILURE: a
+    scenario naming both "cheating" and "breach of trust" -- two
+    distinct, genuinely alleged BNS offences (318 and 316) -- only ever
+    anchored 318, silently dropping 316 from the answer. Missing a
+    section the person actually named is a worse failure than the rare
+    case of two real offences both surfacing, so this no longer caps at
+    one."""
+    text = question or ""
+    claimed_spans = []
+    seen_sections = set()
+    out = []
     for pat, num in _OFFENCE_KEYWORD_ANCHORS:
-        if pat.search(question or ""):
-            m = _bns_section_as_match(num)
-            return [m] if m else []
-    return []
+        if num in seen_sections:
+            continue
+        match = next(
+            (c for c in pat.finditer(text)
+             if not any(c.start() >= s and c.end() <= e for s, e in claimed_spans)),
+            None,
+        )
+        if match is None:
+            continue
+        m = _bns_section_as_match(num)
+        if m:
+            out.append(m)
+            seen_sections.add(num)
+            claimed_spans.append((match.start(), match.end()))
+    return out
 
 
 def _bns_section_variants(sec_key: str) -> dict:
@@ -1097,6 +1419,7 @@ def answer_question(question):
                 "state": "single_match",
                 "matches": statute_overrides,
                 "response_text": response_text,
+                "situation_detected": _looks_like_situation(response_text),
             }
         return {"state": "retrieval_unavailable"}
 
@@ -1104,6 +1427,16 @@ def answer_question(question):
         # A curated override can still provide an answer even when
         # normal semantic search found nothing above threshold --
         # this is the exact scenario the override exists for.
+        #
+        # CONFIRMED REAL FAILURE (2026-09-04): this fallback returned
+        # "single_match" without 'situation_detected' at all (unlike the
+        # main single_match / conflicting_matches branches below), so
+        # app.py's la.get("situation") check silently defaulted to falsy
+        # and the "Prepare a draft to send" button never appeared -- for
+        # a real arrest situation whose only matches were statute
+        # overrides (e.g. once a false-positive judgment match, like the
+        # out-of-domain Rangappa fix above, correctly stops padding
+        # find_relevant_sections's result out of "no_match").
         if statute_overrides:
             retrieved_text = format_retrieved_text_for_prompt(statute_overrides)
             response_text = generate_grounded_response(question, retrieved_text, matches=statute_overrides)
@@ -1111,6 +1444,7 @@ def answer_question(question):
                 "state": "single_match",
                 "matches": statute_overrides,
                 "response_text": response_text,
+                "situation_detected": _looks_like_situation(response_text),
             }
         return {"state": "no_match"}
 

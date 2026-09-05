@@ -141,6 +141,182 @@ def find_adverse_markers(*texts):
     return sorted(m for m in ADVERSE_TREATMENT_MARKERS if m in haystack)
 
 
+# ---------------------------------------------------------------------------
+# Document-finality classification (2026-09-04) -- CONFIRMED REAL FAILURE:
+# "Attapuram Bharath Reddy vs The State Of Telangana" was surfaced by Lane
+# B, ranked, and USER-CONFIRMED into related_judgments_approved.json (which
+# feeds drafted legal representations as an "authority") -- but its only
+# pinned paragraph was a 'PetArg' (petitioner's argument) begging "the
+# petitioner be enlarged on bail". It is a bail application, not a
+# judgment/finding of any court. This is the deterministic Stage-C gate
+# from the reviewed IK-filtering design doc, refined against what this
+# project actually has available (see live-judgment-retrieval-plan memory
+# for the full critique):
+#
+# WHY NOT A DOCTYPE OR TITLE FILTER: confirmed empirically, not assumed.
+#   - IK's `doctypes:` operator (see ik_query_builder.py) is a COURT-SOURCE
+#     filter ("highcourts"/"supremecourt"), not a finality filter -- a bail
+#     order from a High Court is still "judgments"-doctype.
+#   - Attapuram's real title, "...vs The State Of Telangana on 25 March,
+#     2026", carried NO bail/interlocutory keyword at all. The only tell
+#     was in the fetched paragraph body.
+#   - A body-text regex for "I.A. No. <n>" was tried and REJECTED: it
+#     false-positived on NALSA v Union of India (a landmark, genuinely
+#     final SC judgment) at paragraph 7 -- "Shri T. Srinivasa Murthy,
+#     learned counsel appearing in I.A. No. 2 of 2013, submitted that..."
+#     is identifying which intervener's counsel spoke, not the whole
+#     judgment's own disposal. A passing citation-number mention is not
+#     document identity.
+#
+# WHY THE CONJUNCTION (structure absence AND disposal phrase), not either
+# alone: PROCEDURAL_DISPOSAL_MARKERS phrases were validated against every
+# chunk in the 22-case gold corpus (all bare "bail"/"released on bail"
+# style phrases dropped after "released on bail" false-positived on
+# Vihaan Kumar v State of Haryana para 9 -- QUOTING Article 22/CrPC S.41's
+# own text about the RIGHT to be released on bail, not a court granting
+# it) -- the phrases below scored ZERO hits across the whole corpus, but a
+# phrase alone still can't distinguish "this document's own operative
+# order is a bail grant" from "this document discusses bail as a legal
+# topic" (Arnesh Kumar's entire subject IS arrest/bail guidelines). The
+# reasoning-structure check is the other half: a genuine judgment on a
+# point of law -- even one that discusses bail throughout, like Arnesh
+# Kumar -- has real Analysis/Precedent/CDiscource/Issue/Conclusion
+# structure somewhere; a bare procedural disposal typically does not.
+# Flagging requires BOTH signals to agree, so neither alone can trigger a
+# false positive on real precedent.
+#
+# NOT YET LIVE-VALIDATED: built and unit-tested against real corpus text
+# (the negative controls) and the real, verbatim Attapuram paragraph (the
+# positive control) -- but not yet run against a fresh live IK fetch,
+# since Attapuram itself was already removed rather than re-fetched (this
+# project's own discipline: don't spend real IK credits to re-confirm an
+# already-established finding). Treat as a well-founded heuristic pending
+# confirmation on the next real "unverified" run, not a proven-in-
+# production filter.
+# ---------------------------------------------------------------------------
+
+# Mirrors related_judgments._STRUCTURE_BONUS's keys -- kept as an
+# independent copy (not imported) since related_judgments.py imports FROM
+# this module, not the other way around; see that dict if the two ever
+# need to be kept in sync after a change.
+REASONING_STRUCTURE_TAGS = frozenset({"Analysis", "Precedent", "CDiscource", "Issue", "Conclusion"})
+
+# Dispositive-shaped phrasing only -- the court's own operative order or a
+# party's prayer FOR that specific order, never a bare mention of "bail"
+# as a legal concept (which a genuine arrest/bail-doctrine judgment like
+# Arnesh Kumar uses throughout). Every phrase here was checked against the
+# full 22-case gold corpus (chunks/*.json, judgment files only) and
+# produced ZERO matches -- see the module-level note above for the two
+# real false positives (Vihaan Kumar, NALSA) that shaped this list.
+PROCEDURAL_DISPOSAL_MARKERS = (
+    "is enlarged on bail",
+    "be enlarged on bail",
+    "the bail application is allowed",
+    "the bail application is dismissed",
+    "the bail application is rejected",
+    "bail application stands allowed",
+    "bail application stands dismissed",
+    "the anticipatory bail application",
+    "anticipatory bail is allowed",
+    "anticipatory bail is rejected",
+    "anticipatory bail is granted",
+    "anticipatory bail is dismissed",
+    "the interlocutory application is allowed",
+    "the interlocutory application is dismissed",
+    "the present bail application",
+    "this bail application",
+    "this criminal miscellaneous petition",
+    "the criminal miscellaneous petition",
+    "petitioner is granted bail",
+    "petitioner is released on bail",
+    "petitioner shall be released on bail",
+    "accused is released on bail",
+    "accused is granted bail",
+    "bail petition is disposed of",
+    "bail application is disposed of",
+    "prayed that the petitioner be enlarged on bail",
+    "prayed that the petitioner be released on bail",
+)
+
+
+def find_procedural_disposal_markers(*texts):
+    """Sorted list of PROCEDURAL_DISPOSAL_MARKERS appearing (as a plain
+    lowercased substring) in any of `texts`. Same shape as
+    find_adverse_markers -- a flag, checked in combination with structure
+    data by classify_document_finality, never treated as a verdict by
+    itself.
+
+    CONFIRMED REAL BUG, caught by this function's own test against the
+    real Attapuram paragraph text: a fetched judgment paragraph's raw text
+    carries mid-SENTENCE double-newlines from PDF extraction (confirmed
+    real: "...it is prayed that the\\n\\npetitioner be enlarged on
+    bail."), so a multi-word marker phrase never appears as a plain
+    contiguous substring in the raw text even though it plainly reads that
+    way to a human. Whitespace (any run, including newlines) is collapsed
+    to a single space before matching -- find_adverse_markers does not
+    need this (it runs on IK's own short single-line snippets, which don't
+    carry this artifact), but a full fetched paragraph does."""
+    haystack = " ".join(re.sub(r"\s+", " ", t).lower() for t in texts if t)
+    return sorted(m for m in PROCEDURAL_DISPOSAL_MARKERS if m in haystack)
+
+
+def classify_document_finality(paragraphs):
+    """Deterministic Stage-C signal: is this fetched document LIKELY a
+    bare procedural disposal (bail / interlocutory application) rather
+    than a judgment with real legal reasoning?
+
+    paragraphs: the full list of paragraph dicts for ONE fetched IK
+    document (each with at least 'text' and optionally 'structure') --
+    e.g. related_judgments.fetch_and_pin's `pools[idx]`, the FULL pool
+    before any vocabulary pre-filter (disposal language, like the section-
+    citing sentence that motivated the section-alignment check, is often
+    in a paragraph that shares no vocabulary with the user's situation and
+    would never reach a filtered subset).
+
+    Returns:
+        {
+          "is_procedural_order": True | False | None,
+          "has_reasoning_structure": True | False | None,
+          "disposal_markers": [str, ...],
+        }
+
+    is_procedural_order is True ONLY when BOTH:
+      - has_reasoning_structure is explicitly False (IK returned real
+        structure tags for this document -- so we have a genuine signal
+        -- and NONE of them are in REASONING_STRUCTURE_TAGS), AND
+      - at least one PROCEDURAL_DISPOSAL_MARKERS phrase is present.
+
+    has_reasoning_structure is None (not False) when NO paragraph carries
+    ANY structure tag at all -- i.e. IK returned no structural
+    classification for this document, so "no reasoning tags found" would
+    be indistinguishable from "we have no signal either way". Never
+    guess: missing data stays unknown, exactly like every other None in
+    this module. is_procedural_order is also None in that case, even if
+    disposal language is present -- a phrase alone was shown (see the
+    module note) to be an insufficient signal by itself.
+
+    Pure function, no network, never raises."""
+    paras = [p for p in (paragraphs or []) if isinstance(p, dict)]
+    structures = [p.get("structure") for p in paras if p.get("structure")]
+
+    if not structures:
+        has_reasoning_structure = None
+    else:
+        has_reasoning_structure = any(s in REASONING_STRUCTURE_TAGS for s in structures)
+
+    markers = find_procedural_disposal_markers(*(p.get("text") or "" for p in paras))
+
+    is_procedural_order = (
+        (has_reasoning_structure is False) and bool(markers)
+    ) if has_reasoning_structure is not None else None
+
+    return {
+        "is_procedural_order": is_procedural_order,
+        "has_reasoning_structure": has_reasoning_structure,
+        "disposal_markers": markers,
+    }
+
+
 def title_matches_any(title, known_names):
     """True if a normalised IK `title` looks like one of `known_names`
     (e.g. the project's 22 already-in-corpus judgments). Match is:

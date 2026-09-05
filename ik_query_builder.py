@@ -429,31 +429,67 @@ def _keywords(text: str, n: int = 5) -> list:
 
 def _trim_phrase(phrase: str, max_words: int = 5) -> str:
     """A phrase query only matches if it appears verbatim in a judgment;
-    an 8-10 word layman phrase almost never does. Drop leading and
-    trailing filler, then keep at most `max_words` words -- a shorter
-    distinctive run is far more likely to hit (and the keyword+section
-    companion query from build_issue_queries is the real workhorse)."""
+    an 8-10 word layman phrase almost never does, so this trims to a
+    short, DISTINCTIVE run of at most `max_words` words -- picking the
+    window with the most actual content, not just the first one.
+
+    CONFIRMED REAL FAILURE (2026-09-04): the previous version always kept
+    the first `max_words` words (after stripping only LEADING/TRAILING
+    filler), so a fact-heavy hook phrase whose informative words come
+    after a stopword-heavy opening -- "nobody has shown me the loan
+    documents he's supposedly relying on" -- trimmed to "nobody has
+    shown", a contentless 3-word fragment. That fragment verbatim-matches
+    unrelated litigation in every legal domain (any case where an
+    affidavit happens to say "nobody had shown him ..."), and both IK's
+    phrase search and the downstream reranker treat an exact short-phrase
+    hit as a strong relevance signal regardless of subject matter. Real
+    consequence: it surfaced a completely unrelated civil-service ACR
+    dispute as the TOP-scoring "related judgment" for a cheating/
+    breach-of-trust question.
+
+    Now slides a `max_words`-word window across the ORIGINAL word order
+    (so the result is still a real contiguous substring, required for an
+    exact-phrase IK query) and keeps whichever window has the most
+    content words -- ties broken by earliest position -- then trims only
+    that window's own leading/trailing filler. A stray single-letter
+    token (e.g. "s" left over from stripping the apostrophe out of
+    "he's") does not count as content, so it can't pad out a window."""
     words = _clean_phrase(phrase).split()
-    while words and words[0].lower() in _QUERY_STOPWORDS:
-        words.pop(0)
-    while words and words[-1].lower() in _QUERY_STOPWORDS:
-        words.pop()
-    words = words[:max_words]
-    while words and words[-1].lower() in _QUERY_STOPWORDS:
-        words.pop()
-    return " ".join(words)
+    if not words:
+        return ""
+
+    def is_content(w):
+        return len(w) > 1 and w.lower() not in _QUERY_STOPWORDS
+
+    best_start, best_count = 0, -1
+    span = min(max_words, len(words))
+    for start in range(len(words) - span + 1):
+        count = sum(1 for w in words[start:start + span] if is_content(w))
+        if count > best_count:
+            best_start, best_count = start, count
+
+    window = words[best_start:best_start + span]
+    while window and window[0].lower() in _QUERY_STOPWORDS:
+        window.pop(0)
+    while window and window[-1].lower() in _QUERY_STOPWORDS:
+        window.pop()
+    return " ".join(window)
 
 
 def build_issue_query(anchor: dict, *, courts: str = "highcourts",
-                      fromdate: str = None, include_phrase: bool = True) -> str:
+                      fromdate: str = None, include_phrase: bool = True,
+                      section_override: str = None) -> str:
     """One Indian Kanoon `formInput` string for a single issue anchor
     (from related_judgments.build_anchors).
 
     Two shapes, chosen by `include_phrase`:
       True  -> the trimmed verbatim fact phrase ALONE (+ filters). Clean
                and precise; when it hits, it hits well.
-      False -> issue keywords + at most ONE section number (+ filters).
-               The safety net.
+      False -> issue keywords + one section number (+ filters). The
+               safety net. Which section number is picked from the
+               anchor unless `section_override` is given -- see
+               build_issue_queries, which calls this once per DISTINCT
+               section the issue actually names.
 
     They are kept deliberately SEPARATE. A first trial mixed phrase +
     section numbers + doctrine names into one query and IK's ranking on
@@ -469,6 +505,8 @@ def build_issue_query(anchor: dict, *, courts: str = "highcourts",
         judgments applying a doctrine to facts are what "a similar
         situation" means.
     fromdate: "DD-MM-YYYY" recency floor, or None.
+    section_override: use this section number instead of deriving one
+        from the anchor. Ignored when include_phrase=True.
     """
     parts = []
 
@@ -481,14 +519,17 @@ def build_issue_query(anchor: dict, *, courts: str = "highcourts",
     else:
         parts.extend(_keywords(anchor.get("issue", ""), n=4)
                      or ["criminal", "procedure"])
-        # exactly one section number -- the model's guessed section_hooks
-        # and their concordance mapping are noisy; more than one just
-        # matches citation lists.
-        secnums = _section_numbers_from_labels(
-            (anchor.get("old_sections") or [])[:1] + (anchor.get("new_sections") or [])[:1]
-        )
-        if secnums:
-            parts.append(secnums[0])
+        if section_override:
+            parts.append(section_override)
+        else:
+            # exactly one section number when none was specified -- the
+            # model's guessed section_hooks and their concordance mapping
+            # are noisy; more than one here just matches citation lists.
+            secnums = _section_numbers_from_labels(
+                (anchor.get("old_sections") or [])[:1] + (anchor.get("new_sections") or [])[:1]
+            )
+            if secnums:
+                parts.append(secnums[0])
 
     query = " ".join(p for p in parts if p).strip()
     if courts:
@@ -500,20 +541,52 @@ def build_issue_query(anchor: dict, *, courts: str = "highcourts",
     return query
 
 
+# How many of an issue's distinct named sections get their own broad
+# query. Uncapped would recreate the citation-list noise problem the
+# single-section design avoided; capping at 1 (the old behaviour) lost a
+# genuinely second-named offence entirely -- confirmed real case
+# (2026-09-04): an issue tagged both "IPC 420" (cheating) and "IPC 406"
+# (criminal breach of trust) only ever searched on 420, so no IK query
+# ever ran for the breach-of-trust side of a compound accusation. 3 is
+# enough for a person naming two or three real offences in one message,
+# without exploding into a laundry list for a heavily cross-referenced
+# section_hooks guess.
+_MAX_SECTIONS_PER_ISSUE = 3
+
+
 def build_issue_queries(anchor: dict, **kwargs) -> list:
-    """Two queries for one issue: the trimmed-phrase query (precise, often
-    zero hits) and the keyword+section query (broad, always something).
-    Both run -- the phrase query, when it hits, tends to hit well; the
-    keyword query is the safety net. Deduped. Callers pool the results
-    across queries and issues, then dedupe by tid before ranking."""
+    """Queries for one issue: the trimmed-phrase query (precise, often
+    zero hits), plus one broad keyword+section query per DISTINCT section
+    number the issue names (up to _MAX_SECTIONS_PER_ISSUE) -- so a
+    compound accusation ("cheating and breach of trust") gets a search
+    anchored to EACH offence, not just whichever section happened to be
+    listed first. Deduped. Callers pool the results across queries and
+    issues, then dedupe by tid before ranking."""
     queries = []
     phrase = _trim_phrase(anchor.get("hook_phrase", ""))
     if phrase and len(phrase.split()) >= 2:
         queries.append(build_issue_query(anchor, include_phrase=True, **kwargs))
 
-    broad = build_issue_query(anchor, include_phrase=False, **kwargs)
-    if broad and broad not in queries:
-        queries.append(broad)
+    # old_sections and new_sections are NOT independent offences -- they're
+    # the same section_hooks expressed in two numbering systems (a single
+    # "BNSS 47" hook also resolves to "CrPC 50" via concordance). Prefer
+    # old_sections (what Indian Kanoon's corpus is actually indexed under)
+    # and only fall back to new_sections for hooks concordance couldn't
+    # resolve (e.g. a hook already given as an old IPC number, which
+    # to_old() can't map further) -- never concatenate both, or the same
+    # provision under two numbers would be double-counted as two offences.
+    secnums = _section_numbers_from_labels(anchor.get("old_sections") or [])
+    if not secnums:
+        secnums = _section_numbers_from_labels(anchor.get("new_sections") or [])
+    if secnums:
+        for secnum in secnums[:_MAX_SECTIONS_PER_ISSUE]:
+            broad = build_issue_query(anchor, include_phrase=False, section_override=secnum, **kwargs)
+            if broad not in queries:
+                queries.append(broad)
+    else:
+        broad = build_issue_query(anchor, include_phrase=False, **kwargs)
+        if broad not in queries:
+            queries.append(broad)
 
     return queries or [build_issue_query(anchor, include_phrase=False, **kwargs)]
 

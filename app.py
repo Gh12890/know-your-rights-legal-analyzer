@@ -1588,16 +1588,89 @@ def run_batch_triage_flow():
 _RELATED_STATES = ("single_match", "conflicting_matches")
 
 
-def _render_related_judgments_result(result):
-    """Render the outcome of a related-judgments run under the last answer."""
-    if not result.get("show_user") or not result.get("for_display"):
-        st.caption(
-            "I also looked for related court judgments you could read, but I don't have any "
-            "I'm confident enough to show for this one. (This doesn't change the answer above.)"
+def _candidate_key(c):
+    """Stable identity for a ranked candidate, for session-state tracking
+    of which unverified ones the user has confirmed. Same shape record_approved
+    already dedupes on."""
+    t = c.get("triage", {})
+    return (c.get("source"), t.get("tid") or t.get("title"))
+
+
+def _render_one_judgment(c, *, key_prefix=""):
+    """Shared card layout for one candidate -- title/citation line, gloss,
+    up to 2 pinned paragraphs, link, adverse markers. Used by both the
+    fully-trusted panel and the unverified-review panel.
+
+    procedural_disposal=True never reaches this function via the
+    fully-trusted panel (related_judgments._display_worthy hard-excludes
+    it there) -- it can only appear here via the unverified-review panel,
+    which shows everything per that panel's own "never hide, only flag"
+    design. The warning below is that flag."""
+    t = c.get("triage", {})
+    if c.get("procedural_disposal") is True:
+        st.warning(
+            "⚠ **This looks like a bail or interlocutory application, not a final judgment.** "
+            "Courts don't treat these as legal precedent the way a decided case is treated"
+            + (" — flagged phrase: “" + c["procedural_disposal_markers"][0] + "”"
+               if c.get("procedural_disposal_markers") else "")
+            + "."
         )
+    title = t.get("title") or "Judgment"
+    bits = [f"**{title}**"]
+    if t.get("cited_in_answer"):
+        bits.append("_the judgment cited in the answer above_")
+    elif t.get("previously_approved"):
+        bits.append("_you kept this in a draft before_")
+    elif c.get("source") == "corpus":
+        bits.append("in our verified library")
+    elif t.get("court"):
+        bits.append(t["court"])
+    if (t.get("publish_date") or "")[:4]:
+        bits.append((t["publish_date"])[:4])
+    st.markdown(" · ".join(bits))
+
+    if c.get("gloss"):
+        st.markdown(f"*{c['gloss']}*")
+
+    for p in (c.get("pinned") or [])[:2]:
+        where = f"Para {p['para_number']}" if p.get("para_number") else "Extract"
+        st.markdown(f"> **{where}.** {(p.get('text') or '').strip()[:600]}…")
+
+    if t.get("url"):
+        st.markdown(f"[Read the full judgment on Indian Kanoon ↗]({t['url']})")
+    if t.get("adverse_markers"):
+        st.caption("⚠ A later case may have questioned this — flagged terms: "
+                   + ", ".join(t["adverse_markers"]))
+
+
+def _render_related_judgments_result(result, qhash):
+    """Render the outcome of a related-judgments run under the last answer.
+
+    Two distinct panels, never blended:
+      - the fully-trusted panel (result['for_display']) -- shown whenever
+        show_user is True (every issue is a whitelisted settled doctrine).
+      - the unverified-review panel (result['unverified_for_display']) --
+        shown when show_user is False. This is the FULL ranked list,
+        unfiltered by score/gloss/alignment (2026-09-04, per explicit
+        user direction: this tool's own confidence judgment must never
+        decide what the user is even allowed to see). Nothing here is
+        ever treated as approved on its own; the user must explicitly
+        confirm each one via its own button before it is recorded or
+        used in a draft (see confirmed_unverified_<qhash> in session
+        state)."""
+    disp = result.get("for_display") or []
+    unverified = result.get("unverified_for_display") or []
+
+    if not result.get("show_user") or not disp:
+        if not unverified:
+            st.caption(
+                "I looked for related court judgments but the search itself came back empty for "
+                "this one. (This doesn't change the answer above.)"
+            )
+            return
+        _render_unverified_judgments(unverified, result, qhash)
         return
 
-    disp = result["for_display"]
     with st.expander(f"⚖️ {len(disp)} related court judgment(s) — read these yourself", expanded=True):
         st.warning(
             "**Unverified.** These were found automatically, not checked by a lawyer. A judgment "
@@ -1605,33 +1678,62 @@ def _render_related_judgments_result(result):
             "This does not change the answer above."
         )
         for c in disp:
-            t = c.get("triage", {})
-            title = t.get("title") or "Judgment"
-            bits = [f"**{title}**"]
-            if t.get("cited_in_answer"):
-                bits.append("_the judgment cited in the answer above_")
-            elif t.get("previously_approved"):
-                bits.append("_you kept this in a draft before_")
-            elif c.get("source") == "corpus":
-                bits.append("in our verified library")
-            elif t.get("court"):
-                bits.append(t["court"])
-            if (t.get("publish_date") or "")[:4]:
-                bits.append((t["publish_date"])[:4])
-            st.markdown(" · ".join(bits))
+            _render_one_judgment(c)
+            st.divider()
 
-            if c.get("gloss"):
-                st.markdown(f"*{c['gloss']}*")
+        st.caption("This is general information, not legal advice. Please consult a qualified lawyer.")
 
-            for p in (c.get("pinned") or [])[:2]:
-                where = f"Para {p['para_number']}" if p.get("para_number") else "Extract"
-                st.markdown(f"> **{where}.** {(p.get('text') or '').strip()[:600]}…")
 
-            if t.get("url"):
-                st.markdown(f"[Read the full judgment on Indian Kanoon ↗]({t['url']})")
-            if t.get("adverse_markers"):
-                st.caption("⚠ A later case may have questioned this — flagged terms: "
-                           + ", ".join(t["adverse_markers"]))
+def _render_unverified_judgments(unverified, result, qhash):
+    """The stricter, not-whitelisted path: this topic (e.g. cheating,
+    breach of trust -- a substantive offence, not one of the settled
+    arrest-procedure doctrines) has no safety-net whitelist entry, so
+    nothing here is shown as confirmed. Each candidate needs the user's
+    own, per-item confirmation before it is remembered for reuse or
+    folded into a draft -- confirming does NOT change the answer above,
+    it only decides what this session's draft (if any) may cite."""
+    confirmed_key = f"confirmed_unverified_{qhash}"
+    confirmed = st.session_state.setdefault(confirmed_key, [])
+    confirmed_ids = {_candidate_key(c) for c in confirmed}
+
+    with st.expander(
+        f"🔎 {len(unverified)} judgment(s) found for this situation — unfiltered, read carefully",
+        expanded=True,
+    ):
+        st.warning(
+            "**Not verified, and not pre-filtered by confidence.** This topic doesn't have the "
+            "same built-in settled-doctrine safety check the arrest-procedure judgments above get, "
+            "so every judgment this search found is listed here, best match first, including ones "
+            "that may turn out to be a weak or wrong match. Nothing has been screened out for you -- "
+            "read each one in full and decide for yourself whether it actually matches your "
+            "situation before relying on it or using it in a draft. This does not change the answer "
+            "above."
+        )
+        for c in unverified:
+            _render_one_judgment(c)
+            ck = _candidate_key(c)
+            if ck in confirmed_ids:
+                st.caption("✓ You confirmed this one — it will be offered for your draft and remembered for next time.")
+            else:
+                flagged = c.get("procedural_disposal") is True
+                if st.button(
+                    "👍 Yes, use this despite the warning above" if flagged else "👍 Yes, this matches my situation",
+                    key=f"confirm_unverified_{qhash}_{ck[0]}_{ck[1]}",
+                    help=("This looks like a bail/interlocutory order, not a judgment -- only confirm if "
+                          "you've read it and are sure it's actually relevant precedent." if flagged else
+                          "Only what you confirm here is used -- nothing on this panel is kept automatically."),
+                ):
+                    confirmed.append(c)
+                    try:
+                        from related_judgments import record_approved
+                        profile = result.get("profile") or {}
+                        record_approved(
+                            profile.get("_question", ""), profile.get("issues", []),
+                            {"for_display": [c]},
+                        )
+                    except Exception:
+                        pass
+                    st.rerun()
             st.divider()
 
         st.caption("This is general information, not legal advice. Please consult a qualified lawyer.")
@@ -1653,11 +1755,12 @@ def _render_related_judgments_section():
     result_key = f"related_result_{qhash}"
 
     if result_key in st.session_state:
-        _render_related_judgments_result(st.session_state[result_key])
+        _render_related_judgments_result(st.session_state[result_key], qhash)
         if st.button("↻ Search again", key=f"related_again_{qhash}",
                      help="Run the search again from scratch."):
             st.session_state.pop(result_key, None)
             st.session_state.pop(f"related_prep_{qhash}", None)
+            st.session_state.pop(f"confirmed_unverified_{qhash}", None)
             st.rerun()
         return
 
@@ -1677,7 +1780,7 @@ def _render_related_judgments_section():
                     la["question"], la.get("reply"), prepared=prepared
                 )
             except Exception:
-                st.session_state[result_key] = {"show_user": False, "for_display": []}
+                st.session_state[result_key] = {"show_user": False, "for_display": [], "unverified_for_display": []}
         st.rerun()
 
 
@@ -1732,6 +1835,15 @@ def _render_arrest_draft_section():
                             record_approved(la["question"], (rr.get("profile") or {}).get("issues", []), rr)
                         except Exception:
                             pass
+                    # not-whitelisted domain: only what the user EXPLICITLY
+                    # confirmed on the unverified-review panel (never the
+                    # whole unverified list) is offered to the draft --
+                    # record_approved for these already ran at confirm-time
+                    # (see _render_unverified_judgments), this just makes
+                    # them available to THIS session's draft too.
+                    confirmed = st.session_state.get(f"confirmed_unverified_{qhash}") or []
+                    if confirmed:
+                        auths = authorities_from_result({"for_display": confirmed}) + auths
                     st.session_state[fa_key] = {"fa": fa, "authorities": auths, "matters": matters}
             except Exception:
                 st.session_state[fa_key] = {"error": True}

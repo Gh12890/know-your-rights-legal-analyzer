@@ -263,17 +263,32 @@ def decompose_situation(user_message):
 # Anchor building -- pure Python, no LLM, no network.
 # ---------------------------------------------------------------------------
 
-# "BNSS 35", "BNS 318(4)", "Section 187 BNSS", "s.35 BNSS" -> (act, number)
+# "BNSS 35", "BNS 318(4)", "IPC 420", "CrPC 41", "Section 187 BNSS",
+# "s.35 BNSS" -> (act, number). Recognizes BOTH new-code (BNS/BNSS) and
+# old-code (IPC/CrPC) act names.
+#
+# CONFIRMED REAL GAP (2026-09-04): SITUATION_DECOMPOSITION_PROMPT asks the
+# model for "any BNS or BNSS section", but for an offence whose old
+# number is far more widely known than its new one (cheating: "420" is
+# recognizable, "318" is not), the model sometimes names the OLD section
+# anyway. Previously that hook matched neither branch of this regex, so
+# it silently fell into doctrine_hooks (a non-section name) -- no old- or
+# new-section number reached the IK query builder at all for that issue,
+# even though the issue named a real, specific offence. Both directions
+# are now recognized and resolved via statute_concordance either way.
 _SECTION_HOOK_RE = re.compile(
-    r"\b(?P<act1>BNSS|BNS)\b[^\d]{0,12}(?P<num1>\d{1,3}[A-Z]{0,2})"
-    r"|\b(?:section|sec\.?|s\.?)\s*(?P<num2>\d{1,3}[A-Z]{0,2})[^\w]{0,4}\b(?P<act2>BNSS|BNS)\b",
+    r"\b(?P<act1>BNSS|BNS|CrPC|IPC)\b[^\d]{0,12}(?P<num1>\d{1,3}[A-Z]{0,2})"
+    r"|\b(?:section|sec\.?|s\.?)\s*(?P<num2>\d{1,3}[A-Z]{0,2})[^\w]{0,4}\b(?P<act2>BNSS|BNS|CrPC|IPC)\b",
     re.IGNORECASE,
 )
+
+_OLD_CODE_ACTS = {"IPC", "CRPC"}
 
 
 def _parse_section_hook(hook):
     """'BNSS 35' -> ('BNSS', '35'); 'BNS 318(4)' -> ('BNS', '318');
-    'Article 22(1)' / 'D.K. Basu' -> None (not a BNS/BNSS section)."""
+    'IPC 420' -> ('IPC', '420'); 'Article 22(1)' / 'D.K. Basu' -> None
+    (not a recognized statute section)."""
     m = _SECTION_HOOK_RE.search(hook or "")
     if not m:
         return None
@@ -289,8 +304,8 @@ def build_anchors(profile):
         {
           "issue": str,
           "hook_phrase": str,
-          "new_sections": ["BNSS 35", ...],      # the BNS/BNSS hooks, cleaned
-          "old_sections": ["CrPC 41", "IPC 420", ...],  # concordance equivalents
+          "new_sections": ["BNSS 35", ...],      # BNS/BNSS labels, direct or concordance-resolved
+          "old_sections": ["CrPC 41", "IPC 420", ...],  # IPC/CrPC labels, direct or concordance-resolved
           "doctrine_hooks": ["Article 22(1)", "D.K. Basu", ...],  # non-section hooks, kept verbatim
         }
 
@@ -298,12 +313,15 @@ def build_anchors(profile):
     overwhelmingly indexed under IPC/CrPC numbers (BNS/BNSS are ~2 years
     old), so a section-anchored search needs the pre-2024 number. This is
     the "Option A" ik_query_builder.py's header describes as unblocked.
+    A hook the model already gave as an old-code section is used AS-IS
+    for old_sections (no lookup needed) and resolved FORWARD for
+    new_sections; a new-code hook is resolved the other way, as before.
 
     Pure lookup via statute_concordance -- a concordance hit is a pointer
     to search on, never asserted as an identity (see that module's
     docstring). Returns [] for a falsy/Shapeless profile.
     """
-    from statute_concordance import to_old
+    from statute_concordance import to_old, to_new
 
     if not profile or not isinstance(profile, dict):
         return []
@@ -311,7 +329,7 @@ def build_anchors(profile):
     anchors = []
     for issue in profile.get("issues", []):
         new_sections, old_sections, doctrine_hooks = [], [], []
-        seen_old = set()
+        seen_new, seen_old = set(), set()
 
         for hook in issue.get("section_hooks", []):
             parsed = _parse_section_hook(hook)
@@ -322,18 +340,24 @@ def build_anchors(profile):
 
             act, num = parsed
             label = f"{act} {num}"
-            if label not in new_sections:
-                new_sections.append(label)
+            is_old = act in _OLD_CODE_ACTS
 
+            own_list, own_seen = (old_sections, seen_old) if is_old else (new_sections, seen_new)
+            if label not in own_seen:
+                own_seen.add(label)
+                own_list.append(label)
+
+            resolve = to_new if is_old else to_old
+            other_list, other_seen = (new_sections, seen_new) if is_old else (old_sections, seen_old)
             try:
-                equivalents = to_old(act, num)
+                equivalents = resolve(act, num)
             except ValueError:
                 equivalents = None
             for e in equivalents or []:
-                old_label = f"{e['act']} {e['section']}"
-                if old_label not in seen_old:
-                    seen_old.add(old_label)
-                    old_sections.append(old_label)
+                other_label = f"{e['act']} {e['section']}"
+                if other_label not in other_seen:
+                    other_seen.add(other_label)
+                    other_list.append(other_label)
 
         anchors.append({
             "issue": issue.get("issue", ""),
@@ -406,6 +430,68 @@ def answer_old_sections(answer_text):
 
 
 # ---------------------------------------------------------------------------
+# Section-alignment check -- a deterministic guard against the reranker's
+# real, confirmed blind spot: a cross-encoder trained on general text
+# similarity can score a candidate highly on surface vocabulary overlap
+# ("shown", "documents", "communicated", "delay") while being completely
+# wrong on legal substance. CONFIRMED REAL FAILURE (2026-09-04): a Gujarat
+# HC civil-service ACR dispute -- about a government officer's Annual
+# Confidential Report, nothing to do with crime -- outscored (0.885) a
+# genuinely on-point cheating/forgery judgment (0.56) for a partnership
+# cheating/breach-of-trust question, purely because a paragraph in it
+# happened to read well against the user's message. Fixing the reranker
+# itself isn't possible (it's a fixed pretrained model); instead, use the
+# SAME deterministic tool this project already trusts for everything else
+# -- does the candidate's own text actually cite one of the statute
+# sections this issue names? -- as a real scoring correction, not a mere
+# nudge, applied once full judgment text is available (fetch_and_pin).
+# ---------------------------------------------------------------------------
+
+_BASE_SECTION_NUM_RE = re.compile(r"\d+[A-Z]{0,2}")
+
+
+def _anchor_bare_sections(anchor):
+    """Every BASE section number an anchor names, old AND new numbering
+    together, subsection dropped (e.g. 'BNS 318(4)' / 'IPC 420' -> '318'
+    and '420' both in the result) -- the union, not the query-builder's
+    old-preferred-else-new choice. build_issue_queries picks ONE
+    numbering (and may keep a subsection) to avoid a duplicate SEARCH;
+    this is checking whether a candidate's own text engages with EITHER
+    numbering at all, so both count as evidence and the subsection is
+    dropped -- a judgment citing bare 'Section 318' should still count as
+    aligned with an issue anchored on '318(4)'."""
+    from ik_query_builder import _section_numbers_from_labels
+
+    out = set()
+    for n in _section_numbers_from_labels(
+        (anchor.get("old_sections") or []) + (anchor.get("new_sections") or [])
+    ):
+        m = _BASE_SECTION_NUM_RE.match(n)
+        if m:
+            out.add(m.group(0))
+    return out
+
+
+_SECTION_MENTION_RE_CACHE = {}
+
+
+def _mentions_section(text, bare_num):
+    """Whether `text` cites this section the way real Indian judgments
+    actually do -- "Section 420", "S.420", "u/s 406", "420 IPC" -- not
+    just the bare digits, which would false-positive on paragraph
+    numbers, years, and unrelated citations."""
+    pat = _SECTION_MENTION_RE_CACHE.get(bare_num)
+    if pat is None:
+        pat = re.compile(
+            rf"\b(?:section|sec\.?|s\.?|u/s\.?)\s*{re.escape(bare_num)}\b"
+            rf"|\b{re.escape(bare_num)}\s*(?:of\s+the\s+)?(?:ipc|bns|crpc|bnss)\b",
+            re.IGNORECASE,
+        )
+        _SECTION_MENTION_RE_CACHE[bare_num] = pat
+    return bool(pat.search(text or ""))
+
+
+# ---------------------------------------------------------------------------
 # Phase 1b -- the search phase. Real Indian Kanoon calls happen here (cost
 # real IK credits); the CLI writes a review bundle for a human to eyeball
 # before any of this is wired into the app. Fetch / paragraph-pinning /
@@ -424,6 +510,36 @@ _W_CROSS_ISSUE = 0.10    # per extra issue this judgment also answered
 _W_COURT_TIER = 0.03     # * court_tier_rank (0..3)
 _W_PHRASE_QUERY = 0.08   # candidate was surfaced by a verbatim-phrase query
 _W_RECENT = 0.03         # candidate is dated on/after the 1 Jul 2024 codes
+_W_SECTION_ALIGNED = 0.06   # early (snippet-only) confirmed section mention -- a real
+                            # signal, but too thin a text sample yet for more weight
+
+# Applied in fetch_and_pin, once full judgment text is available -- unlike
+# the gentle nudges above, this is a real correction to content_score
+# itself, not an addition to it, mirroring the existing "found nothing
+# on point -> strong demote" pattern a few lines below. CONFIRMED REAL
+# FAILURE (2026-09-04): the reranker alone scored a completely unrelated
+# civil-service case at 0.71 content_score against a cheating/breach-of-
+# trust question -- a magnitude only a real correction, not a nudge, can
+# reliably overcome.
+_SECTION_ALIGN_BONUS = 0.08     # full text confirms a named section -- added to content_score
+_SECTION_MISALIGN_PENALTY = 0.5  # full text has NONE of the checkable sections -- content_score *= this
+
+# Same shape as _SECTION_MISALIGN_PENALTY, applied once full judgment text
+# (and IK's own per-paragraph structure tags) is available -- see
+# ik_triage.classify_document_finality's module-level note for the full
+# design writeup. CONFIRMED REAL FAILURE (2026-09-04): "Attapuram Bharath
+# Reddy vs The State Of Telangana" -- a bail application, its only content
+# a PetArg (petitioner's argument) praying to be "enlarged on bail" -- was
+# ranked, fetched, and USER-CONFIRMED into related_judgments_approved.json
+# (which feeds drafted legal "authorities"). Stronger than the section-
+# misalignment penalty: that guards against an off-topic MATCH; this
+# guards against the wrong KIND of document entirely, a categorical
+# problem no amount of topical relevance should be able to outweigh.
+# Deliberately not zero -- stays visible (heavily demoted, not deleted) in
+# the full ranked list / review bundle, consistent with this project's
+# "never silently delete, only flag and demote" discipline elsewhere
+# (adverse_markers, the corpus-dedup logic).
+_PROCEDURAL_ORDER_PENALTY = 0.15  # confirmed likely bail/interlocutory disposal -- content_score *= this
 
 # How many already-in-corpus cases the ranked list may carry. Lane B is
 # mainly for NEW judgments; a couple of relevant verified cases the
@@ -473,13 +589,15 @@ def corpus_candidates(anchors, *, local_search_fn=None, local_search_many_fn=Non
     else:
         results = {q: _safe_call(local_search_fn, q) for q in issues}
 
+    from semantic_retrieval import OUT_OF_CHAT_DOMAIN_CASE_NAMES
+
     corpus_by_name = {}
     for i, issue_text in enumerate(issues):
         for rec in (results.get(issue_text) or []):
             if rec.get("type") != "judgment":
                 continue
             name = rec.get("case_name") or rec.get("chunk_id")
-            if not name:
+            if not name or name in OUT_OF_CHAT_DOMAIN_CASE_NAMES:
                 continue
             entry = corpus_by_name.get(name)
             if entry is None:
@@ -589,7 +707,7 @@ def _candidate_document(cand):
 
 def rank_candidates(candidates, user_message, *, rerank_fn=None,
                     corpus_case_names=None, grounded_answer_text=None,
-                    keep=_KEEP_RANKED, today=None):
+                    keep=_KEEP_RANKED, today=None, anchors=None):
     """Triage the pool, drop IK hits that are really corpus cases and
     corpus cases the grounded answer already cited, then rank by:
     reranker relevance to the FULL user message (dominant) + a
@@ -599,6 +717,15 @@ def rank_candidates(candidates, user_message, *, rerank_fn=None,
         semantic_retrieval.rerank (defaults to the real one). None
         (unavailable) -> ranking degrades to the deterministic nudges
         alone, flagged via 'rerank_used' on each item.
+
+    anchors: the same list build_anchors() produced -- used ONLY to work
+    out, per candidate, which bare section numbers (if any) its matched
+    issue(s) actually name, stored as cand['anchor_sections'] for
+    fetch_and_pin to check against the FULL judgment text later (a much
+    more reliable check than what's possible here, against just the
+    title + IK's own short search snippet). A confirmed early hit here
+    earns a small bonus; absence earns no penalty at this stage -- the
+    snippet is too thin a sample to conclude a genuine mismatch from.
 
     Returns the top `keep` candidates, best first, with at most
     _MAX_CORPUS_IN_RESULT already-in-corpus cases among them. Each item
@@ -658,6 +785,8 @@ def rank_candidates(candidates, user_message, *, rerank_fn=None,
     rerank_used = ranked is not None
     score_by_index = {r["index"]: r["score"] for r in (ranked or [])}
 
+    issue_sections = [_anchor_bare_sections(a) for a in (anchors or [])]
+
     for idx, cand in enumerate(kept):
         rerank_score = score_by_index.get(idx, 0.0)
         cross = max(0, len(cand["matched_issues"]) - 1)
@@ -667,11 +796,22 @@ def rank_candidates(candidates, user_message, *, rerank_fn=None,
         # bag of section numbers and keywords.
         from_phrase = any('"' in q for q in cand.get("queries", []))
         recent = cand["triage"].get("post_three_code_commencement") is True
+
+        anchor_sections = set()
+        for i in cand["matched_issues"]:
+            if i < len(issue_sections):
+                anchor_sections |= issue_sections[i]
+        cand["anchor_sections"] = sorted(anchor_sections)
+        section_confirmed_early = bool(anchor_sections) and any(
+            _mentions_section(docs[idx], n) for n in anchor_sections
+        )
+
         nudges = (
             _W_CROSS_ISSUE * cross
             + _W_COURT_TIER * tier
             + (_W_PHRASE_QUERY if from_phrase else 0.0)
             + (_W_RECENT if recent else 0.0)
+            + (_W_SECTION_ALIGNED if section_confirmed_early else 0.0)
         )
         cand["rerank_score"] = rerank_score
         cand["rerank_used"] = rerank_used
@@ -796,10 +936,12 @@ def fetch_and_pin(ranked, user_message, *, pin_query=None, fetch_many_fn=None,
     + every corpus candidate, and PIN their 1-3 on-point paragraphs (with
     the judgment's own paragraph number).
 
-    Each candidate gains 'pinned', 'content_score', 'fetch_failed', and a
+    Each candidate gains 'pinned', 'content_score', 'fetch_failed', a
     re-based 'score' (content is authoritative once a paragraph is pinned;
     fetched-but-nothing / unfetched IK candidates fall back to a demoted
-    headline score -- THIS re-orders the list).
+    headline score -- THIS re-orders the list), and (live IK candidates
+    only) 'procedural_disposal' (True | False | None -- see
+    ik_triage.classify_document_finality) + 'procedural_disposal_markers'.
 
     Speed: the paragraph pool of each judgment is PRE-FILTERED to those
     that share a content word with the situation (or carry a reasoning
@@ -809,6 +951,8 @@ def fetch_and_pin(ranked, user_message, *, pin_query=None, fetch_many_fn=None,
     pin_query: the concise text to rank paragraphs against (default the
         raw message; callers pass primary_grievance + issue list).
     """
+    from ik_triage import classify_document_finality
+
     if not ranked:
         return []
     q = pin_query or user_message
@@ -907,14 +1051,58 @@ def fetch_and_pin(ranked, user_message, *, pin_query=None, fetch_many_fn=None,
 
         nudges = cand.get("_nudges", 0.0)
         if pool_scored:
-            cand["content_score"] = round(pool_scored[0][1], 4)
+            content_score = pool_scored[0][1]
+
+            # Section-alignment correction -- checked against the FULL
+            # fetched document (pools[idx], before the vocabulary
+            # pre-filter), not just the paragraphs picked for pinning:
+            # the sentence naming the section is often the charge-framing
+            # paragraph near the top, which may share no vocabulary with
+            # the user's message and so never reach `pool`/`worth` at
+            # all. A real correction to content_score itself (not a
+            # nudge added to it) -- see _SECTION_ALIGN_BONUS /
+            # _SECTION_MISALIGN_PENALTY's module-level note for why.
+            anchor_sections = cand.get("anchor_sections") or []
+            if anchor_sections:
+                full_text = " ".join(p["text"] for p in pools.get(idx, []))
+                if any(_mentions_section(full_text, n) for n in anchor_sections):
+                    content_score = min(1.0, content_score + _SECTION_ALIGN_BONUS)
+                    cand["section_alignment"] = True
+                else:
+                    content_score *= _SECTION_MISALIGN_PENALTY
+                    cand["section_alignment"] = False
+            else:
+                cand["section_alignment"] = None
+
+            # Document-finality correction -- corpus candidates are
+            # already human-verified as real judgments (skip); a live IK
+            # candidate is checked against the FULL fetched pool (pools[idx],
+            # same reasoning as the section-alignment check above: the
+            # disposal language is often in the petitioner's-argument
+            # paragraph, which may share no vocabulary with the situation
+            # and never reach `pool`). See ik_triage.classify_document_finality
+            # and _PROCEDURAL_ORDER_PENALTY's module-level notes for the
+            # full design writeup (CONFIRMED REAL FAILURE, 2026-09-04:
+            # Attapuram Bharath Reddy -- a bail application -- was
+            # user-confirmed into the approved-authorities store).
+            if cand["source"] == "indiankanoon":
+                finality = classify_document_finality(pools.get(idx, []))
+                cand["procedural_disposal"] = finality["is_procedural_order"]
+                cand["procedural_disposal_markers"] = finality["disposal_markers"]
+                if finality["is_procedural_order"]:
+                    content_score *= _PROCEDURAL_ORDER_PENALTY
+            else:
+                cand["procedural_disposal"] = None
+                cand["procedural_disposal_markers"] = []
+
+            cand["content_score"] = round(content_score, 4)
             cand["pinned"] = [
                 {"para_number": p.get("para_number"), "structure": p.get("structure"),
                  "text": p["text"][:1200], "score": round(s, 4)}
                 for _, s, _o, p in pool_scored[:_MAX_PINNED_PARAS]
             ]
             # Content is authoritative: re-base the score on it.
-            cand["score"] = pool_scored[0][1] + nudges
+            cand["score"] = content_score + nudges
         else:
             cand["content_score"] = None
             cand["pinned"] = []
@@ -1147,6 +1335,22 @@ _OFF_POINT_RE = re.compile(r"not (be )?(closely |really )?on point", re.I)
 
 def _display_worthy(cand):
     """True if this candidate should appear in the user-facing panel."""
+    # A confirmed likely bail/interlocutory disposal is a HARD exclude from
+    # this specific panel -- 'for_display' is the FULLY-TRUSTED, whitelisted-
+    # topic panel, shown with no extra caveat beyond the standard "unverified,
+    # read it yourself" disclaimer. The _PROCEDURAL_ORDER_PENALTY score
+    # demotion (applied in fetch_and_pin) usually pushes it below the
+    # content floor anyway, but this panel's whole premise -- "settled
+    # doctrine, safe to show" -- means a confirmed-wrong document TYPE
+    # should never depend on score alone to stay out. Unlike everywhere
+    # else in this project (adverse_markers, unverified_for_display), this
+    # is a real exception to "flag, never hide": the full ranked list /
+    # review bundle still carries it (heavily demoted, not deleted, per
+    # _PROCEDURAL_ORDER_PENALTY's note), and the separate unverified-review
+    # panel still shows it WITH the flag surfaced for a human to judge --
+    # only THIS specific pre-vetted panel excludes it outright.
+    if cand.get("procedural_disposal") is True:
+        return False
     gloss = cand.get("gloss")
     if gloss and _OFF_POINT_RE.search(gloss):
         return False
@@ -1198,7 +1402,7 @@ def prepare_related_judgments(user_message, *, decompose_fn=None,
     corpus_ranked = rank_candidates(
         list(corpus_pool), user_message, rerank_fn=rerank_fn,
         grounded_answer_text=grounded_answer_text, today=today,
-        keep=_KEEP_FINAL,
+        keep=_KEEP_FINAL, anchors=anchors,
     )
     # judgments the user kept in a draft for the same / a similar question
     # -- pre-pinned, no IK call. Merged ahead of the corpus ones.
@@ -1376,25 +1580,46 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
       'ok'                -- 'candidates' holds the ranked list
     plus:
       'candidates'   -- ranked list, each with 'pinned' paragraphs and
-                        (when show_user) a verified 'gloss'
+                        a verified 'gloss' when it cleared the content floor
+      'for_display'  -- the fully-trusted panel: non-empty only when
+                        show_user is True (every issue a whitelisted
+                        settled doctrine) -- these can be shown without
+                        further caveat beyond the standard "unverified,
+                        read it yourself" warning already on the panel.
+      'unverified_for_display' -- (added 2026-09-04, unfiltered per
+                        explicit user direction same day) when show_user
+                        is False, literally the FULL ranked list --
+                        EVERY candidate found via the situation/section
+                        search, unfiltered by score, gloss, or
+                        section_alignment. Visibility here is not this
+                        tool's judgment call: for a non-whitelisted
+                        domain, the ranking machinery isn't trusted
+                        enough to decide what the user is even ALLOWED to
+                        see, only what order to show it in. Never auto-
+                        approved and never fed into a draft on its own --
+                        the user must explicitly confirm each one first
+                        (see app.py's unverified-review UI), at which
+                        point it flows through record_approved exactly
+                        like for_display.
       'show_user'    -- True only when EVERY issue is a whitelisted
-                        settled doctrine. When False the panel must NOT
-                        be shown to the user; the review bundle is still
-                        written for hand-curation.
+                        settled doctrine. When False for_display is empty
+                        (unverified_for_display may still have entries);
+                        the review bundle is written either way for
+                        hand-curation.
       'whitelist'    -- coverage_report(): which topic each issue mapped
                         to, and which issue (if any) kept show_user False
       'bundle_path', 'profile', 'anchors', 'degraded'
 
     pin=False stops after ranking (no IK-doc credits). gloss=False skips
-    the Sonnet call even when whitelisted.
+    the Sonnet call regardless of show_user.
 
     NEVER raises for an operational failure. This function's result is
     NEVER fed back into the grounded-answer pipeline.
     """
     from settled_doctrine_whitelist import coverage_report
 
-    empty = {"status": None, "candidates": [], "for_display": [], "bundle_path": None,
-             "profile": None, "anchors": [], "degraded": False,
+    empty = {"status": None, "candidates": [], "for_display": [], "unverified_for_display": [],
+             "bundle_path": None, "profile": None, "anchors": [], "degraded": False,
              "show_user": False, "whitelist": None}
 
     if os.getenv(_KILL_SWITCH_ENV):
@@ -1410,7 +1635,7 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         ik_pool = search_candidates(anchors, ik_search_many_fn=ik_search_many_fn, corpus_pool=[])
         ik_ranked = rank_candidates(
             ik_pool, user_message, rerank_fn=rerank_fn,
-            grounded_answer_text=grounded_answer_text, today=today,
+            grounded_answer_text=grounded_answer_text, today=today, anchors=anchors,
         )
         ranked = _merge_ranked(ik_ranked, pre_ranked)
     else:
@@ -1431,7 +1656,7 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         )
         ranked = rank_candidates(
             pooled, user_message, rerank_fn=rerank_fn,
-            grounded_answer_text=grounded_answer_text, today=today,
+            grounded_answer_text=grounded_answer_text, today=today, anchors=anchors,
         )
         # user-approved judgments are pre-built (they carry their own
         # triage/score) -- merge them AFTER rank_candidates, which expects
@@ -1451,15 +1676,21 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         except Exception:
             logger.exception("get_related_judgments: fetch_and_pin failed; using headline ranking")
 
-    # --- the whitelist gate: only settled doctrine reaches the user ---
+    # --- the whitelist gate: decides which of the two panels below the
+    #     user gets, not whether ranking/glossing happens at all (see
+    #     unverified_for_display, added 2026-09-04) ---
     wl = coverage_report(profile.get("issues", []))
     show_user = wl["covered"]
 
-    # --- the one bounded generative step, whitelisted path only.
-    #     Gloss ONLY the candidates that could plausibly be shown -- a
-    #     content score above the floor (+ 1 buffer). No point spending a
-    #     Sonnet call on a judgment that won't clear _display_worthy.
-    if show_user and gloss and ranked:
+    # --- the one bounded generative step. Gloss any candidate that could
+    #     plausibly be shown EITHER way -- the normal whitelisted panel,
+    #     or (now) the stricter not-whitelisted "unverified, you judge it"
+    #     path below -- so an off-point gloss (verified against the
+    #     pinned text) can still knock a candidate out of either. No point
+    #     spending a Sonnet call on a judgment that won't clear either
+    #     bar; this is why the filter is unchanged even though the
+    #     show_user gate that used to sit in front of it is gone.
+    if gloss and ranked:
         glossable = [c for c in ranked
                      if c["source"] == "corpus"
                      or (c.get("content_score") is not None
@@ -1485,10 +1716,38 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
 
     for_display = [c for c in ranked if _display_worthy(c)][:_MAX_DISPLAY] if show_user else []
 
+    # --- unverified-review path (2026-09-04, recalibrated TWICE same day) --
+    # for a question OUTSIDE the settled-doctrine whitelist, the panel
+    # above stays empty no matter how good the ranking is. Rather than
+    # hide results, surface EVERYTHING ranked under a SEPARATE,
+    # clearly-labeled field the user must explicitly read and confirm
+    # before anything here is ever treated as approved -- never silently
+    # folded into for_display, authorities_from_result, or a draft.
+    #
+    # FIRST version additionally required content_score >= floor + 0.10.
+    # CONFIRMED REAL FAILURE: a genuinely on-point precedent (Mohammad
+    # Azam Khan v State of UP) scored as low as 0.29 -- same offence,
+    # different underlying facts -- and the floor hid it every time.
+    #
+    # SECOND version dropped the score floor but still excluded fetch
+    # failures, gloss-confirmed-off-point, and section_alignment=False.
+    # EXPLICIT USER CORRECTION (2026-09-04): still wrong -- "whatever
+    # judgements are retrieved from IK as per situation and section
+    # matching, show them to the user... DO NOT HIDE... irrespective of
+    # your confidence." The whole point of this path is that the score/
+    # alignment/gloss machinery is THIS TOOL's confidence judgment, not
+    # the user's, and for a non-whitelisted domain that judgment is not
+    # trusted enough to decide visibility at all -- only to decide
+    # ORDER. So every ranked candidate is shown; nothing here is a
+    # confidence filter. record_approved + the per-candidate confirm
+    # button (app.py) remain the only gate on what's ever actually USED.
+    unverified_for_display = [] if show_user else list(ranked)
+
     return {
         "status": "ok" if ranked else "no_candidates",
         "candidates": ranked,          # full ranked list -> the review bundle
-        "for_display": for_display,    # the subset the user-facing panel shows
+        "for_display": for_display,    # the subset the fully-trusted panel shows
+        "unverified_for_display": unverified_for_display,  # not-whitelisted but worth a human look
         "bundle_path": bundle_path,
         "profile": profile,
         "anchors": anchors,
@@ -1591,6 +1850,8 @@ def _print_result(result):
             tags.append("FETCH FAILED (headline only)")
         if t.get("adverse_markers"):
             tags.append("ADVERSE: " + ",".join(t["adverse_markers"]))
+        if r.get("procedural_disposal") is True:
+            tags.append("LIKELY BAIL/INTERLOCUTORY, NOT A JUDGMENT")
         if len(r["matched_issues"]) > 1:
             tags.append(f"{len(r['matched_issues'])} issues")
         tag = f"  [{' | '.join(tags)}]" if tags else ""

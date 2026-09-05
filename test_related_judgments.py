@@ -247,6 +247,38 @@ eq = build_issue_query(empty)
 check("arrest" in eq and "procedure" in eq and eq.strip() != "doctypes:highcourts",
       "a phrase-less anchor still produces a non-empty keyword query from the issue text")
 
+# CONFIRMED REAL GAP FIX (2026-09-04): a compound accusation ("cheating and
+# breach of trust") decomposes into ONE issue tagged with section_hooks for
+# BOTH offences -- old_sections empty because to_old() can't map an
+# already-old IPC hook further, so new_sections carries the raw hooks
+# directly. Previously build_issue_query only ever used the first one
+# (420, cheating), so no IK query ever ran for 406 (breach of trust).
+_compound_anchor = {
+    "issue": "arrest on allegation of cheating and breach of trust",
+    "hook_phrase": "arrested for cheating and breach of trust",
+    "new_sections": ["IPC 420", "IPC 406", "IPC 415"],
+    "old_sections": [],
+    "doctrine_hooks": [],
+}
+compound_qs = build_issue_queries(_compound_anchor)
+broad_qs = [q for q in compound_qs if '"arrested for cheating' not in q]
+check(any("420" in q for q in broad_qs) and any("406" in q for q in broad_qs),
+      "IK search runs at least once anchored to EACH distinct named section "
+      "(420 cheating AND 406 breach of trust), not just the first")
+
+# old_sections and new_sections for the SAME hook (e.g. "BNSS 47" ->
+# concordance -> "CrPC 50") must not be double-counted as two offences.
+_same_provision_anchor = {
+    "issue": "grounds of arrest not communicated",
+    "hook_phrase": "",
+    "new_sections": ["BNSS 47"],
+    "old_sections": ["CrPC 50"],
+    "doctrine_hooks": [],
+}
+same_prov_qs = build_issue_queries(_same_provision_anchor)
+check(sum(1 for q in same_prov_qs if "50" in q.split("doctypes:")[0]) == 1,
+      "old/new numbering for one real provision produces exactly one section-anchored query, not two")
+
 
 # ---------------------------------------------------------------------------
 # semantic_retrieval.rerank -- Voyage client mocked (no API cost)
@@ -504,6 +536,151 @@ check(corpus_c.get("pinned") and corpus_c["pinned"][0]["para_number"] == 10,
 concl = [p for p in by_tid[500]["pinned"] if p["structure"] == "Conclusion"]
 check(concl, "the Conclusion-tagged paragraph is among those pinned (structure bonus applied)")
 
+# ---------------------------------------------------------------------------
+# Section-alignment correction (2026-09-04): a deterministic guard against
+# the reranker scoring a lexically-similar but legally UNRELATED judgment
+# higher than a genuinely on-point one. CONFIRMED REAL FAILURE: a Gujarat
+# HC civil-service ACR dispute (0.885) outscored a real cheating/forgery
+# judgment (0.56) for a cheating/breach-of-trust question -- the ACR case
+# shared surface vocabulary ("shown", "documents", "delay") with the
+# user's message but never engaged with the actual offence.
+# ---------------------------------------------------------------------------
+check(rj._anchor_bare_sections({"old_sections": ["IPC 420", "IPC 406"], "new_sections": ["BNS 318(4)"]})
+      == {"420", "406", "318"},
+      "_anchor_bare_sections unions bare numbers from both old and new numbering")
+check(rj._mentions_section("The accused was charged under Section 420 IPC for cheating.", "420"),
+      "'Section 420' is recognized as a real citation")
+check(rj._mentions_section("He was booked under S.406 for breach of trust.", "406"),
+      "'S.406' (abbreviated) is recognized as a real citation")
+check(not rj._mentions_section("The hearing was listed on the 420th day of the term.", "420"),
+      "a bare coincidental number with no section-citation marker is NOT treated as a citation")
+
+_offtopic = {"source": "indiankanoon", "matched_issues": [0], "queries": ["q"],
+             "raw": _ik_doc(600, "Unrelated Service Matter"), "score": 0.9, "rerank_score": 0.9,
+             "rerank_used": True, "anchor_sections": ["420", "406"],
+             "triage": {"tid": 600, "title": "Unrelated Service Matter", "url": "u", "court_tier": "high_court",
+                        "adverse_markers": [], "is_corpus_case": False}}
+_ontopic = {"source": "indiankanoon", "matched_issues": [0], "queries": ["q"],
+            "raw": _ik_doc(601, "Real Cheating Case"), "score": 0.6, "rerank_score": 0.6,
+            "rerank_used": True, "anchor_sections": ["420", "406"],
+            "triage": {"tid": 601, "title": "Real Cheating Case", "url": "u", "court_tier": "high_court",
+                       "adverse_markers": [], "is_corpus_case": False}}
+
+_HTML_OFFTOPIC = "<h2 class='doc_title'>Unrelated Service Matter</h2>" + "".join(
+    f"<p data-structure='{s}' id='p_{i}'>{i}. {txt}</p>"
+    for i, (s, txt) in enumerate([
+        ("Facts", "The petitioner's loan documents and signatures were part of the partnership dispute records."),
+        ("Analysis", "The delay in the process cast doubt on the partnership and its forged accounting entries."),
+    ], start=1)
+)
+_HTML_ONTOPIC = "<h2 class='doc_title'>Real Cheating Case</h2>" + "".join(
+    f"<p data-structure='{s}' id='p_{i}'>{i}. {txt}</p>"
+    for i, (s, txt) in enumerate([
+        ("Facts", "The accused was charged under Section 420 IPC for cheating his business partner."),
+        ("Analysis", "The Court examined whether Section 406 IPC criminal breach of trust was made out."),
+    ], start=1)
+)
+
+
+def _fake_fetch_section_test(tids):
+    html_by_tid = {"600": _HTML_OFFTOPIC, "601": _HTML_ONTOPIC}
+    return {str(t): {"doc": html_by_tid.get(str(t), "")} for t in tids}
+
+
+_section_test_msg = ("arrested for cheating and breach of trust over loan documents "
+                      "and forged signatures in a partnership dispute")
+pinned_section_test = rj.fetch_and_pin(
+    [_offtopic, _ontopic], _section_test_msg,
+    fetch_many_fn=_fake_fetch_section_test, clean_fn=_fake_clean, rerank_fn=_fake_rerank,
+)
+by_tid_sec = {c["triage"]["tid"]: c for c in pinned_section_test}
+check(by_tid_sec[600]["section_alignment"] is False,
+      "a candidate whose full fetched text mentions NONE of the issue's named sections is flagged misaligned")
+check(by_tid_sec[601]["section_alignment"] is True,
+      "a candidate whose full fetched text DOES cite one of the issue's named sections is flagged aligned")
+check(by_tid_sec[601]["score"] > by_tid_sec[600]["score"],
+      "REAL-SHAPED GAP FIX: the section-citing judgment now outranks the lexically-similar but "
+      "legally unrelated one, reversing the confirmed real reranker mis-score")
+
+# ---------------------------------------------------------------------------
+# Document-finality correction (2026-09-04): a deterministic guard against
+# a bail/interlocutory disposal being ranked, pinned, and (via the app's
+# unverified-review confirm button) approved as if it were a judgment.
+# CONFIRMED REAL FAILURE: "Attapuram Bharath Reddy vs The State Of
+# Telangana" -- a bail application whose only content is a PetArg
+# (petitioner's argument) praying to be "enlarged on bail" -- was ranked,
+# fetched, and user-confirmed into related_judgments_approved.json.
+# ---------------------------------------------------------------------------
+_bail_order = {"source": "indiankanoon", "matched_issues": [0], "queries": ["q"],
+               "raw": _ik_doc(700, "Attapuram Bharath Reddy vs State"), "score": 0.8, "rerank_score": 0.8,
+               "rerank_used": True, "anchor_sections": [],
+               "triage": {"tid": 700, "title": "Attapuram Bharath Reddy vs State", "url": "u",
+                          "court_tier": "high_court", "adverse_markers": [], "is_corpus_case": False}}
+_real_judgment = {"source": "indiankanoon", "matched_issues": [0], "queries": ["q"],
+                   "raw": _ik_doc(701, "Genuine Arrest-Guidelines Case"), "score": 0.6, "rerank_score": 0.6,
+                   "rerank_used": True, "anchor_sections": [],
+                   "triage": {"tid": 701, "title": "Genuine Arrest-Guidelines Case", "url": "u",
+                              "court_tier": "high_court", "adverse_markers": [], "is_corpus_case": False}}
+
+# Real, verbatim shape of the confirmed Attapuram document: ONE paragraph,
+# tagged PetArg by IK's own classifier, praying for bail -- no
+# Analysis/Precedent/CDiscource/Issue/Conclusion tag anywhere.
+_HTML_BAIL_ORDER = "<h2 class='doc_title'>Attapuram Bharath Reddy vs State</h2>" + (
+    "<p data-structure='PetArg' id='p_1'>4. The learned counsel for the petitioner contends that the "
+    "petitioner is innocent and has been falsely implicated. Hence, it is prayed that the petitioner "
+    "be enlarged on bail.</p>"
+)
+# Arnesh-Kumar-SHAPED: genuinely discusses bail throughout (that IS its
+# subject) but carries real Analysis + Conclusion structure -- must NOT be
+# flagged, proving the conjunction protects real precedent.
+_HTML_REAL_JUDGMENT = "<h2 class='doc_title'>Genuine Arrest-Guidelines Case</h2>" + "".join(
+    f"<p data-structure='{s}' id='p_{i}'>{i}. {txt}</p>"
+    for i, (s, txt) in enumerate([
+        ("PetArg", "The petitioner submits the arrest and remand were made without due application of mind."),
+        ("Analysis", "Section 41 CrPC and the safeguards against automatic arrest are examined in detail, "
+                      "with reference to anticipatory bail and regular bail as meaningful remedies."),
+        ("Conclusion", "We accordingly lay down the following guidelines to be followed in all arrests."),
+    ], start=1)
+)
+
+
+def _fake_fetch_finality_test(tids):
+    html_by_tid = {"700": _HTML_BAIL_ORDER, "701": _HTML_REAL_JUDGMENT}
+    return {str(t): {"doc": html_by_tid.get(str(t), "")} for t in tids}
+
+
+_finality_test_msg = "arrested at night without being told the grounds, family not informed"
+pinned_finality_test = rj.fetch_and_pin(
+    [_bail_order, _real_judgment], _finality_test_msg,
+    fetch_many_fn=_fake_fetch_finality_test, clean_fn=_fake_clean, rerank_fn=_fake_rerank,
+)
+by_tid_fin = {c["triage"]["tid"]: c for c in pinned_finality_test}
+
+check(by_tid_fin[700]["procedural_disposal"] is True,
+      "REPRODUCES THE CONFIRMED CASE: the PetArg-only bail-order document is flagged procedural_disposal")
+check(bool(by_tid_fin[700]["procedural_disposal_markers"]),
+      "the flagged candidate carries the disposal marker(s) that triggered it")
+check(by_tid_fin[701]["procedural_disposal"] is False,
+      "REAL-SHAPED FIX: the Arnesh-Kumar-shaped judgment (bail discussed, but real Analysis/Conclusion "
+      "structure present) is NOT flagged -- the conjunction protects genuine precedent")
+
+check(by_tid_fin[700]["content_score"] < by_tid_fin[701]["content_score"],
+      "the flagged bail order's content_score is demoted below the genuine judgment's, despite starting "
+      "with a HIGHER raw rerank/headline score (0.8 vs 0.6)")
+check(by_tid_fin[700]["score"] < by_tid_fin[701]["score"],
+      "the demotion carries through to the final ranking score -- a bail order cannot outrank a real "
+      "judgment on lexical similarity alone")
+
+check(rj._display_worthy(by_tid_fin[700]) is False,
+      "a procedural_disposal=True candidate is HARD-EXCLUDED from the fully-trusted for_display panel, "
+      "regardless of its (already-demoted) content_score")
+
+corpus_cand_for_finality = {"source": "corpus", "matched_issues": [0], "queries": [],
+                            "triage": {"title": "Some Corpus Case", "cited_in_answer": False}}
+check(rj._display_worthy({**corpus_cand_for_finality, "content_score": 0.9,
+                          "procedural_disposal": None}) is True,
+      "a corpus candidate (procedural_disposal always None, never checked) is unaffected by this gate")
+
 # get_related_judgments with pin=True, everything injected
 with patch("related_judgments._corpus_para_pool", lambda name: []):
     res2 = rj.get_related_judgments(
@@ -629,12 +806,107 @@ nb_res = rj.get_related_judgments(
     local_search_fn=lambda q: [], rerank_fn=_fake_rerank, gloss_fn=_tracking_gloss,
     today=datetime.date(2026, 9, 3),
 )
-check(nb_res["show_user"] is False, "a non-whitelisted issue -> show_user False (panel hidden)")
+check(nb_res["show_user"] is False, "a non-whitelisted issue -> show_user False (fully-trusted panel hidden)")
 check(nb_res["whitelist"]["uncovered"] == ["police froze the bank account"],
       "the whitelist report names the issue that hid the panel")
-check(len(_gloss_calls) == 0, "the gloss does NOT run when the panel will not be shown (no Sonnet spend)")
+check(len(_gloss_calls) == 0,
+      "no gloss call here -- but because pin=False leaves every candidate without a content_score "
+      "(nothing clears the glossable floor), NOT because show_user gates gloss anymore (see below)")
+check(nb_res["for_display"] == [], "for_display stays empty when not whitelisted")
 check(nb_res["status"] in ("ok", "no_candidates"),
       "the run still completes and a bundle would still be written for hand-curation")
+
+# --- unverified-review path (2026-09-04, unfiltered per explicit user
+# correction): a non-whitelisted (substantive offence) question must
+# still surface EVERY ranked candidate for the user to judge themselves
+# -- not just ones this tool's own scoring/gloss/alignment machinery
+# considers "good enough". Two earlier, more cautious versions of this
+# path (a stricter score floor, then a defect-only filter) were both
+# built and both explicitly rejected by the user as still hiding things
+# ("DO NOT HIDE... irrespective of your confidence"). This is the FINAL
+# behavior: unverified_for_display == the full ranked list, unfiltered,
+# whenever show_user is False.
+def _decompose_theft_not_whitelisted(msg):
+    # primary_grievance/issue text deliberately echo the fixture judgment's
+    # own wording below -- get_related_judgments builds its paragraph-pin
+    # query from THESE fields (profile + issue text), not the raw user
+    # message, so the fake keyword-overlap reranker needs real overlap
+    # with them specifically to produce a realistic content_score.
+    return {"primary_grievance": "accused of stealing a laptop from the office",
+            "procedural_stage": "unknown",
+            "issues": [
+                {"issue": "arrest on an allegation of stealing a laptop from the office",
+                 "hook_phrase": "accused of stealing a laptop from the office",
+                 "section_hooks": ["BNS 303"]},
+            ]}
+
+
+_HTML_THEFT_ONTOPIC = "<h2 class='doc_title'>Real Theft Case</h2>" + "".join(
+    f"<p data-structure='{s}' id='p_{i}'>{i}. {txt}</p>"
+    for i, (s, txt) in enumerate([
+        ("Facts", "The accused was charged under Section 303 BNS for allegedly stealing a laptop from the office."),
+        ("Analysis", "The Court examined whether the ingredients of theft under Section 303 were made out."),
+    ], start=1)
+)
+
+
+def _fake_fetch_theft(tids):
+    return {str(t): {"doc": _HTML_THEFT_ONTOPIC if str(t) == "702" else ""} for t in tids}
+
+
+def _fake_ik_search_theft(queries):
+    return {q: {"docs": [_ik_doc(702, "Real Theft Case")]} for q in queries}
+
+
+_gloss_calls.clear()
+theft_res = rj.get_related_judgments(
+    "accused of stealing a laptop from the office and arrested without much explanation",
+    write_bundle=False, pin=True,
+    decompose_fn=_decompose_theft_not_whitelisted, ik_search_many_fn=_fake_ik_search_theft,
+    local_search_fn=lambda q: [], rerank_fn=_fake_rerank, gloss_fn=_tracking_gloss,
+    fetch_many_fn=_fake_fetch_theft, clean_fn=_fake_clean, today=datetime.date(2026, 9, 3),
+)
+check(theft_res["show_user"] is False, "a substantive-offence issue (theft) is not a whitelisted procedural doctrine")
+check(theft_res["for_display"] == [], "the fully-trusted panel still stays empty when not whitelisted")
+check(theft_res["unverified_for_display"] == theft_res["candidates"],
+      "REAL-SHAPED FIX (final, per explicit user correction): unverified_for_display is the FULL "
+      "ranked list, not a filtered subset -- nothing here is this tool's confidence judgment to make")
+check(len(_gloss_calls) >= 1,
+      "gloss still runs for a non-whitelisted question when something is genuinely glossable -- "
+      "the gloss text itself is shown to the user, it just no longer GATES visibility")
+
+# A second scenario, deliberately built to score LOW on pure text
+# similarity (see _decompose_theft_weak_overlap below) -- confirms the
+# unfiltered behavior holds even for a weak-scoring candidate, not just
+# a strong one.
+def _decompose_theft_weak_overlap(msg):
+    # deliberately shares almost no vocabulary with _HTML_THEFT_ONTOPIC's
+    # paragraphs, so the fake keyword-overlap reranker gives it a low
+    # content_score even though the fetched text genuinely cites Section
+    # 303 -- and deliberately avoids any settled_doctrine_whitelist
+    # trigger words (family/notified, grounds, 24 hours, lawyer, medical,
+    # bail) so this stays a non-whitelisted question.
+    return {"primary_grievance": "workplace dispute that turned into a police complaint",
+            "procedural_stage": "unknown",
+            "issues": [
+                {"issue": "arrest over a workplace dispute the accused denies any part in",
+                 "hook_phrase": "workplace dispute that turned into a police complaint",
+                 "section_hooks": ["BNS 303"]},
+            ]}
+
+
+weak_res = rj.get_related_judgments(
+    "there was a workplace dispute that turned into a police complaint and an arrest",
+    write_bundle=False, pin=True,
+    decompose_fn=_decompose_theft_weak_overlap, ik_search_many_fn=_fake_ik_search_theft,
+    local_search_fn=lambda q: [], rerank_fn=_fake_rerank, gloss_fn=_tracking_gloss,
+    fetch_many_fn=_fake_fetch_theft, clean_fn=_fake_clean, today=datetime.date(2026, 9, 3),
+)
+weak_scores = [c.get("content_score") for c in weak_res["candidates"] if c["source"] == "indiankanoon"]
+check(bool(weak_scores) and max(weak_scores) < rj._DISPLAY_CONTENT_FLOOR,
+      f"sanity check on the test setup: the weak-overlap fixture really does score low ({weak_scores})")
+check(weak_res["unverified_for_display"] == weak_res["candidates"],
+      "a low-scoring candidate is included too -- unverified_for_display is never score-filtered")
 
 
 # _dedupe_batch -- a batch order gives one IK doc per connected petition

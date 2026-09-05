@@ -300,6 +300,34 @@ MAX_JUDGMENT_MATCHES_FOR_PROMPT = 4
 # permissive by accident.
 SIMILARITY_THRESHOLD = JUDGMENT_SIMILARITY_THRESHOLD
 
+# Case names embedded in the shared corpus for the freeze / cheque-bounce
+# document-upload domains (built for main.py's compliance checks, not this
+# arrest/FIR chat -- chat_assistant.SCOPE_CLASSIFIER_PROMPT tells the
+# scope classifier this chat's OWN case law does not cover them). They
+# live in the same embeddings file only because it is shared, so a
+# generic similarity hit against one of them is never real arrest/FIR
+# case law and must not be treated as a "verified corpus" authority for
+# this chat feature or Lane B.
+#
+# CONFIRMED REAL FAILURE (2026-09-04): "Rangappa v Sri Mohan" -- an NI
+# Act S.139 cheque-presumption case -- scored 0.409 (just above
+# JUDGMENT_SIMILARITY_THRESHOLD) against a question about cheating and
+# criminal breach of trust in a partnership, purely on "loan"/"signature"
+# vocabulary overlap, and was then quoted as "relevant judicial
+# authority" in a drafted representation about an offence it has nothing
+# to do with. A curated exclusion list, not a score-based fix, because
+# the failure is categorical (wrong legal domain), not a matter of degree.
+OUT_OF_CHAT_DOMAIN_CASE_NAMES = frozenset({
+    "Rangappa v Sri Mohan",
+    "Bir Singh v Mukesh Kumar",
+    "Damodar S. Prabhu v Sayed Babalal H",
+    "Kaveri Plastics v Mahdoom Bawa Bahrudeen Noorul",
+    "Prakash Chimanlal Sheth v Jagruti Keyur Rajpopat",
+    "Malabar Gold and Diamond Limited v Union of India",
+    "Neelkanth Pharma Logistics Pvt. Ltd. v Union of India",
+    "State of Maharashtra v Tapas D. Neogy",
+})
+
 
 # ---------------------------------------------------------------------
 # REPLACE find_relevant_sections() with this version:
@@ -346,7 +374,8 @@ def find_relevant_sections(query):
         return {"state": "unavailable"}
 
     statute_matches = [r for r in results if r["type"] == "statute" and r["score"] >= STATUTE_SIMILARITY_THRESHOLD]
-    judgment_matches = [r for r in results if r["type"] == "judgment" and r["score"] >= JUDGMENT_SIMILARITY_THRESHOLD]
+    judgment_matches = [r for r in results if r["type"] == "judgment" and r["score"] >= JUDGMENT_SIMILARITY_THRESHOLD
+                         and r.get("case_name") not in OUT_OF_CHAT_DOMAIN_CASE_NAMES]
 
     # Keep only the strongest blocks per type before anything downstream
     # (enrichment, conflict detection, prompt assembly) sees them -- see
