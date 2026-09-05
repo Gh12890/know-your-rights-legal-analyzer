@@ -139,7 +139,7 @@ _WHITELIST = {
         # fact-finding claim.
         "sections": set(),
         "patterns": [
-            re.compile(r"\block\s*out\s*circular\b", re.I),
+            re.compile(r"\blook\s*out\s*circular\b", re.I),
             re.compile(r"\blookout\s*(circular|notice)\b", re.I),
             re.compile(r"\bLOC\b.{0,30}\b(cancel\w*|withdraw\w*|rescind\w*|revoke\w*|challeng\w*|quash\w*|issued|valid\w*)", re.I),
             re.compile(r"\b(cancel\w*|withdraw\w*|rescind\w*|revoke\w*|challeng\w*|quash\w*)\b.{0,30}\bLOC\b", re.I),

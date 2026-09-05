@@ -50,9 +50,13 @@ check(wl.match_issue(I("physical assault and mistreatment during police custody"
 check(wl.match_issue(I("visible injuries not medically documented or examined by a doctor",
                        "", ["BNSS 35"])) == "dk_basu_safeguards",
       "'injuries not medically documented' matches D.K. Basu, not the BNSS-35 section hook")
-check(wl.match_issue(I("a Look Out Circular was issued by another state's police",
-                       "Look Out Circular (LOC) issued")) == "loc_validity_challenge",
-      "'Look Out Circular' matches the loc_validity_challenge topic")
+check(wl.match_issue(I("a Look Out Circular was issued by another state's police")) == "loc_validity_challenge",
+      "'Look Out Circular' (no hook_phrase, isolates the phrase pattern itself) "
+      "matches the loc_validity_challenge topic")
+check(wl.match_issue(I("validity and legality of detention based on look out circular")) == "loc_validity_challenge",
+      "a realistic decompose_situation-shaped issue string ('...based on look out "
+      "circular') matches -- real phrasing seen from a live decomposition run, not "
+      "an invented test string")
 check(wl.match_issue(I("how do I get the lookout notice against me cancelled")) == "loc_validity_challenge",
       "'lookout notice ... cancelled' matches by phrase")
 check(wl.match_issue(I("wants to challenge the LOC that was issued against him")) == "loc_validity_challenge",
