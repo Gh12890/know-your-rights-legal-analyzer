@@ -188,6 +188,53 @@ _WHITELIST = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Fix 2 (2026-09-05): the decomposer's fixed checklist.
+#
+# The Lane B baseline showed the whitelist gate flapping run-to-run because
+# it had to keyword-match the decomposer's FREE-PROSE issue wording, and
+# that wording varies ("not produced before a magistrate within 24 hours"
+# one run, "failure to produce within the mandatory time limit" the next --
+# the second missed twenty_four_hour_production entirely).
+#
+# So the decomposer now also TICKS BOXES off this fixed list (a
+# classification, far more stable across runs than prose), and match_issue
+# checks the ticked box FIRST. The pattern / section matching below stays
+# as a backstop for when no box is ticked.
+#
+# Each value is the plain-language description the decomposition prompt
+# shows the model for that key. Keys MUST equal the _WHITELIST keys.
+# ---------------------------------------------------------------------------
+DOCTRINE_TAG_CHOICES = {
+    "fir_copy_right":
+        "the police / station are refusing or failing to give a copy of the FIR",
+    "arnesh_kumar_arrest_notice":
+        "arrested directly, without first being served a notice to appear, for an "
+        "offence punishable with up to 7 years",
+    "grounds_of_arrest_communicated":
+        "not told (or not told in writing) the grounds / reasons for the arrest",
+    "default_bail":
+        "chargesheet / final report not filed within the 60- or 90-day limit; "
+        "default / statutory bail",
+    "dk_basu_safeguards":
+        "custodial violence or torture, OR no medical examination, OR the arrest-memo "
+        "/ witness / family-intimation safeguards not followed",
+    "twenty_four_hour_production":
+        "not produced before a Magistrate within 24 hours of arrest",
+    "right_to_lawyer_on_arrest":
+        "denied access to, or the presence of, a lawyer",
+    "loc_validity_challenge":
+        "a Look-Out Circular (LOC), or being stopped / detained at an airport or "
+        "border by immigration",
+    "itact_66a_struck_down":
+        "charged or booked under Section 66A of the Information Technology Act",
+}
+
+assert set(DOCTRINE_TAG_CHOICES) == set(_WHITELIST), (
+    "DOCTRINE_TAG_CHOICES keys must exactly match the whitelist topics"
+)
+
+
 def _issue_section_labels(issue):
     """All section labels attached to an issue -- the model's section_hooks
     plus, if present, the concordance-resolved old_sections that
@@ -202,8 +249,10 @@ def _issue_section_labels(issue):
 def match_issue(issue):
     """The whitelist topic name this issue maps to, or None.
 
-    A keyword-pattern match is tried across ALL topics FIRST, then a
-    section-number match. The decomposition's section_hooks are a coarse
+    Order: (1) an explicit `doctrine_tags` entry the decomposer ticked off
+    the fixed checklist (Fix 2 -- most stable); then (2) a keyword-pattern
+    match across ALL topics; then (3) a section-number match. The
+    decomposition's section_hooks are a coarse
     guess -- a theft arrest gets 'BNSS 35' tagged onto every issue,
     including 'denied a medical exam' -- so a specific phrase ('medical
     check-up denied' -> D.K. Basu) must beat a broad section ('BNSS 35'
@@ -211,6 +260,14 @@ def match_issue(issue):
     order; the topic LABEL is what this fixes."""
     if not isinstance(issue, dict):
         return None
+    # (Fix 2) an explicit tag the decomposer ticked off the fixed checklist
+    # -- the most stable signal, so it is checked first. Ticking a box from
+    # a fixed list varies far less run-to-run than the free-prose wording
+    # the pattern / section fallbacks below have to match. Unknown tags are
+    # ignored (decompose_situation already filters to valid keys).
+    for tag in issue.get("doctrine_tags") or []:
+        if tag in _WHITELIST:
+            return tag
     text = f"{issue.get('issue', '')} {issue.get('hook_phrase', '')}"
     for name, entry in _WHITELIST.items():
         if any(p.search(text) for p in entry["patterns"]):

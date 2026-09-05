@@ -75,7 +75,11 @@ check(r["show_user"] is False and r["n_for_display"] == 0 and r["n_unverified"] 
 
 r = by_id["off-whitelisted-but-weak"]
 check(r["status"] == "ok" and r["n_for_display"] == 0 and r["n_unverified"] >= 1,
-      "whitelisted-but-weak case: panels are never BOTH empty (regression guard)")
+      "whitelisted-but-weak (no-anchor topic) case: panels are never BOTH empty (regression guard)")
+
+r = by_id["off-anchor-fills-panel"]
+check(r["n_for_display"] >= 1 and any("basu" in d["title"].lower() for d in r["displayed"]),
+      "Fix 1: doctrine anchor fills the trusted panel when the search finds nothing on point")
 
 r = by_id["off-disabled"]
 check(r["status"] == "disabled" and r["n_candidates"] == 0,

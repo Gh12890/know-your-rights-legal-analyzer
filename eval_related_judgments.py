@@ -109,15 +109,11 @@ LIVE_CASES = [
         "hook_substrings": ["medical", "slapped"],
         "expect_case": [("d.k. basu", "d. k. basu")],
         "expect_displayed": ["basu"],
-        "notes": "Custodial-torture + no-medical-exam. Both issues map to D.K. Basu. "
-                 "D.K. Basu (corpus) should rank #1 and show in the trusted panel. "
-                 "KNOWN BASELINE GAP (2026-09-05): INTERMITTENT -- across baseline runs "
-                 "D.K. Basu sometimes ranks ~#5 with a content_score below the trusted-"
-                 "panel floor (losing to HC cases that merely RECITE its 48-hour rule, and "
-                 "then -- because for_display is non-empty -- shown NOWHERE), and sometimes "
-                 "clears it. The instability itself is the finding: for the single most "
-                 "important citation on a canonical question, trusted-panel visibility is "
-                 "a coin-flip between runs. Not a harness defect.",
+        "notes": "Custodial-torture + no-medical-exam -> dk_basu_safeguards. Since Fix 1 "
+                 "(doctrine_anchors), D.K. Basu is injected as the doctrine anchor and "
+                 "LEADS the trusted panel deterministically, regardless of how the "
+                 "reranker scores it. (Baseline: it was ~#5, below the floor, shown "
+                 "nowhere on ~half the runs.)",
     },
     {
         "id": "arnesh-no-notice",
@@ -127,16 +123,12 @@ LIVE_CASES = [
         "expect_topics": ["arnesh_kumar_arrest_notice"],
         "min_issues": 1,
         "hook_substrings": ["notice"],
-        "expect_case": [("arnesh kumar", "satender kumar antil")],
-        "expect_displayed": ["satender kumar antil"],
-        "notes": "The <=7-year direct-arrest-without-notice pattern -> Arnesh Kumar notice "
-                 "topic. NOTE (2026-09-05 baseline): Arnesh Kumar v State of Bihar IS in "
-                 "the corpus but did not surface as a candidate at all -- a retrieval gap. "
-                 "The doctrine is currently carried by Satender Kumar Antil (its gloss on "
-                 "this run was exactly on point), so the check accepts either. The "
-                 "second decomposed issue ('cheating ~7 years') mapped to the default_bail "
-                 "topic -- a classifier over-trigger worth watching, harmless here since "
-                 "the panel gates on ALL issues being whitelisted and both are.",
+        "expect_case": [("arnesh kumar",)],
+        "expect_displayed": ["arnesh kumar"],
+        "notes": "The <=7-year direct-arrest-without-notice pattern -> arnesh_kumar_arrest_notice. "
+                 "Since Fix 1, Arnesh Kumar v State of Bihar (+ Satender Kumar Antil) are "
+                 "injected as doctrine anchors and lead the trusted panel -- baseline "
+                 "showed Arnesh Kumar never surfacing on its own.",
     },
     {
         "id": "grounds-of-arrest-not-given",
@@ -146,12 +138,13 @@ LIVE_CASES = [
         "expect_topics": ["grounds_of_arrest_communicated"],
         "min_issues": 1,
         "hook_substrings": ["grounds", "writing"],
-        "expect_case": [("vihaan kumar", "prabir purkayastha", "pankaj bansal")],
-        "expect_displayed": ["vihaan kumar", "prabir"],
-        "notes": "Written grounds of arrest not furnished -> Article 22(1) / Vihaan Kumar "
-                 "/ Prabir Purkayastha line. Whitelisted; on the baseline run both "
-                 "displayed with on-point glosses. Pankaj Bansal (also in the corpus) did "
-                 "not surface -- acceptable, Vihaan + Prabir cover the doctrine.",
+        "expect_case": [("prabir purkayastha", "pankaj bansal")],
+        "expect_displayed": ["prabir", "pankaj bansal"],
+        "notes": "Written grounds of arrest not furnished -> grounds_of_arrest_communicated. "
+                 "Since Fix 1, Prabir Purkayastha + Pankaj Bansal (the two named in the "
+                 "whitelist note) are injected as doctrine anchors and lead the panel; "
+                 "Vihaan Kumar (under a larger-bench reference) is deliberately not an "
+                 "anchor but still often surfaces via search.",
     },
     {
         "id": "fir-copy-refused",
@@ -194,17 +187,14 @@ LIVE_CASES = [
         "expect_topics": ["twenty_four_hour_production"],
         "min_issues": 1,
         "hook_substrings": ["produced", "magistrate"],
-        "expect_case": [("prabir purkayastha", "rakhi mitra", "gautam navlakha",
-                         "d.k. basu", "d. k. basu")],
-        "notes": "24-hour production -> Article 22(2) / S.58 BNSS. BASELINE BUG (2026-09-05, "
-                 "INTERMITTENT): on some runs the decomposed issue is phrased as 'failure "
-                 "to produce ... within mandatory time limit' and does NOT match the "
-                 "twenty_four_hour_production whitelist entry -> show_user=False and the "
-                 "whole trusted panel is suppressed for a settled-law question; on other "
-                 "runs it phrases it with '24 hours' and matches fine. The whitelist "
-                 "patterns for this topic should also catch 'produce/produced before (a) "
-                 "magistrate within [a] mandatory/statutory time limit'. Retrieval is fine "
-                 "-- Prabir Purkayastha and Rakhi Mitra surface with on-point glosses.",
+        "expect_case": [("prabir purkayastha", "rakhi mitra")],
+        "expect_displayed": ["prabir purkayastha", "rakhi mitra"],
+        "notes": "24-hour production -> Article 22(2) / S.58 BNSS. Fix 2: the decomposer "
+                 "now TICKS the twenty_four_hour_production box off a fixed checklist, so "
+                 "the gate no longer flaps on prose wording ('within the mandatory time "
+                 "limit' used to miss it -> panel suppressed for settled law). Fix 1: "
+                 "Prabir Purkayastha + Rakhi Mitra are injected as doctrine anchors and "
+                 "lead the panel.",
     },
     {
         "id": "itact-66a-whatsapp",
@@ -217,12 +207,10 @@ LIVE_CASES = [
         "expect_case": [("shreya singhal",)],
         "expect_displayed": ["shreya singhal"],
         "notes": "Section 66A -> struck down in Shreya Singhal, reinforced by PUCL (2019). "
-                 "Whitelisted (itact_66a_struck_down). KNOWN BASELINE GAP (2026-09-05, "
-                 "INTERMITTENT): on some runs Shreya Singhal (corpus) scores ~0.44 -- just "
-                 "below the trusted-panel content floor -- so the single most important "
-                 "citation for a 66A question is not shown and the trusted panel instead "
-                 "shows a WhatsApp-admin HC case; on other runs it clears the floor. Same "
-                 "borderline-scoring instability as dk-basu-medical.",
+                 "Whitelisted (itact_66a_struck_down). Since Fix 1, Shreya Singhal is "
+                 "injected as the doctrine anchor and leads the trusted panel "
+                 "deterministically -- baseline showed it scoring ~0.44, under the floor, "
+                 "hidden on ~half the runs while a WhatsApp-admin HC case took its place.",
     },
     {
         "id": "loc-igi-airport",
@@ -234,21 +222,17 @@ LIVE_CASES = [
         "expect_topics": ["loc_validity_challenge"],
         "min_issues": 1,
         "hook_substrings": ["look out circular"],
-        "expect_case": [("viraj chetan shah", "sumer singh salkan", "vikram sharma")],
-        "expect_displayed": ["viraj chetan shah", "sumer singh salkan"],
-        "notes": "LOC challenge -> Viraj Chetan Shah / the Sumer Singh Salkan guidelines "
-                 "(quoted verbatim inside Viraj Chetan Shah). BASELINE FINDING (2026-09-05, "
-                 "expect_case / expect_displayed left FAILING -- CONSISTENT across every "
-                 "baseline run): Viraj Chetan Shah is IN the corpus but NEVER surfaced as a "
-                 "candidate for an LOC question -- the corpus hits are always Prabir / "
-                 "Vihaan / Arnesh Kumar with 'not closely on point' glosses. The LOC "
-                 "chunks are framework-heavy ('OM/LOC-framework validity', 'Clause 8(j)') "
-                 "and carry no airport/immigration/detention vocabulary, so a plain-"
-                 "language LOC question does not retrieve them. This is the single "
-                 "clearest, most reproducible finding of the baseline: a whitelisted "
-                 "corpus landmark that is unreachable by its own doctrine's plain query. "
-                 "Also seen: the same IK case listed twice (dedup miss); 20s IK read-"
-                 "timeouts on some runs (degrades gracefully).",
+        "expect_case": [("viraj chetan shah",)],
+        "expect_displayed": ["viraj chetan shah"],
+        "notes": "LOC challenge -> loc_validity_challenge (Viraj Chetan Shah, which quotes "
+                 "the Sumer Singh Salkan guidelines verbatim inside it). This was the "
+                 "single clearest baseline failure: Viraj Chetan Shah is in the corpus "
+                 "but NEVER surfaced -- its chunks are framework-heavy with no "
+                 "airport/immigration vocabulary. Fix 1 injects it as the doctrine anchor "
+                 "so it now appears whichever panel renders (show_user may still be False "
+                 "if the vague 'no FIR' second issue is uncovered -- then it lands in the "
+                 "unverified panel). Fix 5 (plain-language chunk text) is still the "
+                 "complementary corpus-side improvement.",
     },
     {
         "id": "property-dispute-fir",
@@ -449,17 +433,19 @@ _OFF = {
     },
     "off-whitelisted-but-weak": {
         "decompose": {
-            "primary_grievance": "not told grounds of arrest",
+            "primary_grievance": "held long without a chargesheet",
             "procedural_stage": "post-arrest",
             "issues": [
-                {"issue": "grounds of arrest not communicated in writing",
-                 "hook_phrase": "never told the grounds in writing",
-                 "section_hooks": ["Article 22"]},
+                # default_bail is the one whitelisted topic with NO curated
+                # doctrine anchor (no corpus judgment yet), so it is still a
+                # real test of the 'both panels never empty' regression:
+                # for_display genuinely can end up empty here.
+                {"issue": "chargesheet not filed within the statutory limit",
+                 "hook_phrase": "still no chargesheet after ninety days",
+                 "section_hooks": ["BNSS 187"],
+                 "doctrine_tags": ["default_bail"]},
             ],
         },
-        # Only weak, barely-overlapping IK hits and NO corpus hit -> for_display
-        # will be empty even though show_user is True.  The regression guard
-        # (panels never both empty) must still pass via unverified fallback.
         "ik": [_off_ik_doc(9201, "Unrelated Zoning Appeal vs Municipal Board on 9 September, 2019")],
         "corpus": [],
         "fetch": {
@@ -468,10 +454,39 @@ _OFF = {
         },
         "expect": {
             "expect_show_user": True,
-            "expect_topics": ["grounds_of_arrest_communicated"],
-            "notes": "show_user True but every candidate scores under the display floor -> "
-                     "for_display empty, unverified_for_display falls back to the full list "
-                     "(the 2026-09-05 'both panels empty' regression guard).",
+            "expect_topics": ["default_bail"],
+            "notes": "Whitelisted (default_bail) but that topic has no doctrine anchor and "
+                     "every candidate scores under the display floor -> for_display empty, "
+                     "unverified_for_display falls back to the full list (the 2026-09-05 "
+                     "'both panels empty' regression guard).",
+        },
+    },
+    "off-anchor-fills-panel": {
+        # Fix 1 (2026-09-05): a whitelisted topic WITH a curated anchor,
+        # but the search finds NOTHING useful. The anchor case must still
+        # land in the trusted panel.
+        "decompose": {
+            "primary_grievance": "beaten in the lockup, no doctor",
+            "procedural_stage": "in custody",
+            "issues": [
+                {"issue": "custodial assault and no medical examination",
+                 "hook_phrase": "beaten in the lockup and no doctor",
+                 "section_hooks": [],
+                 "doctrine_tags": ["dk_basu_safeguards"]},
+            ],
+        },
+        "ik": [_off_ik_doc(9301, "Totally Unrelated Tax Appeal vs Commissioner on 3 March, 2018")],
+        "corpus": [],
+        "fetch": {
+            "9301": ("<p data-structure='Analysis' id='p1'>1. This is a service-tax refund "
+                     "dispute with no bearing on arrest or custody.</p>"),
+        },
+        "expect": {
+            "expect_show_user": True,
+            "expect_topics": ["dk_basu_safeguards"],
+            "expect_displayed": ["d.k. basu"],
+            "notes": "Search returns nothing on point; the D.K. Basu doctrine anchor must "
+                     "still fill the trusted panel and lead it.",
         },
     },
 }
