@@ -36,7 +36,33 @@ load_dotenv()
 logger = logging.getLogger("indiankanoon_client")
 
 BASE_URL = "https://api.indiankanoon.org"
-API_KEY = os.getenv("INDIANKANOON_API_KEY")
+
+
+def _resolve_api_key():
+    """CONFIRMED REAL BUG (2026-09-05), root-caused directly from the
+    Streamlit Community Cloud deployment's own logs after the user
+    reported the Lane B "related judgments" panel coming back genuinely
+    empty on a real question: every single search_many call failed with
+    this exact "INDIANKANOON_API_KEY not found in environment" message.
+    os.getenv() (dotenv-loaded .env, correct for local dev) and Streamlit
+    Cloud's own Secrets manager are TWO SEPARATE stores -- a key entered
+    into the Cloud app's Secrets panel never reaches os.environ on its
+    own. main.py / chat_assistant.py already learned this for
+    ANTHROPIC_API_KEY (both explicitly check st.secrets first); this
+    module never got the same treatment. Checks os.getenv first (the
+    local-dev / .env path, unchanged), then falls back to st.secrets (the
+    Cloud path)."""
+    key = os.getenv("INDIANKANOON_API_KEY")
+    if key:
+        return key
+    try:
+        import streamlit as st
+        return st.secrets.get("INDIANKANOON_API_KEY")
+    except Exception:
+        return None
+
+
+API_KEY = _resolve_api_key()
 
 # Client-side rate limiting. IK doesn't publish a strict RPS limit; this
 # is a safety margin, not a contractual number. It is now a GLOBAL gap
@@ -67,8 +93,9 @@ class IndianKanoonBalanceError(IndianKanoonError):
 def _check_api_key() -> None:
     if not API_KEY:
         raise IndianKanoonError(
-            "INDIANKANOON_API_KEY not found in environment. "
-            "Check .env file exists and contains this key."
+            "INDIANKANOON_API_KEY not found. Checked both the .env file "
+            "(local dev) and st.secrets (Streamlit Cloud) -- add it to "
+            "whichever one applies to this environment."
         )
 
 

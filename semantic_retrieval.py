@@ -33,8 +33,10 @@ check_cognizable_arrest_basis, just extended to open-ended questions.
 
 import json
 import os
+import logging
 import numpy as np
 
+logger = logging.getLogger("semantic_retrieval")
 
 try:
     from dotenv import load_dotenv
@@ -47,6 +49,33 @@ try:
     _voyage_available = True
 except ImportError:
     _voyage_available = False
+
+
+def _resolve_voyage_api_key():
+    """CONFIRMED REAL BUG (2026-09-05), found via the Streamlit Community
+    Cloud deployment's own logs after the user reported the Lane B
+    "related judgments" panel coming back genuinely empty: os.environ
+    (what voyageai.Client() reads internally when constructed with no
+    api_key argument) and Streamlit Cloud's own Secrets manager are TWO
+    SEPARATE stores -- a key entered into the Cloud app's Secrets panel
+    never reaches os.environ on its own. main.py / chat_assistant.py
+    already learned this lesson for ANTHROPIC_API_KEY (both explicitly
+    check st.secrets first) -- this module never got the same treatment,
+    so voyageai.Client() silently constructed with no key at all on
+    Cloud, and every semantic_search/rerank call failed and returned
+    None with NO log line (unlike indiankanoon_client.py's loud "not
+    found in environment" message), making this half of the same outage
+    invisible. Checks os.environ first (the local-dev / .env path,
+    unchanged), then falls back to st.secrets (the Cloud path)."""
+    key = os.environ.get("VOYAGE_API_KEY")
+    if key:
+        return key
+    try:
+        import streamlit as st
+        return st.secrets.get("VOYAGE_API_KEY")
+    except Exception:
+        return None
+
 
 MODEL = "voyage-law-2"
 RERANK_MODEL = "rerank-2"
@@ -135,13 +164,19 @@ def semantic_search(query, top_k=TOP_MATCHES_TO_CONSIDER, _raise_errors=False):
     if corpus is None:
         return None
 
-    client = voyageai.Client()
+    client = voyageai.Client(api_key=_resolve_voyage_api_key())
     try:
         query_embedding = client.embed([query], model=MODEL, input_type="query").embeddings[0]
     except Exception:
         if _raise_errors:
             raise
         # Network/API failure -- honest None, not a crash, not a guess.
+        # Logged (not silently swallowed): a missing/invalid key produces
+        # the exact same None a genuine network blip would, and this was
+        # previously indistinguishable from either -- see
+        # _resolve_voyage_api_key's docstring for the real 2026-09-05 case
+        # this invisibility caused.
+        logger.exception("semantic_search: Voyage embed call failed for query=%r", query[:200])
         return None
 
     query_vec = np.array(query_embedding)
@@ -183,11 +218,12 @@ def rerank(query, documents, top_k=None, _raise_errors=False):
         return []
 
     try:
-        client = voyageai.Client()
+        client = voyageai.Client(api_key=_resolve_voyage_api_key())
         resp = client.rerank(query, docs, model=RERANK_MODEL, top_k=top_k)
     except Exception:
         if _raise_errors:
             raise
+        logger.exception("rerank: Voyage rerank call failed for query=%r", (query or "")[:200])
         return None
 
     out = []
