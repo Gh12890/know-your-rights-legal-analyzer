@@ -85,6 +85,36 @@ category, reasoning, redirect_domain = classify_scope(
 check(category == "in_scope", "an in-scope arrest question is still classified as in_scope")
 check(redirect_domain is None, "redirect_domain is None for an in_scope question, never guessed")
 
+# REGRESSION TEST (2026-09-05, caught via live user testing after Phase
+# 3b): SCOPE_CLASSIFIER_PROMPT's new IT-Act paragraph ended with "...stays
+# adjacent_uncovered UNLESS the question is PURELY about arrest/detention/
+# remand PROCEDURE" -- a real LOC/transit-remand detention question that
+# also mentions an unlisted cyber-offence (a deleted Twitter post) as
+# BACKGROUND, not as its own question, got misclassified adjacent_uncovered
+# some real fraction of the time, contradicting the already-proven
+# detention/production/remand paragraph one above it (which says this
+# exact fact pattern IS in_scope regardless of the underlying offence).
+# Fixed by rewording that closing sentence to explicitly defer to the
+# backstory/procedure rule instead of re-litigating it with a stricter
+# "purely about" phrasing. Confirmed via a real 20/20 sample after the
+# fix (was intermittently failing before, at roughly 1-in-12 in one
+# sample) -- a single call here still carries some inherent LLM
+# non-determinism, same caveat as every other classify_scope check in
+# this file, but should now pass reliably.
+category, reasoning, redirect_domain = classify_scope(
+    "\U0001F6A8 URGENT LEGAL HELP NEEDED \U0001F6A8\n"
+    "I have been detained by Immigration at Delhi IGI Airport due to a Look Out Circular (LOC) "
+    "issued by the Chennai Cyber Crime / Tamil Nadu Police regarding a X Twitter Post in June, "
+    "which is already deleted.\n"
+    "We need a criminal defense lawyer in Delhi/NCR who can immediately reach the IGI Airport "
+    "Police Station or Patiala House Court to handle the situation and contest the upcoming "
+    "transit remand.\n"
+    "Please amplify and tag any available criminal lawyers or legal aid networks."
+)
+check(category == "in_scope",
+      f"LOC/transit-remand detention question (Twitter post mentioned only as background) is "
+      f"in_scope, not adjacent_uncovered -- got {category!r} ({reasoning!r})")
+
 # ---- answer_question: redirect_domain propagates into the returned dict ----
 
 result = answer_question("my bank account got frozen by the police and nobody told me why")
