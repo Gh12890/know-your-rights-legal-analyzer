@@ -50,6 +50,16 @@ check(wl.match_issue(I("physical assault and mistreatment during police custody"
 check(wl.match_issue(I("visible injuries not medically documented or examined by a doctor",
                        "", ["BNSS 35"])) == "dk_basu_safeguards",
       "'injuries not medically documented' matches D.K. Basu, not the BNSS-35 section hook")
+check(wl.match_issue(I("a Look Out Circular was issued by another state's police",
+                       "Look Out Circular (LOC) issued")) == "loc_validity_challenge",
+      "'Look Out Circular' matches the loc_validity_challenge topic")
+check(wl.match_issue(I("how do I get the lookout notice against me cancelled")) == "loc_validity_challenge",
+      "'lookout notice ... cancelled' matches by phrase")
+check(wl.match_issue(I("wants to challenge the LOC that was issued against him")) == "loc_validity_challenge",
+      "'challenge the LOC' matches by phrase (action verb + bare LOC)")
+check(wl.match_issue(I("detained by immigration at the airport due to a transit remand")) is None,
+      "a transit-remand/immigration-detention issue with no LOC wording is NOT this topic "
+      "(that's the separate statute_doctrine_map BNSS 58/187 overrides, not Lane B)")
 
 
 # ---- NOT whitelisted topics do not match ----

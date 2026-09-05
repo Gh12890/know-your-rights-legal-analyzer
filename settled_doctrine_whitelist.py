@@ -118,6 +118,45 @@ _WHITELIST = {
         "note": "Article 22(1) / Section 41D CrPC / Section 38 BNSS -- the right of an "
                 "arrested person to consult a lawyer is settled.",
     },
+    "loc_validity_challenge": {
+        # WHY (2026-09-05, Phase 2 of the loc-transit-remand-plan): a Look
+        # Out Circular (LOC) is an MHA administrative mechanism, not a
+        # BNS/BNSS/CrPC section, so there is no natural "sections" set to
+        # tie this to -- patterns alone carry it.
+        #
+        # SCOPE CAUTION, same shape as the grounds_of_arrest_communicated
+        # carve-out above: this whitelists only the GENERAL guideline
+        # framework -- when an LOC may be requested, the written-request
+        # procedure, and how one gets an LOC withdrawn/rescinded (Sumer
+        # Singh Salkan v Asst. Director, ILR (2010) VI Delhi 706, and the
+        # general OM-framework validity finding in Viraj Chetan Shah v
+        # Union of India, 2024:BHC-OS:6672-DB, which found the OMs are NOT
+        # per se unconstitutional). It does NOT cover whether any ONE
+        # person's specific LOC was validly issued on its own facts --
+        # Viraj Chetan Shah itself says rival High Court decisions on that
+        # narrower question "are all fact dependent" and declines to
+        # resolve them. Do not widen this entry to a "was my LOC valid"
+        # fact-finding claim.
+        "sections": set(),
+        "patterns": [
+            re.compile(r"\block\s*out\s*circular\b", re.I),
+            re.compile(r"\blookout\s*(circular|notice)\b", re.I),
+            re.compile(r"\bLOC\b.{0,30}\b(cancel\w*|withdraw\w*|rescind\w*|revoke\w*|challeng\w*|quash\w*|issued|valid\w*)", re.I),
+            re.compile(r"\b(cancel\w*|withdraw\w*|rescind\w*|revoke\w*|challeng\w*|quash\w*)\b.{0,30}\bLOC\b", re.I),
+        ],
+        "note": "Sumer Singh Salkan v Asst. Director & Ors, ILR (2010) VI Delhi 706 -- "
+                "the leading LOC-issuance guidelines (cognizable offence + evasion "
+                "required; written request via the MHA-notified officer; withdrawal/"
+                "rescission by the issuing authority or a court with jurisdiction), "
+                "consistently followed since. Reaffirmed as recently as Viraj Chetan "
+                "Shah v Union of India, 2024:BHC-OS:6672-DB (23 April 2024, Bombay HC), "
+                "which upheld the general OM/LOC framework as not per se "
+                "unconstitutional (only a narrow bank-CMD/CEO-inclusion clause was "
+                "struck down, and that quashing explicitly did not touch LOCs issued "
+                "by investigative/enforcement agencies or courts). NOT settled: "
+                "whether any specific person's LOC was validly issued on its own "
+                "facts -- that stays fact-dependent, see the scope caution above.",
+    },
 }
 
 
