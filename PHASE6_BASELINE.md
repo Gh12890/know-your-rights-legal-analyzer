@@ -1,5 +1,19 @@
 # Lane B (related judgments) — Phase 6 eval baseline
 
+> **Update 2026-09-05 (commit 1f67374):** Fix 1 (`doctrine_anchors.py` — a
+> curated whitelist-topic → canonical-corpus-case map, injected and
+> guaranteed a spot at the head of the trusted panel) and Fix 2 (the
+> decomposer now ticks a fixed doctrine-tag checklist instead of relying
+> on free-prose keyword matching, at temperature 0) are shipped. This
+> addresses findings **#1** (LOC landmark unreachable), **#2** (canonical
+> case under the display floor), and **#3** (whitelist phrasing gap) — the
+> four live cases the baseline left failing now pass, verified live *even
+> with Indian Kanoon returning 403s*, because the anchors come from the
+> local corpus. Findings #4–#7 and research fixes 3–8 remain open.
+
+---
+
+
 First full run of `eval_related_judgments.py` against the live pipeline,
 2026-09-05. 14 cases, several batches (the harness loads the 38 MB corpus
 embeddings, so batches of ~4 keep peak memory down). Indian Kanoon +
