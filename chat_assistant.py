@@ -82,6 +82,8 @@ IMPORTANT -- do not confuse the OFFENCE with its BACKSTORY: a message can spend 
 
 IMPORTANT -- a DETENTION/PRODUCTION/REMAND PROCEDURE question is in_scope even when the underlying offence, or the law it falls under, is unclear, unnamed, or itself outside BNS/BNSS: BNSS's arrest safeguards (grounds of arrest, the 24-hour production rule before a Magistrate excluding travel time, a relative/friend being informed, the right to a lawyer) apply to any person taken into custody, regardless of which agency detained them (police, Immigration at a port of entry/exit, an Executive Magistrate) or which state's investigation triggered it. This includes being detained on a Look Out Circular (LOC) and needing to contest a "transit remand" -- BNSS Section 58 explicitly allows production before a Magistrate's Court "whether having jurisdiction or not", and BNSS Section 187(2) explicitly covers a Magistrate without jurisdiction remanding the person and then forwarding them to the Magistrate that does have jurisdiction. This IS BNSS procedure, not an out-of-scope immigration/passport-law question, even when the specific offence under investigation (e.g. a cyber-crime FIR) cannot itself be confirmed as a BNS/BNSS matter. Classify such a question in_scope for the detention/production/remand procedure itself.
 
+IMPORTANT -- a question specifically about Section 66A of the Information Technology Act, 2000 is in_scope, as a narrow special case (general IT Act/cyber-crime offences are otherwise NOT yet covered by this chat feature -- classify those adjacent_uncovered unless the question is purely about arrest/detention/remand PROCEDURE per the paragraph above, with no other specific offence named). Section 66A was struck down as unconstitutional by the Supreme Court in 2015, yet is still being used to file real FIRs -- if the person names "Section 66A", "66A", or "IT Act 66A" specifically, that narrow question is in_scope so the tool can tell them it cannot lawfully be invoked.
+
 Classify the user's question into exactly one category:
 
 "in_scope" -- plausibly about arrest, FIR, police procedure, bail, or a criminal offence's classification (cognizable/non-cognizable) under BNS/BNSS specifically, where the offence involved (if named) is genuinely a BNS/BNSS offence, or the question is purely about general arrest PROCEDURE with no other-law offence named. Includes vague or layman-phrased questions about "being arrested", "police took my X", "is this a crime", specific BNS offence names (theft, cheating, forgery, assault, rioting, cruelty, etc.), FIR copies, notice before arrest, etc. -- REGARDLESS of how much civil/family/property backstory surrounds the description of the arrest itself (see above).
@@ -1355,6 +1357,7 @@ def answer_question(question):
     """
     from semantic_retrieval import find_relevant_sections
     from statute_doctrine_map import get_statute_doctrine_override
+    from itact_section_status import get_itact_status_override
 
     category, reasoning, redirect_domain = classify_scope(question)
 
@@ -1378,6 +1381,17 @@ def answer_question(question):
     # clear SIMILARITY_THRESHOLD. This does NOT replace semantic
     # search -- both run, and both sets of results get combined below.
     statute_overrides = get_statute_doctrine_override(question)
+
+    # ITACT Section 66A "zombie law" flag (Phase 3a, loc-transit-remand-
+    # plan): struck down in 2015 but still real-world misused to file
+    # FIRs, per real search. No ITACT chunk data/BNS-style structured
+    # table exists yet (Phase 3b) -- this is a narrow, self-contained
+    # override that fires ONLY when the person explicitly names Section
+    # 66A themselves, same "known high-stakes gap" spirit as the
+    # statute_doctrine_map overrides above, kept in its own module since
+    # it does not go through get_statute_section (there is no valid
+    # "current text" for a struck-down section to show).
+    statute_overrides = statute_overrides + get_itact_status_override(question)
 
     # Explicit-section lookup: if the person literally names a section
     # ("what is section 318 of BNS", "does BNS 303 apply"), pull that
