@@ -157,6 +157,34 @@ _WHITELIST = {
                 "whether any specific person's LOC was validly issued on its own "
                 "facts -- that stays fact-dependent, see the scope caution above.",
     },
+    "itact_66a_struck_down": {
+        # WHY (2026-09-05, Phase 3c of the loc-transit-remand-plan): as
+        # settled as legal doctrine gets in this whole corpus -- not one
+        # High Court's view but a Supreme Court holding (Shreya Singhal,
+        # unanimous, striking the section down IN ITS ENTIRETY) with a
+        # dedicated SEPARATE Supreme Court enforcement order behind it
+        # (PUCL v Union of India, Feb 2019, directing every State/UT and
+        # High Court to close existing 66A cases and stop registering
+        # new ones). No genuine doctrinal split exists on whether 66A
+        # itself is void -- the only real-world uncertainty is that
+        # police keep invoking it anyway, which is exactly the situation
+        # this whitelist entry exists to answer clearly and confidently.
+        "sections": {"ITACT 66A"},
+        "patterns": [
+            re.compile(r"\bsection\s*66\s*-?\s*a\b", re.I),
+            re.compile(r"\b(it act|information technology act|cyber\s*crime|cyber\s*law)\b.{0,60}\b66\s*-?\s*a\b", re.I),
+            re.compile(r"\b66\s*-?\s*a\b.{0,60}\b(it act|information technology act)\b", re.I),
+        ],
+        "note": "Shreya Singhal v Union of India, (2015) 5 SCC 1 -- Section 66A of the "
+                "IT Act struck down in its entirety as unconstitutional (vague, "
+                "over-broad, violates Article 19(1)(a)). Reinforced by a dedicated "
+                "Supreme Court follow-up enforcement order, PUCL v Union of India "
+                "(Feb 2019), directing every State/UT and High Court to close "
+                "existing Section 66A cases and stop registering new ones -- real "
+                "search confirms continued misuse is a known, ongoing problem, not "
+                "a resolved historical footnote, which is exactly why a confident, "
+                "settled answer matters here.",
+    },
 }
 
 

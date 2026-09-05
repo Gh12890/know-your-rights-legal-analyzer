@@ -1587,24 +1587,34 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
                         further caveat beyond the standard "unverified,
                         read it yourself" warning already on the panel.
       'unverified_for_display' -- (added 2026-09-04, unfiltered per
-                        explicit user direction same day) when show_user
-                        is False, literally the FULL ranked list --
-                        EVERY candidate found via the situation/section
-                        search, unfiltered by score, gloss, or
+                        explicit user direction same day; gate corrected
+                        2026-09-05) whenever for_display ends up EMPTY --
+                        either because show_user is False, OR because
+                        show_user is True but _display_worthy's score
+                        floor excluded every real candidate anyway
+                        (confirmed real case: a whitelisted Section 66A
+                        question where every candidate scored well under
+                        the floor) -- this is literally the FULL ranked
+                        list: EVERY candidate found via the situation/
+                        section search, unfiltered by score, gloss, or
                         section_alignment. Visibility here is not this
-                        tool's judgment call: for a non-whitelisted
-                        domain, the ranking machinery isn't trusted
-                        enough to decide what the user is even ALLOWED to
-                        see, only what order to show it in. Never auto-
-                        approved and never fed into a draft on its own --
-                        the user must explicitly confirm each one first
-                        (see app.py's unverified-review UI), at which
-                        point it flows through record_approved exactly
-                        like for_display.
+                        tool's judgment call: the ranking machinery isn't
+                        trusted enough to decide what the user is even
+                        ALLOWED to see, only what order to show it in --
+                        gating this on show_user alone (the pre-2026-09-05
+                        behaviour) reintroduced the exact "the tool's own
+                        confidence hides real results" bug in a narrower
+                        case. Never auto-approved and never fed into a
+                        draft on its own -- the user must explicitly
+                        confirm each one first (see app.py's unverified-
+                        review UI), at which point it flows through
+                        record_approved exactly like for_display.
       'show_user'    -- True only when EVERY issue is a whitelisted
-                        settled doctrine. When False for_display is empty
-                        (unverified_for_display may still have entries);
-                        the review bundle is written either way for
+                        settled doctrine. Does NOT by itself guarantee
+                        for_display is non-empty (see above) -- check
+                        for_display, not show_user, to know whether the
+                        trusted panel actually has anything to show. The
+                        review bundle is written either way for
                         hand-curation.
       'whitelist'    -- coverage_report(): which topic each issue mapped
                         to, and which issue (if any) kept show_user False
@@ -1741,7 +1751,22 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
     # ORDER. So every ranked candidate is shown; nothing here is a
     # confidence filter. record_approved + the per-candidate confirm
     # button (app.py) remain the only gate on what's ever actually USED.
-    unverified_for_display = [] if show_user else list(ranked)
+    #
+    # THIRD version (2026-09-05, caught by live testing, same user
+    # principle applied more completely): gating this on `show_user`
+    # alone re-created the exact bug the correction above was written to
+    # fix, in a narrower case. When every issue IS whitelisted but
+    # _display_worthy's score floor happens to exclude every real
+    # candidate (confirmed real case: a Section 66A question where
+    # ranked had 7 genuine candidates, best corpus score 0.24, well
+    # under the 0.42 floor), show_user=True forced this list empty TOO
+    # -- so BOTH panels ended up empty and the user saw "the search came
+    # back empty", which is false; real candidates existed, they simply
+    # didn't clear this tool's own confidence bar. Gate on whether
+    # for_display actually ended up with anything, not on show_user
+    # directly, so a whitelisted-but-low-scoring question still falls
+    # back to showing everything, exactly like a non-whitelisted one.
+    unverified_for_display = [] if for_display else list(ranked)
 
     return {
         "status": "ok" if ranked else "no_candidates",

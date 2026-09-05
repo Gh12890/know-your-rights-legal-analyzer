@@ -65,6 +65,27 @@ check(wl.match_issue(I("detained by immigration at the airport due to a transit 
       "a transit-remand/immigration-detention issue with no LOC wording is NOT this topic "
       "(that's the separate statute_doctrine_map BNSS 58/187 overrides, not Lane B)")
 
+# ---- ITACT 66A struck-down (2026-09-05, Phase 3c) ----
+
+_66a = "itact_66a_struck_down"
+for q in [
+    "charged under section 66A of the IT act",
+    "is 66A of the information technology act still valid",
+    "SECTION 66-A was invoked against me",
+]:
+    check(wl.match_issue(I(q)) == _66a, f"66A struck-down topic matches: {q!r}")
+
+for q in [
+    "my case number is 66A/2024",
+    "he lives at door number 66, apartment A",
+    "detained by immigration at the airport due to a transit remand",
+    "someone hacked my computer",
+]:
+    check(wl.match_issue(I(q)) != _66a, f"66A struck-down topic does NOT falsely match: {q!r}")
+
+check(wl.match_issue(I("validity of 66A", sections=["ITACT 66A"])) == _66a,
+      "also matches on the ITACT 66A section hook, not just phrase")
+
 
 # ---- NOT whitelisted topics do not match ----
 check(wl.match_issue(I("police froze my bank account", sections=["BNSS 107"])) is None,

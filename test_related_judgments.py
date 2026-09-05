@@ -908,6 +908,47 @@ check(bool(weak_scores) and max(weak_scores) < rj._DISPLAY_CONTENT_FLOOR,
 check(weak_res["unverified_for_display"] == weak_res["candidates"],
       "a low-scoring candidate is included too -- unverified_for_display is never score-filtered")
 
+# REGRESSION TEST (2026-09-05, Phase 3c, caught by LIVE testing on a real
+# Section 66A question): unverified_for_display used to be gated on
+# `show_user` alone (`[] if show_user else list(ranked)`). CONFIRMED REAL
+# FAILURE: when every issue WAS whitelisted (show_user=True) but
+# _display_worthy's score floor excluded every real candidate anyway,
+# for_display AND unverified_for_display were BOTH forced empty -- the
+# exact "this tool's own confidence hides real results" bug the 2026-09-04
+# correction above was written to fix, reappearing in a narrower case the
+# original fix didn't cover. The fix: gate on whether for_display actually
+# ended up non-empty, not on show_user directly.
+def _decompose_whitelisted_weak_overlap(msg):
+    # section_hooks alone is enough to satisfy settled_doctrine_whitelist's
+    # default_bail entry (BNSS 187 is in its "sections" set) regardless of
+    # scoring -- deliberately paired with the SAME weak-overlap fixture as
+    # _decompose_theft_weak_overlap above, so real candidates exist but
+    # none clear the display-confidence floor.
+    return {"primary_grievance": "workplace dispute that turned into a police complaint",
+            "procedural_stage": "unknown",
+            "issues": [
+                {"issue": "chargesheet not filed within the time limit",
+                 "hook_phrase": "workplace dispute that turned into a police complaint",
+                 "section_hooks": ["BNSS 187"]},
+            ]}
+
+
+whitelisted_weak_res = rj.get_related_judgments(
+    "there was a workplace dispute that turned into a police complaint and no chargesheet was filed for months",
+    write_bundle=False, pin=True,
+    decompose_fn=_decompose_whitelisted_weak_overlap, ik_search_many_fn=_fake_ik_search_theft,
+    local_search_fn=lambda q: [], rerank_fn=_fake_rerank, gloss_fn=_tracking_gloss,
+    fetch_many_fn=_fake_fetch_theft, clean_fn=_fake_clean, today=datetime.date(2026, 9, 3),
+)
+check(whitelisted_weak_res["show_user"] is True,
+      "sanity check on the test setup: this issue IS whitelisted (default_bail via the BNSS 187 section hook)")
+check(whitelisted_weak_res["for_display"] == [],
+      "sanity check on the test setup: nothing clears the display-confidence floor (weak-overlap fixture)")
+check(whitelisted_weak_res["unverified_for_display"] == whitelisted_weak_res["candidates"],
+      "CONFIRMED FIX: even though show_user is True, when for_display legitimately ends up empty "
+      "(nothing scored high enough), the full ranked list still falls back to unverified_for_display "
+      "-- gating on show_user alone used to leave the user with nothing at all in exactly this case")
+
 
 # _dedupe_batch -- a batch order gives one IK doc per connected petition
 _batch = [
