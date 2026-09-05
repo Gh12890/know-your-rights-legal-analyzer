@@ -82,11 +82,11 @@ IMPORTANT -- do not confuse the OFFENCE with its BACKSTORY: a message can spend 
 
 IMPORTANT -- a DETENTION/PRODUCTION/REMAND PROCEDURE question is in_scope even when the underlying offence, or the law it falls under, is unclear, unnamed, or itself outside BNS/BNSS: BNSS's arrest safeguards (grounds of arrest, the 24-hour production rule before a Magistrate excluding travel time, a relative/friend being informed, the right to a lawyer) apply to any person taken into custody, regardless of which agency detained them (police, Immigration at a port of entry/exit, an Executive Magistrate) or which state's investigation triggered it. This includes being detained on a Look Out Circular (LOC) and needing to contest a "transit remand" -- BNSS Section 58 explicitly allows production before a Magistrate's Court "whether having jurisdiction or not", and BNSS Section 187(2) explicitly covers a Magistrate without jurisdiction remanding the person and then forwarding them to the Magistrate that does have jurisdiction. This IS BNSS procedure, not an out-of-scope immigration/passport-law question, even when the specific offence under investigation (e.g. a cyber-crime FIR) cannot itself be confirmed as a BNS/BNSS matter. Classify such a question in_scope for the detention/production/remand procedure itself.
 
-IMPORTANT -- a question specifically about Section 66A of the Information Technology Act, 2000 is in_scope, as a narrow special case (general IT Act/cyber-crime offences are otherwise NOT yet covered by this chat feature -- classify those adjacent_uncovered unless the question is purely about arrest/detention/remand PROCEDURE per the paragraph above, with no other specific offence named). Section 66A was struck down as unconstitutional by the Supreme Court in 2015, yet is still being used to file real FIRs -- if the person names "Section 66A", "66A", or "IT Act 66A" specifically, that narrow question is in_scope so the tool can tell them it cannot lawfully be invoked.
+IMPORTANT -- specific Information Technology Act, 2000 offences are ALSO in_scope now (added Phase 3b, 2026-09-05), the same way BNS/BNSS offences are: Section 66 (computer-related offences generally, e.g. hacking/unauthorized access), 66B (dishonestly receiving a stolen computer resource or device), 66C (identity theft -- misuse of a password/electronic signature/unique identifier), 66D (cheating by personation online, e.g. a fake profile), 66E (capturing/publishing/transmitting a private image without consent), 67 (publishing/transmitting obscene material electronically), 67A (sexually explicit material), 67B (child sexually abusive material), 72 (breach of confidentiality by someone who accessed material under this Act's own powers), and 72A (an intermediary/contract party disclosing personal information in breach of a lawful contract). Treat these exactly like BNS/BNSS offences for scope purposes -- an arrest/FIR/police complaint naming one of them is in_scope, regardless of civil/family backstory, same as the BNS paragraph above. Section 66A is a narrow special case within this: it was struck down as unconstitutional by the Supreme Court in 2015 (Shreya Singhal v Union of India) yet is still being used to file real FIRs -- if the person names "Section 66A", "66A", or "IT Act 66A" specifically, that is in_scope so the tool can tell them it cannot lawfully be invoked, even though (unlike the sections listed above) 66A itself has no valid current text to ground an answer in. A cyber/computer-related offence NOT on this list, or described only vaguely with no section identifiable ("something to do with my WhatsApp/Instagram/email" with no further detail), stays adjacent_uncovered unless the question is purely about arrest/detention/remand PROCEDURE per the paragraph above.
 
 Classify the user's question into exactly one category:
 
-"in_scope" -- plausibly about arrest, FIR, police procedure, bail, or a criminal offence's classification (cognizable/non-cognizable) under BNS/BNSS specifically, where the offence involved (if named) is genuinely a BNS/BNSS offence, or the question is purely about general arrest PROCEDURE with no other-law offence named. Includes vague or layman-phrased questions about "being arrested", "police took my X", "is this a crime", specific BNS offence names (theft, cheating, forgery, assault, rioting, cruelty, etc.), FIR copies, notice before arrest, etc. -- REGARDLESS of how much civil/family/property backstory surrounds the description of the arrest itself (see above).
+"in_scope" -- plausibly about arrest, FIR, police procedure, bail, or a criminal offence's classification (cognizable/non-cognizable) under BNS/BNSS or the specific IT Act sections listed above, where the offence involved (if named) is genuinely one of those, or the question is purely about general arrest PROCEDURE with no other-law offence named. Includes vague or layman-phrased questions about "being arrested", "police took my X", "is this a crime", specific offence names (theft, cheating, forgery, assault, rioting, cruelty, hacking, identity theft, etc.), FIR copies, notice before arrest, etc. -- REGARDLESS of how much civil/family/property backstory surrounds the description of the arrest itself (see above).
 
 "covered_elsewhere_in_tool" -- specifically about bank account freezing (BNS 106/107) or cheque bounce (Section 138 NI Act), including arrest threats or police involvement in either. This wider tool has real, working compliance logic for these via document upload, even though this chat feature's own search corpus does not yet include their case law.
 
@@ -275,13 +275,25 @@ _CONFLICT_INSTRUCTION = """- IMPORTANT: the sections below genuinely DISAGREE wi
 # change answer_question's calls, which this does NOT do.
 # ---
 
-_SECTION_REFERENCE_PATTERN = re.compile(r"\bSection\s+(\d+)", re.IGNORECASE)
+# CONFIRMED REAL GAP (2026-09-05, Phase 3b, loc-transit-remand-plan):
+# digits-only. A real IT Act section like "67A" or "72A" would have its
+# letter suffix silently dropped -- "Section 67A" extracts as base "67",
+# which then fails to match _section_act_map's "67A" key (the map is
+# keyed on the FULL section_number, letter included, same as
+# BNS_SECTION_DATA/ITACT_SECTION_DATA's own keys) and the resulting
+# blind spot means the missing-Act and ungrounded-section checks below
+# silently skip verifying it -- not a crash, but a real coverage gap.
+# The optional trailing letter fixes this without changing behavior for
+# any purely-numeric section (BNS/BNSS have none of these, so this is a
+# no-op there).
+_SECTION_REFERENCE_PATTERN = re.compile(r"\bSection\s+(\d+[A-Za-z]?)", re.IGNORECASE)
 
 
 def _extract_section_numbers(text: str) -> set:
     """Returns the set of base section numbers (e.g. '274' from 'Section
-    274(2)') referenced anywhere in text. Base number only -- subsection
-    suffixes are stripped since retrieved_text's own labels are also
+    274(2)', or '67A' from 'Section 67A') referenced anywhere in text.
+    Base number only -- subsection suffixes are stripped since retrieved_text's
+    own labels are also
     base-number-only (see get_statute_section's docstring)."""
     return {m.group(1) for m in _SECTION_REFERENCE_PATTERN.finditer(text or "")}
 
@@ -342,6 +354,18 @@ _UNSUPPORTED_GENERALIZATION_RETRY_INSTRUCTION = """
 IMPORTANT CORRECTION: your previous answer made a claim about what {cases} "illustrates" or "shows" that is NOT supported by the excerpt you were actually given for it -- the excerpt only contains background facts (what a party alleged), not a court's own reasoning or ruling on that point. Write a new, complete answer from scratch, and either drop this case entirely or describe it only as what the excerpt literally shows (facts a party alleged, not a court's finding), following all the same rules."""
 
 
+# Real name variants a model's answer might use for each act it can cite
+# a section from -- "BNS"/"BNSS" are literal short forms the model does
+# write verbatim, but "ITACT" is only this project's internal code
+# (retrieval._STATUTE_CHUNK_FILES / itact_section_data.py's keys); a real
+# answer names it "IT Act" or "Information Technology Act", never the
+# bare code "ITACT". Used by _find_sections_missing_act so that check
+# doesn't search for a string the model would never write.
+_ACT_NAME_CHECK_PATTERNS = {
+    "ITACT": re.compile(r"\b(IT\s*Act|Information\s+Technology\s+Act)\b", re.IGNORECASE),
+}
+
+
 def _section_act_map(matches) -> dict:
     """base section number -> its Act ("BNS" or "BNSS"), read from the
     same `matches` fed into retrieved_text (each statute match carries
@@ -399,9 +423,28 @@ def _find_sections_missing_act(response_text: str, section_act_map: dict) -> lis
         return []
     referenced = _extract_section_numbers(response_text)
     missing = []
-    for num in sorted(referenced, key=int):
+    # CONFIRMED REAL GAP (2026-09-05, Phase 3b): key=int alone crashes on
+    # a lettered section number ("67A") -- int("67A") raises ValueError.
+    # Sort by the leading digits (falls back to 0 if somehow none), then
+    # the full string, so lettered and bare numbers interleave sensibly
+    # without crashing.
+    def _sort_key(n):
+        m = re.match(r"\d+", n)
+        return (int(m.group()) if m else 0, n)
+
+    for num in sorted(referenced, key=_sort_key):
         act = section_act_map.get(num)
-        if act and not re.search(rf"\b{re.escape(act)}\b", response_text or "", re.IGNORECASE):
+        if not act:
+            continue
+        # CONFIRMED REAL GAP (2026-09-05, Phase 3b): a bare re.search for
+        # the literal act CODE works for "BNS"/"BNSS" (the model does
+        # write those short forms verbatim), but "ITACT" is an internal
+        # code the model never writes -- it writes "IT Act" or
+        # "Information Technology Act". Every act's real, expected name
+        # variant(s) are checked here instead of assuming the code itself
+        # is the name.
+        pattern = _ACT_NAME_CHECK_PATTERNS.get(act) or re.compile(rf"\b{re.escape(act)}\b", re.IGNORECASE)
+        if not pattern.search(response_text or ""):
             missing.append(num)
     return missing
 
@@ -840,10 +883,19 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
         return None
 
 
-# "section 318", "sec 318", "s.318", "318 of BNS", "BNS 318", "BNSS 35(3)"
+# "section 318", "sec 318", "s.318", "318 of BNS", "BNS 318", "BNSS 35(3)",
+# "section 67A of the IT Act", "IT Act 66C", "Information Technology Act 72A"
+#
+# Digit group widened to accept ONE optional trailing letter (2026-09-05,
+# Phase 3b): several real, in-force IT Act sections (67A, 67B, 72A) are
+# lettered this way with no parenthesized subsection -- the original
+# digits-only group would truncate "67A" to "67" before it ever reached
+# the act check below. Safe for BNS/BNSS, which have no lettered
+# sections of this shape (their subsections are parenthesized instead,
+# already handled by the separate `(?:\s*\(\d+[a-z]?\))?` group).
 _EXPLICIT_SECTION_PAT = re.compile(
-    r"\b(?:section|sec\.?|s\.?)\s*(\d{1,3})(?:\s*\(\d+[a-z]?\))?\s*(?:of\s+the\s+|of\s+|,\s*)?(bnss|bns)?\b"
-    r"|\b(bnss|bns)\s*(?:section\s*)?(\d{1,3})(?:\s*\(\d+[a-z]?\))?\b",
+    r"\b(?:section|sec\.?|s\.?)\s*(\d{1,3}[a-z]?)(?:\s*\(\d+[a-z]?\))?\s*(?:of\s+the\s+|of\s+|,\s*)?(bnss|bns|information\s*technology\s*act|it\s*act)?\b"
+    r"|\b(bnss|bns|information\s*technology\s*act|it\s*act)\s*(?:section\s*)?(\d{1,3}[a-z]?)(?:\s*\(\d+[a-z]?\))?\b",
     re.IGNORECASE,
 )
 
@@ -855,21 +907,33 @@ def _explicit_section_matches(question: str, max_sections: int = 2) -> list:
     statute_doctrine_map override so it flows through the same downstream
     handling.
 
-    Act resolution: if the question says "BNS" or "BNSS" next to the
-    number, trust that. Otherwise default to BNS -- a bare section number
-    almost always means a substantive offence, and BNS has only 358
-    sections, so a famous old IPC number like 420 (cheating) or 302
-    (murder) simply doesn't resolve and yields nothing rather than
-    pulling an unrelated BNSS procedural section of the same number.
-    Someone genuinely asking about a BNSS procedure section by number is
-    rare and will be caught by normal semantic retrieval anyway."""
+    Act resolution: if the question says "BNS", "BNSS", "IT Act", or
+    "Information Technology Act" next to the number, trust that.
+    Otherwise default to BNS -- a bare section number almost always means
+    a substantive offence, and BNS has only 358 sections, so a famous old
+    IPC number like 420 (cheating) or 302 (murder) simply doesn't resolve
+    and yields nothing rather than pulling an unrelated BNSS procedural
+    section of the same number. Someone genuinely asking about a BNSS
+    procedure section by number is rare and will be caught by normal
+    semantic retrieval anyway. An unqualified LETTERED number (e.g. a
+    bare "Section 67A" with no act named) resolves the same way -- BNS
+    has no lettered sections of this shape, so it will simply fail to
+    resolve rather than falsely claiming a match, which is the safe
+    outcome here (never silently guessing ITACT for an unqualified
+    number)."""
     from retrieval import get_statute_section
 
     found = []  # list of (num_str, act_hint_or_None), in question order, deduped
     seen = set()
     for m in _EXPLICIT_SECTION_PAT.finditer(question or ""):
-        num = m.group(1) or m.group(4)
-        act_hint = (m.group(2) or m.group(3) or "").upper() or None
+        num = (m.group(1) or m.group(4) or "").upper()
+        act_hint_raw = (m.group(2) or m.group(3) or "").upper().replace(" ", "") or None
+        if act_hint_raw in ("BNS", "BNSS"):
+            act_hint = act_hint_raw
+        elif act_hint_raw and ("TECHNOLOGY" in act_hint_raw or act_hint_raw == "ITACT"):
+            act_hint = "ITACT"
+        else:
+            act_hint = None
         if not num or num in seen:
             continue
         seen.add(num)
@@ -879,13 +943,25 @@ def _explicit_section_matches(question: str, max_sections: int = 2) -> list:
 
     results = []
     for num, act_hint in found:
-        act = act_hint if act_hint in ("BNS", "BNSS") else "BNS"
+        act = act_hint if act_hint in ("BNS", "BNSS", "ITACT") else "BNS"
         if act == "BNS":
             # _bns_section_as_match already pulls the real text and adds
             # the BNS_SECTION_DATA cognizable/bailable/max_years
             # enrichment (PHASE 2, 2026-09-01) -- shared with
             # _offence_keyword_matches so the two paths can't drift.
             match = _bns_section_as_match(num)
+            if match:
+                results.append(match)
+            continue
+        if act == "ITACT":
+            # Mirrors the BNS branch exactly -- see _itact_section_as_match.
+            # Note this can never resolve "66A": that section is
+            # deliberately absent from both get_statute_section("ITACT",
+            # ...) and ITACT_SECTION_DATA (see itact_section_status.py),
+            # so a 66A mention here simply yields no match -- correctly
+            # handled instead by that module's own struck-down override,
+            # which runs earlier in answer_question()'s override chain.
+            match = _itact_section_as_match(num)
             if match:
                 results.append(match)
             continue
@@ -907,30 +983,74 @@ def _explicit_section_matches(question: str, max_sections: int = 2) -> list:
 # on the embeddings, BEHIND Section 274 (summons-case procedure, ~0.376)
 # and tied with several noise matches. The answer sometimes mentioned
 # 274. For a small set of offences a layperson describes in one plain
-# word ("stole", "cheated"), the right BNS section is not a guess -- so
+# word ("stole", "cheated"), the right section is not a guess -- so
 # anchor it deterministically, exactly like an explicitly-typed section
 # number, rather than hoping the embedding ranks it first. Checked in
 # order, first hit wins (so "attempt to murder" resolves before
 # "murder"). Kept deliberately short and high-precision -- only words
 # that map to ONE offence unambiguously when someone is describing an
 # accusation against them.
+#
+# Each entry is (pattern, act, section_number) -- widened from a 2-tuple
+# to 3 (2026-09-05, Phase 3b) so this ONE list and ONE overlap-suppression
+# pass in _offence_keyword_matches can anchor BOTH BNS and IT Act
+# offences together. A message naming both a BNS offence and an IT Act
+# one ("he hacked my account and also cheated me out of money") needs to
+# anchor both without one's span incorrectly consuming the other's words
+# -- only possible if both lists are walked in the same pass, hence one
+# list, not two independent BNS-only/ITACT-only ones.
 _OFFENCE_KEYWORD_ANCHORS = [
-    (re.compile(r"\b(attempt(ed|ing)?\s+to\s+murder|tried\s+to\s+kill)\b", re.I), "109"),
-    (re.compile(r"\b(murder(ed|ing)?|killed\s+(him|her|someone|a\s+(man|woman|person)))\b", re.I), "103"),
-    (re.compile(r"\b(sto(le|len)|steal(ing)?|theft|thief|shoplift\w*)\b", re.I), "303"),
-    (re.compile(r"\b(cheat(ed|ing)?|defraud\w*)\b", re.I), "318"),
-    (re.compile(r"\b(extort\w*|blackmail\w*)\b", re.I), "308"),
-    (re.compile(r"\b(robbery|robbed|mugg\w*)\b", re.I), "309"),
+    # IT Act anchors (2026-09-05, Phase 3b) -- deliberately narrow, same
+    # "only words that map to ONE offence unambiguously" bar as the BNS
+    # anchors below. 66A is NOT anchored here on purpose -- see
+    # itact_section_status.py; that section only surfaces when the
+    # person NAMES it themselves, never guessed from fact-pattern words,
+    # since asserting "you were charged under a struck-down section"
+    # from vocabulary alone risks naming a specific charge nobody
+    # mentioned. 67/67A/67B (obscene/sexually-explicit/child-safety
+    # material) are deliberately NOT keyword-anchored either -- the
+    # distinction between them is legally significant and too easy to
+    # get wrong from a layperson's plain wording; those stay reachable
+    # only via an explicit section number (_explicit_section_matches) or
+    # unaided semantic retrieval, never a guessed keyword.
+    #
+    # POSITIONED FIRST IN THE LIST, DELIBERATELY (CONFIRMED REAL BUG,
+    # caught by live testing before this was committed): the overlap-
+    # suppression mechanism in _offence_keyword_matches only blocks a
+    # LATER match whose span falls entirely INSIDE an already-claimed
+    # EARLIER span -- it does not handle the reverse (a later, WIDER
+    # match that happens to CONTAIN an already-claimed narrower span).
+    # "identity theft" and "stole my password" both contain words
+    # ("theft", "stole") the BNS anchors below also match on their own;
+    # with the ITACT block positioned AFTER those BNS patterns, a real
+    # test ("...that is identity theft") anchored BOTH ITACT 66C AND BNS
+    # 303 (theft) -- the narrower "theft"/"stole" claimed their span
+    # first, and the later, wider "identity theft" match wasn't
+    # suppressed since it CONTAINS that span rather than fitting inside
+    # it. Checking the more specific IT Act phrasing FIRST means IT
+    # claims the full span first instead, so the generic BNS pattern's
+    # later, narrower match then correctly falls inside an
+    # already-claimed span and gets suppressed as intended.
+    (re.compile(r"\b(hack(ed|ing)?|unauthoriz(ed|ation)\s+access|broke\s+into\s+my\s+(computer|account|system))\b", re.I), "ITACT", "66"),
+    (re.compile(r"\b(identity\s+theft|stole\s+my\s+password|misus(ed|ing)\s+my\s+(password|signature))\b", re.I), "ITACT", "66C"),
+    (re.compile(r"\b(fake\s+profile|impersonat\w*|otp\s+fraud|pretend(ed|ing)\s+to\s+be\s+me\s+online)\b", re.I), "ITACT", "66D"),
+    (re.compile(r"\b(morphed?\s+(image|photo|picture)|private\s+(photo|image|picture|video)\s+(shared|circulated|leaked|posted)\s+without\s+(my\s+)?consent)\b", re.I), "ITACT", "66E"),
+    (re.compile(r"\b(attempt(ed|ing)?\s+to\s+murder|tried\s+to\s+kill)\b", re.I), "BNS", "109"),
+    (re.compile(r"\b(murder(ed|ing)?|killed\s+(him|her|someone|a\s+(man|woman|person)))\b", re.I), "BNS", "103"),
+    (re.compile(r"\b(sto(le|len)|steal(ing)?|theft|thief|shoplift\w*)\b", re.I), "BNS", "303"),
+    (re.compile(r"\b(cheat(ed|ing)?|defraud\w*)\b", re.I), "BNS", "318"),
+    (re.compile(r"\b(extort\w*|blackmail\w*)\b", re.I), "BNS", "308"),
+    (re.compile(r"\b(robbery|robbed|mugg\w*)\b", re.I), "BNS", "309"),
     # "criminal" made optional 2026-09-04: CONFIRMED REAL GAP -- a layman
     # describing an accusation says "breach of trust", not the formal
     # legal phrase "criminal breach of trust"; the stricter pattern
     # matched neither, silently dropping BNS 316 from a real scenario.
-    (re.compile(r"\b((?:criminal\s+)?breach\s+of\s+trust|misappropriat\w*|embezzl\w*)\b", re.I), "316"),
-    (re.compile(r"\b(kidnap\w*|abduct\w*)\b", re.I), "137"),
-    (re.compile(r"\b(rape|raped|raping)\b", re.I), "64"),
-    (re.compile(r"\b(forg(ed|ery|ing)|fake\s+(document|signature|cheque))\b", re.I), "336"),
-    (re.compile(r"\b(defam\w*)\b", re.I), "356"),
-    (re.compile(r"\b(criminal\s+intimidation|threaten\w*\s+to\s+(kill|hurt|harm))\b", re.I), "351"),
+    (re.compile(r"\b((?:criminal\s+)?breach\s+of\s+trust|misappropriat\w*|embezzl\w*)\b", re.I), "BNS", "316"),
+    (re.compile(r"\b(kidnap\w*|abduct\w*)\b", re.I), "BNS", "137"),
+    (re.compile(r"\b(rape|raped|raping)\b", re.I), "BNS", "64"),
+    (re.compile(r"\b(forg(ed|ery|ing)|fake\s+(document|signature|cheque))\b", re.I), "BNS", "336"),
+    (re.compile(r"\b(defam\w*)\b", re.I), "BNS", "356"),
+    (re.compile(r"\b(criminal\s+intimidation|threaten\w*\s+to\s+(kill|hurt|harm))\b", re.I), "BNS", "351"),
     # CONFIRMED SERIOUS BUG (2026-09-04), found via eval_chat_answers.py's
     # dowry-wife-complaint case: "my wife has filed a dowry case against me
     # and police are asking me to come" -- a LIVING wife's harassment/
@@ -948,8 +1068,8 @@ _OFFENCE_KEYWORD_ANCHORS = [
     # section that actually governs a living wife's complaint.
     (re.compile(r"\bdowry\b[\s\S]{0,80}\b(die[ds]?|death|dead|suicide|burn(?:ed|t)?|killed|hang(?:ed|ing)?)\b"
                 r"|\b(die[ds]?|death|dead|suicide|burn(?:ed|t)?|killed|hang(?:ed|ing)?)\b[\s\S]{0,80}\bdowry\b",
-                re.I), "80"),
-    (re.compile(r"\bdowry\b", re.I), "85"),
+                re.I), "BNS", "80"),
+    (re.compile(r"\bdowry\b", re.I), "BNS", "85"),
 ]
 
 
@@ -971,6 +1091,38 @@ def _bns_section_as_match(num: str) -> "dict | None":
         "source": "explicit_section_ref",
         "all_variants": _bns_section_variants(data["section_number"]),
     }
+
+
+def _itact_section_as_match(num: str) -> "dict | None":
+    """IT Act counterpart of _bns_section_as_match -- mirrors it exactly,
+    reading ITACT_SECTION_DATA instead of BNS_SECTION_DATA. None if the
+    section doesn't resolve -- including "66A", which is deliberately
+    absent from both get_statute_section("ITACT", ...) and
+    ITACT_SECTION_DATA (see itact_section_status.py's docstring); that
+    section's own dedicated override handles it instead."""
+    from retrieval import get_statute_section
+
+    data = get_statute_section("ITACT", num)
+    if not data:
+        return None
+    return {
+        "act": data["act"],
+        "section_number": data["section_number"],
+        "text": data["text"],
+        "source": "explicit_section_ref",
+        "all_variants": _itact_section_variants(data["section_number"]),
+    }
+
+
+def _section_as_match(act: str, num: str) -> "dict | None":
+    """Dispatches to the right per-act match builder, for
+    _offence_keyword_matches, whose single anchor list now spans both
+    acts (2026-09-05, Phase 3b). _explicit_section_matches doesn't use
+    this -- it needs the BNS/ITACT/plain-get_statute_section branches
+    inline for its own act-resolution logic."""
+    if act == "ITACT":
+        return _itact_section_as_match(num)
+    return _bns_section_as_match(num)
 
 
 def _offence_keyword_matches(question: str) -> list:
@@ -995,13 +1147,18 @@ def _offence_keyword_matches(question: str) -> list:
     anchored 318, silently dropping 316 from the answer. Missing a
     section the person actually named is a worse failure than the rare
     case of two real offences both surfacing, so this no longer caps at
-    one."""
+    one.
+
+    WIDENED 2026-09-05 (Phase 3b): seen_sections is now keyed by
+    (act, num), not bare num -- BNS and ITACT could in principle share a
+    bare number (e.g. a hypothetical "BNS 66" vs "ITACT 66") that would
+    otherwise collide in a plain set keyed on num alone."""
     text = question or ""
     claimed_spans = []
     seen_sections = set()
     out = []
-    for pat, num in _OFFENCE_KEYWORD_ANCHORS:
-        if num in seen_sections:
+    for pat, act, num in _OFFENCE_KEYWORD_ANCHORS:
+        if (act, num) in seen_sections:
             continue
         match = next(
             (c for c in pat.finditer(text)
@@ -1010,10 +1167,10 @@ def _offence_keyword_matches(question: str) -> list:
         )
         if match is None:
             continue
-        m = _bns_section_as_match(num)
+        m = _section_as_match(act, num)
         if m:
             out.append(m)
-            seen_sections.add(num)
+            seen_sections.add((act, num))
             claimed_spans.append((match.start(), match.end()))
     return out
 
@@ -1033,6 +1190,21 @@ def _bns_section_variants(sec_key: str) -> dict:
         return {}
     exact = BNS_SECTION_DATA.get(sec_key)
     variants = {k: v for k, v in BNS_SECTION_DATA.items()
+                if k == sec_key or k.startswith(f"{sec_key}(")}
+    if exact is not None and sec_key not in variants:
+        variants[sec_key] = exact
+    return variants
+
+
+def _itact_section_variants(sec_key: str) -> dict:
+    """IT Act counterpart of _bns_section_variants -- mirrors it exactly,
+    reading ITACT_SECTION_DATA instead of BNS_SECTION_DATA."""
+    try:
+        from itact_section_data import ITACT_SECTION_DATA
+    except ImportError:
+        return {}
+    exact = ITACT_SECTION_DATA.get(sec_key)
+    variants = {k: v for k, v in ITACT_SECTION_DATA.items()
                 if k == sec_key or k.startswith(f"{sec_key}(")}
     if exact is not None and sec_key not in variants:
         variants[sec_key] = exact

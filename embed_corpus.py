@@ -128,6 +128,7 @@ def load_statute_chunks():
     for act, path in [
         ("BNS", "chunks/bharatiya_nyaya_sanhita_2023_chunks.json"),
         ("BNSS", "chunks/bharatiya_nagarik_suraksha_sanhita_2023_chunks.json"),
+        ("ITACT", "chunks/information_technology_act_2000_chunks.json"),
     ]:
         if not os.path.exists(path):
             print(f"WARNING: {path} not found, skipping {act}")
@@ -158,6 +159,15 @@ def load_judgment_chunks():
     skip_basenames = {
         "bharatiya_nyaya_sanhita_2023_chunks.json",
         "bharatiya_nagarik_suraksha_sanhita_2023_chunks.json",
+        # CONFIRMED REAL BUG (2026-09-05, Phase 3b): adding "ITACT" to
+        # load_statute_chunks()'s act/path list without ALSO excluding
+        # this file here meant it got loaded a SECOND time by this
+        # function's catch-all glob and embedded as bogus "judgment"
+        # records (no case_name/paragraph_number fields, so those built
+        # a garbage chunk_id and metadata) -- caught by reconciling the
+        # printed judgment-chunk count against a direct file recount
+        # before trusting the embed run, not by inspection alone.
+        "information_technology_act_2000_chunks.json",
     }
     for path in sorted(glob.glob("chunks/*.json")):
         if os.path.basename(path) in skip_basenames:

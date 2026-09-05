@@ -1,0 +1,154 @@
+{
+  "66": {
+    "offence": "Whoever, dishonestly or fraudulently, does any act referred to in section 43 of the Information Technology Act",
+    "max_years": 3,
+    "max_months": null,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "66B": {
+    "offence": "Whoever dishonestly receives or retains any stolen computer resource or communication device, knowing or having reason to believe the same to be stolen",
+    "max_years": 3,
+    "max_months": null,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "66C": {
+    "offence": "Whoever, fraudulently or dishonestly, makes use of the electronic signature, password, or any other unique identification feature of any other person",
+    "max_years": 3,
+    "max_months": null,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "66D": {
+    "offence": "Whoever, by means of any communication device or computer resource, cheats by personation",
+    "max_years": 3,
+    "max_months": null,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "66E": {
+    "offence": "Whoever, intentionally or knowingly, captures, publishes, or transmits the image of a private area of any person without that person's consent, under circumstances violating privacy",
+    "max_years": 3,
+    "max_months": null,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "67": {
+    "offence": "Whoever publishes or transmits, or causes to be published or transmitted, in electronic form any material which is lascivious or appeals to the prurient interest, or which tends to deprave and corrupt persons likely to read, see, or hear it",
+    "max_years": 3,
+    "max_months": null,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "condition": "general",
+        "cognizable": true,
+        "bailable": true,
+        "raw_text_preview": "on first conviction with imprisonment of either description for a term which may extend to three years and with fine which may extend to five lakh rupees"
+      },
+      {
+        "condition": "in the event of second or subsequent conviction",
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "in the event of second or subsequent conviction with imprisonment of either description for a term which may extend to five years and also with fine which may extend to ten lakh rupees"
+      }
+    ]
+  },
+  "67A": {
+    "offence": "Whoever publishes or transmits, or causes to be published or transmitted, in electronic form any material which contains a sexually explicit act or conduct",
+    "max_years": 5,
+    "max_months": null,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "condition": "general",
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "on first conviction with imprisonment of either description for a term which may extend to five years and with fine which may extend to ten lakh rupees"
+      },
+      {
+        "condition": "in the event of second or subsequent conviction",
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "in the event of second or subsequent conviction with imprisonment of either description for a term which may extend to seven years and also with fine which may extend to ten lakh rupees"
+      }
+    ]
+  },
+  "67B": {
+    "offence": "Whoever publishes, transmits, creates, collects, browses, downloads, advertises, promotes, exchanges, or distributes material in electronic form depicting children in a sexually explicit or obscene manner, or entices/induces a child into such an act, or facilitates abusing children online",
+    "max_years": 5,
+    "max_months": null,
+    "life_or_death": false,
+    "punishment_shape": "range",
+    "cognizable": true,
+    "bailable": false,
+    "has_multiple_conditions": true,
+    "needs_review": true,
+    "all_conditions": [
+      {
+        "condition": "general",
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "on first conviction with imprisonment of either description for a term which may extend to five years and with fine which may extend to ten lakh rupees"
+      },
+      {
+        "condition": "in the event of second or subsequent conviction",
+        "cognizable": true,
+        "bailable": false,
+        "raw_text_preview": "in the event of second or subsequent conviction with imprisonment of either description for a term which may extend to seven years and also with fine which may extend to ten lakh rupees"
+      }
+    ]
+  },
+  "72": {
+    "offence": "Whoever, having secured access to any electronic record, book, register, correspondence, information, document, or other material under the powers conferred by this Act, discloses it to any other person without the consent of the person concerned",
+    "max_years": 2,
+    "max_months": null,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": false,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  },
+  "72A": {
+    "offence": "Whoever, including an intermediary, while providing services under a lawful contract, having secured access to material containing personal information about another person, discloses it without consent or in breach of the contract, intending or knowing it is likely to cause wrongful loss or wrongful gain",
+    "max_years": 3,
+    "max_months": null,
+    "life_or_death": false,
+    "punishment_shape": "ceiling_only",
+    "cognizable": true,
+    "bailable": true,
+    "has_multiple_conditions": false,
+    "needs_review": false
+  }
+}

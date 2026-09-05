@@ -31,6 +31,12 @@ import os
 _STATUTE_CHUNK_FILES = {
     "BNS": "chunks/bharatiya_nyaya_sanhita_2023_chunks.json",
     "BNSS": "chunks/bharatiya_nagarik_suraksha_sanhita_2023_chunks.json",
+    # Phase 3b, loc-transit-remand-plan: real IT Act criminal sections
+    # (66, 66B-E, 67, 67A-B, 72, 72A). Section 66A is deliberately NOT
+    # in this chunk file -- it was struck down as unconstitutional and
+    # is handled by itact_section_status.py's dedicated override instead
+    # of a "current text" lookup (see that module's docstring).
+    "ITACT": "chunks/information_technology_act_2000_chunks.json",
 }
 
 _JUDGMENT_CHUNK_FILES = {

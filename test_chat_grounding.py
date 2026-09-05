@@ -41,6 +41,7 @@ from chat_assistant import (
     _extract_text_from_response,
     _explicit_section_matches,
     _bns_section_variants,
+    _itact_section_variants,
     _gather_offence_variants,
     _find_cognizable_bailable_mismatches,
     _format_mismatch,
@@ -50,6 +51,7 @@ from chat_assistant import (
     _find_unsupported_case_generalizations,
     generate_grounded_response,
 )
+from itact_section_data import ITACT_SECTION_DATA
 
 FAILURES = []
 
@@ -78,6 +80,11 @@ check(
 check(
     _extract_section_numbers("") == set(),
     "returns an empty set for empty text, never crashes",
+)
+check(
+    _extract_section_numbers("Section 67A of the IT Act was cited, along with Section 318.") == {"67A", "318"},
+    "extracts a lettered section reference ('67A') alongside a bare numeric one "
+    "(2026-09-05, Phase 3b -- was silently truncated to '67' before this fix)",
 )
 
 # ---- _find_ungrounded_sections: the real confirmed scenario, reproduced with real text ----
@@ -221,6 +228,32 @@ check(bool(_explicit_section_matches("what is section 318 of BNS")[0].get("all_v
       "an explicit BNS section still carries the BNS_SECTION_DATA all_variants enrichment")
 
 
+# ---- Phase 3b (2026-09-05): IT Act explicit section lookups, including lettered ones ----
+
+itact_66c = _explicit_section_matches("what is section 66C of the IT Act")
+check(len(itact_66c) == 1 and (itact_66c[0]["act"], itact_66c[0]["section_number"]) == ("ITACT", "66C"),
+      "'section 66C of the IT Act' resolves to ITACT 66C with real statute text")
+check(bool(itact_66c[0].get("all_variants")),
+      "the resolved ITACT match carries the ITACT_SECTION_DATA all_variants enrichment")
+
+lettered = _explicit_section_matches("what does section 67A of information technology act say")
+check(len(lettered) == 1 and lettered[0]["section_number"] == "67A",
+      "a LETTERED IT Act section ('67A', no parenthesized subsection) resolves correctly -- "
+      "was silently truncated to bare '67' before the digit-group widening")
+
+check(_explicit_section_matches("what is section 66A of the IT Act") == [],
+      "'section 66A of the IT Act' resolves to NOTHING via this path -- deliberately excluded "
+      "from ITACT_SECTION_DATA/chunks, handled instead by itact_section_status.py's own override")
+
+check(_explicit_section_matches("what is section 67A") == [],
+      "an UNQUALIFIED lettered number (no act named) does not silently default to ITACT -- "
+      "BNS has no '67A', so this safely resolves to nothing rather than guessing")
+
+bns_still_works = _explicit_section_matches("what is section 318 of BNS")
+check(len(bns_still_works) == 1 and bns_still_works[0]["act"] == "BNS",
+      "ordinary BNS explicit lookups are unaffected by the IT Act widening")
+
+
 # ---- Phase 5: offence-keyword anchors (real get_statute_section, no API) ----
 
 from chat_assistant import _offence_keyword_matches
@@ -250,6 +283,42 @@ _overlap = _offence_keyword_matches("he attempted to murder his neighbour")
 check(len(_overlap) == 1 and _overlap[0]["section_number"] == "109",
       "a more specific pattern's own words (\"murder\" inside \"attempted to murder\") do not "
       "ALSO trigger the more general pattern -- span-overlap suppression, not just list order")
+
+# ---- Phase 3b (2026-09-05): IT Act offence-keyword anchors ----
+
+_hack = _offence_keyword_matches("someone hacked into my computer and accessed my files")
+check(len(_hack) == 1 and (_hack[0]["act"], _hack[0]["section_number"]) == ("ITACT", "66"),
+      "'hacked into my computer' anchors to ITACT 66")
+
+_idtheft = _offence_keyword_matches("my ex is using my password to access my account, that is identity theft")
+check({(m["act"], m["section_number"]) for m in _idtheft} == {("ITACT", "66C")},
+      "REAL-SHAPED BUG FIX: 'identity theft' anchors ONLY ITACT 66C, not also BNS 303 (theft) -- "
+      "the bare word 'theft' inside the phrase must not ALSO trigger the generic theft anchor")
+
+_stolen_pw = _offence_keyword_matches("someone stole my password and logged into my account")
+check({(m["act"], m["section_number"]) for m in _stolen_pw} == {("ITACT", "66C")},
+      "REAL-SHAPED BUG FIX: 'stole my password' anchors ONLY ITACT 66C, not also BNS 303 -- "
+      "the word 'stole' inside the phrase must not ALSO trigger the generic theft anchor")
+
+check([(m["act"], m["section_number"]) for m in _offence_keyword_matches("someone stole my bicycle")] == [("BNS", "303")],
+      "an UNRELATED 'stole' (a bicycle, not a password) still anchors ordinary BNS 303 theft")
+
+_fakeprofile = _offence_keyword_matches("a stranger made a fake profile impersonating me online")
+check(len(_fakeprofile) == 1 and (_fakeprofile[0]["act"], _fakeprofile[0]["section_number"]) == ("ITACT", "66D"),
+      "'fake profile impersonating me' anchors to ITACT 66D")
+
+_morphed = _offence_keyword_matches("someone shared a morphed photo of me without my consent")
+check(len(_morphed) == 1 and (_morphed[0]["act"], _morphed[0]["section_number"]) == ("ITACT", "66E"),
+      "'morphed photo ... without my consent' anchors to ITACT 66E")
+
+_mixed = _offence_keyword_matches("he hacked my account and also cheated me out of Rs 50000")
+check({(m["act"], m["section_number"]) for m in _mixed} == {("ITACT", "66"), ("BNS", "318")},
+      "a message naming BOTH a BNS offence and an IT Act one anchors both, in the same pass")
+
+check(_offence_keyword_matches("i was charged under section 66A of the IT act") == [],
+      "66A is NEVER keyword-anchored, even when the message names it -- only "
+      "itact_section_status.get_itact_status_override handles that, deliberately, "
+      "so a struck-down-section flag is never inferred from vocabulary alone")
 
 # ---------------------------------------------------------------------------
 # CONFIRMED SERIOUS BUG CLASS (2026-09-04), found via eval_chat_answers.py's
@@ -348,6 +417,22 @@ check(
 check(
     _bns_section_variants("999999") == {},
     "_bns_section_variants for a non-existent section returns {}, never crashes",
+)
+check(
+    _itact_section_variants("66D") == {"66D": ITACT_SECTION_DATA["66D"]},
+    "_itact_section_variants('66D') returns the real ITACT_SECTION_DATA entry",
+)
+check(
+    set(_itact_section_variants("67").keys()) == {"67"} and _itact_section_variants("67")["67"]["has_multiple_conditions"] is True,
+    "_itact_section_variants('67') surfaces the real multi-condition (first/subsequent conviction) entry",
+)
+check(
+    _itact_section_variants("66A") == {},
+    "_itact_section_variants('66A') returns {} -- 66A is deliberately absent from ITACT_SECTION_DATA",
+)
+check(
+    _itact_section_variants("999999") == {},
+    "_itact_section_variants for a non-existent section returns {}, never crashes",
 )
 check(
     _gather_offence_variants([]) == {} and _gather_offence_variants(None) == {},
@@ -512,6 +597,42 @@ check(
 check(
     _find_sections_missing_act("nothing about any section here", _ACT_MAP) == [],
     "a response naming no section is trivially not flagged",
+)
+
+# ---------------------------------------------------------------------------
+# Phase 3b (2026-09-05): ITACT act-name checking. CONFIRMED REAL GAP,
+# caught before it shipped: this check used to search the response text
+# for the literal act CODE string -- fine for "BNS"/"BNSS" (the model
+# does write those short forms verbatim), but "ITACT" is only this
+# project's internal code; a real answer names it "IT Act" or
+# "Information Technology Act", never the bare code. Also confirmed:
+# sorted(referenced, key=int) crashes outright on a lettered section
+# ("67A") before this fix.
+# ---------------------------------------------------------------------------
+
+_ITACT_MAP = {"66D": "ITACT", "318": "BNS"}
+check(
+    _find_sections_missing_act(
+        "Section 66D of the Information Technology Act covers this, alongside Section 318 of the BNS.",
+        _ITACT_MAP,
+    ) == [],
+    "naming 'Information Technology Act' in full satisfies the ITACT check (not the bare code 'ITACT')",
+)
+check(
+    _find_sections_missing_act("Section 66D of the IT Act applies here.", {"66D": "ITACT"}) == [],
+    "naming the short form 'IT Act' also satisfies the ITACT check",
+)
+check(
+    _find_sections_missing_act("Section 66D applies here, with no Act named.", {"66D": "ITACT"}) == ["66D"],
+    "REPRODUCES THE CONFIRMED GAP (pre-fix): an ITACT section cited with neither 'IT Act' nor "
+    "'Information Technology Act' anywhere is correctly flagged",
+)
+check(
+    _find_sections_missing_act(
+        "Section 67A of the IT Act and Section 36 require attention.", {"67A": "ITACT", "36": "BNSS"}
+    ) == ["36"],
+    "CONFIRMED FIX: does not crash on a lettered section number when sorting mixed lettered/bare "
+    "numbers, and correctly still flags the OTHER section (36/BNSS) whose Act was never named",
 )
 
 _ACT_RETRIEVED_TEXT = "[BNSS Section 36]\n36. Every police officer... shall furnish an entry regarding the arrest."

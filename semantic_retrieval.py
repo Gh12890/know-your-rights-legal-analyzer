@@ -394,10 +394,27 @@ def find_relevant_sections(query):
         from main import BNS_SECTION_DATA
     except ImportError:
         BNS_SECTION_DATA = {}
+    try:
+        from itact_section_data import ITACT_SECTION_DATA
+    except ImportError:
+        ITACT_SECTION_DATA = {}
+    # act -> its structured compliance table. CONFIRMED REAL GAP
+    # (2026-09-05, Phase 3b): this block used to read BNS_SECTION_DATA
+    # unconditionally regardless of a match's own "act" field -- harmless
+    # for BNSS matches (they simply have no First-Schedule entries, so
+    # .get() always missed anyway) but a real silent data-loss risk for
+    # an IT Act match reached via unaided semantic search (not through
+    # chat_assistant.py's keyword-anchor/explicit-section paths, which
+    # already attach their own all_variants): BNS_SECTION_DATA.get("66C")
+    # is always None, so its real cognizable/bailable classification
+    # would have been silently dropped rather than looked up in the
+    # right table.
+    _SECTION_DATA_BY_ACT = {"BNS": BNS_SECTION_DATA, "ITACT": ITACT_SECTION_DATA}
 
     enriched = []
     for m in statute_matches:
         sec_key = m["section_number"]
+        section_table = _SECTION_DATA_BY_ACT.get((m.get("act") or "").upper(), BNS_SECTION_DATA)
         # CONFIRMED REAL BUG (2026-08-27): a direct .get(sec_key) only
         # finds an EXACT match. BNS_SECTION_DATA keys 239 of 436 entries
         # (55%) by subsection (e.g. "191(2)", "191(3)"), not the bare
@@ -411,9 +428,9 @@ def find_relevant_sections(query):
         # variant of the matched bare number and treating them as this
         # match's full data set, same as retrieval.py's exact-lookup
         # code already does for the equivalent problem elsewhere.
-        exact = BNS_SECTION_DATA.get(sec_key)
+        exact = section_table.get(sec_key)
         subsection_variants = {
-            k: v for k, v in BNS_SECTION_DATA.items()
+            k: v for k, v in section_table.items()
             if k == sec_key or k.startswith(f"{sec_key}(")
         }
         if exact is not None and sec_key not in subsection_variants:
