@@ -1,6 +1,9 @@
 import json
+import logging
 import re
 from anthropic import Anthropic
+
+logger = logging.getLogger("chat_assistant")
 
 """
 Chat assistant for laymen asking open-ended questions in plain language.
@@ -150,41 +153,69 @@ def classify_scope(question):
     every other category, and None (not a guess) if the model omits it
     or returns something unrecognised for a covered_elsewhere_in_tool
     response -- the app must be able to fall back to a domain-less
-    redirect rather than launching the wrong interview flow."""
+    redirect rather than launching the wrong interview flow.
+
+    RETRY + LOGGING added 2026-09-05: CONFIRMED REAL FAILURE, found via
+    live user testing -- a question got "classifier_unavailable" (the
+    app's generic "something on my end isn't working" message) on a
+    question that, sampled 20/20 directly against this same function
+    moments later, classified correctly every time. The exception was
+    being swallowed with a bare `except Exception: return None`, so the
+    ACTUAL cause (a transient API hiccup, or an occasional malformed-
+    JSON response -- SCOPE_CLASSIFIER_PROMPT is now five dense paragraphs
+    long, and this session made a very high volume of real API calls
+    testing it, raising real odds of hitting a rate limit or a one-off
+    slip) was never visible to diagnose. A single try with no retry also
+    means ANY one transient failure -- however rare -- surfaces to the
+    user as a hard "technical issue" dead end, for a call that is cheap
+    (Haiku, small output) and safe to simply try again. Now: one retry
+    on failure (matching this project's standing "one retry, then trust
+    or honestly give up" pattern elsewhere, e.g. generate_grounded_response),
+    and the real exception/raw response is logged on every failure so a
+    genuinely persistent problem is now diagnosable instead of invisible."""
     if client is None:
         return None, None, None
-    try:
-        # Haiku, not Sonnet: this is a bounded 4-way routing classification
-        # against an explicit rubric (the module docstring's step 1 always
-        # described it as "cheap Haiku call" -- the code had drifted to
-        # Sonnet). It does NOT decide any legal question -- misrouting only
-        # picks the wrong canned redirect / answer path, and a parse failure
-        # still falls back to the honest (None, None, None) "could not
-        # determine". The answer itself and its deterministic grounding
-        # checks stay on Sonnet (generate_grounded_response).
-        response = client.messages.create(
-            model=HAIKU_MODEL,
-            max_tokens=1500,
-            messages=[{"role": "user", "content": SCOPE_CLASSIFIER_PROMPT.format(question=question)}],
-        )
-        raw = _extract_text_from_response(response).strip()
-        # Defensive: strip markdown code fences if the model adds them
-        # despite the "ONLY a JSON object" instruction.
-        if raw.startswith("```"):
-            raw = raw.strip("`")
-            if raw.startswith("json"):
-                raw = raw[4:]
-            raw = raw.strip()
-        parsed = json.loads(raw)
-        category = parsed.get("category")
-        if category not in ("in_scope", "covered_elsewhere_in_tool", "adjacent_uncovered", "unrelated"):
-            return None, None, None
-        redirect_domain = parsed.get("redirect_domain")
-        if category != "covered_elsewhere_in_tool" or redirect_domain not in ("freeze", "cheque_bounce"):
-            redirect_domain = None
-        return category, parsed.get("reasoning", ""), redirect_domain
-    except Exception:
-        return None, None, None
+
+    for attempt in range(2):
+        try:
+            # Haiku, not Sonnet: this is a bounded 4-way routing classification
+            # against an explicit rubric (the module docstring's step 1 always
+            # described it as "cheap Haiku call" -- the code had drifted to
+            # Sonnet). It does NOT decide any legal question -- misrouting only
+            # picks the wrong canned redirect / answer path, and a parse failure
+            # still falls back to the honest (None, None, None) "could not
+            # determine". The answer itself and its deterministic grounding
+            # checks stay on Sonnet (generate_grounded_response).
+            response = client.messages.create(
+                model=HAIKU_MODEL,
+                max_tokens=1500,
+                messages=[{"role": "user", "content": SCOPE_CLASSIFIER_PROMPT.format(question=question)}],
+            )
+            raw = _extract_text_from_response(response).strip()
+            # Defensive: strip markdown code fences if the model adds them
+            # despite the "ONLY a JSON object" instruction.
+            if raw.startswith("```"):
+                raw = raw.strip("`")
+                if raw.startswith("json"):
+                    raw = raw[4:]
+                raw = raw.strip()
+            parsed = json.loads(raw)
+            category = parsed.get("category")
+            if category not in ("in_scope", "covered_elsewhere_in_tool", "adjacent_uncovered", "unrelated"):
+                logger.warning(
+                    "classify_scope: model returned an unrecognised category %r on attempt %d "
+                    "(raw=%r)", category, attempt, raw[:500],
+                )
+                continue
+            redirect_domain = parsed.get("redirect_domain")
+            if category != "covered_elsewhere_in_tool" or redirect_domain not in ("freeze", "cheque_bounce"):
+                redirect_domain = None
+            return category, parsed.get("reasoning", ""), redirect_domain
+        except Exception:
+            logger.exception(
+                "classify_scope: attempt %d failed for question=%r", attempt, (question or "")[:200],
+            )
+    return None, None, None
 
 # ---------------------------------------------------------------------------
 # RESPONSE_GENERATION_PROMPT -- design notes / failure history.

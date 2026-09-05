@@ -32,6 +32,7 @@ Run with: python test_chat_grounding.py
 No API cost -- the Anthropic client is mocked throughout.
 """
 
+import json
 import sys
 from unittest.mock import patch, MagicMock
 
@@ -196,6 +197,68 @@ with patch("chat_assistant.client") as mock_client:
     ]
     result = generate_grounded_response("test question", REAL_RETRIEVED_TEXT_EXCERPT)
     check(result is None, "returns None (honest give-up) when even the retry is still ungrounded, never a second wrong answer")
+
+
+# ---- classify_scope: retry behavior, client mocked (no API cost) ----
+# CONFIRMED REAL FAILURE (2026-09-05): a live user question got
+# "classifier_unavailable" (the app's generic "something on my end isn't
+# working" dead end) even though the SAME question, sampled 20/20 moments
+# later directly against classify_scope, classified correctly every
+# time -- a single transient failure (API hiccup or an occasional
+# malformed-JSON response) with zero retry immediately gave up. Fixed
+# with one retry, matching generate_grounded_response's own established
+# "one retry, then trust or honestly give up" pattern tested above.
+
+from chat_assistant import classify_scope as _classify_scope_for_mock
+
+
+def _fake_scope_response(category="in_scope", reasoning="test reasoning", redirect_domain=None):
+    body = json.dumps({"category": category, "reasoning": reasoning, "redirect_domain": redirect_domain})
+    return _fake_response(body)
+
+
+with patch("chat_assistant.client") as mock_client:
+    # First call raises (simulates a transient network/API failure);
+    # second call succeeds cleanly.
+    mock_client.messages.create.side_effect = [
+        Exception("simulated transient API failure"),
+        _fake_scope_response("in_scope", "a real reasoning sentence"),
+    ]
+    category, reasoning, redirect = _classify_scope_for_mock("test question")
+    check(mock_client.messages.create.call_count == 2, "one retry call is made when the first attempt raises")
+    check(category == "in_scope" and reasoning == "a real reasoning sentence",
+          "the successful retry's result is returned, not a silent None")
+
+with patch("chat_assistant.client") as mock_client:
+    # First call returns malformed JSON (simulates the model adding stray
+    # text despite the "ONLY a JSON object" instruction); second call is clean.
+    mock_client.messages.create.side_effect = [
+        _fake_response("Sure, here you go: {\"category\": \"in_scope\""),  # truncated/invalid JSON
+        _fake_scope_response("adjacent_uncovered", "a clean second attempt"),
+    ]
+    category, reasoning, redirect = _classify_scope_for_mock("test question")
+    check(mock_client.messages.create.call_count == 2, "one retry call is made when the first response fails to parse")
+    check(category == "adjacent_uncovered", "the successful retry's category is returned")
+
+with patch("chat_assistant.client") as mock_client:
+    # First call is already clean -> no retry, no wasted second call.
+    mock_client.messages.create.side_effect = [
+        _fake_scope_response("unrelated", "no legal question here"),
+    ]
+    category, reasoning, redirect = _classify_scope_for_mock("test question")
+    check(mock_client.messages.create.call_count == 1, "no retry call is made when the first attempt already succeeds")
+    check(category == "unrelated", "the original clean result is returned unchanged")
+
+with patch("chat_assistant.client") as mock_client:
+    # BOTH attempts fail -> honest (None, None, None) give-up, exactly 2
+    # calls made (not an infinite loop, not zero).
+    mock_client.messages.create.side_effect = [
+        Exception("simulated failure 1"),
+        Exception("simulated failure 2"),
+    ]
+    result = _classify_scope_for_mock("test question")
+    check(mock_client.messages.create.call_count == 2, "exactly 2 attempts are made, never more")
+    check(result == (None, None, None), "returns the honest (None, None, None) give-up when both attempts fail")
 
 
 # ---- _explicit_section_matches: "what is section N" lookup (real get_statute_section, no API) ----
