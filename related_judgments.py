@@ -51,7 +51,16 @@ import os
 import re
 from datetime import date, datetime, timezone
 
+from settled_doctrine_whitelist import DOCTRINE_TAG_CHOICES
+
 logger = logging.getLogger("related_judgments")
+
+# The fixed checklist the decomposer ticks off (Fix 2). Rendered into the
+# prompt from settled_doctrine_whitelist so the two never drift.
+_DOCTRINE_TAG_LINES = "\n".join(
+    f"  {key} -- {desc}" for key, desc in DOCTRINE_TAG_CHOICES.items()
+)
+_VALID_DOCTRINE_TAGS = frozenset(DOCTRINE_TAG_CHOICES)
 
 # Same model string as every other Haiku call site in this project
 # (main.py, interview_flow.py, chat_assistant.classify_scope, ...).
@@ -95,10 +104,14 @@ Return ONLY a JSON object, no other text:
     {{
       "issue": "a short neutral description of one distinct legal issue (e.g. 'arrest of a person not named in the FIR', 'grounds of arrest not communicated', 'chargesheet not filed within the time limit', 'alleged assault in custody')",
       "hook_phrase": "3 to 8 words copied VERBATIM from the user's message that show this issue -- must be an exact substring of their text",
-      "section_hooks": ["any BNS or BNSS section, or well-known safeguard, that this issue is about -- e.g. 'BNSS 35', 'BNSS 187', 'Article 22(1)', 'D.K. Basu'. Empty list if none is obvious."]
+      "section_hooks": ["any BNS or BNSS section, or well-known safeguard, that this issue is about -- e.g. 'BNSS 35', 'BNSS 187', 'Article 22(1)', 'D.K. Basu'. Empty list if none is obvious."],
+      "doctrine_tags": ["zero or more EXACT keys from the FIXED LIST below that this issue squarely fits -- empty list if none fit"]
     }}
   ]
 }}
+
+FIXED LIST for "doctrine_tags" (use these exact keys, nothing else):
+{doctrine_tag_list}
 
 Rules:
 - At most {max_issues} issues. If there are more, keep the {max_issues} most important.
@@ -106,6 +119,7 @@ Rules:
 - "hook_phrase" MUST be an exact run of words from the user's message. Do not paraphrase it. If you cannot find an exact phrase for an issue, do not include that issue.
 - If the message describes only one thing, return one issue.
 - "section_hooks" is your best guess at the relevant provision names for searching -- it is not a legal opinion and an empty list is fine.
+- "doctrine_tags": tick a key ONLY when the issue squarely fits that description. Do not guess, do not stretch. Most issues fit zero or one key. An empty list is normal and fine.
 
 User's message:
 {user_message}"""
@@ -194,10 +208,12 @@ def decompose_situation(user_message):
         response = client.messages.create(
             model=_HAIKU_MODEL,
             max_tokens=900,
+            temperature=0,  # extraction, not generation -- want the steadiest output
             messages=[{
                 "role": "user",
                 "content": SITUATION_DECOMPOSITION_PROMPT.format(
-                    user_message=user_message, max_issues=MAX_ISSUES
+                    user_message=user_message, max_issues=MAX_ISSUES,
+                    doctrine_tag_list=_DOCTRINE_TAG_LINES,
                 ),
             }],
         )
@@ -239,13 +255,23 @@ def decompose_situation(user_message):
             hooks = []
         hooks = [str(h).strip() for h in hooks if str(h).strip()]
 
+        tags = item.get("doctrine_tags")
+        if not isinstance(tags, list):
+            tags = []
+        # keep only real whitelist keys, in first-seen order -- a
+        # hallucinated or malformed tag is silently dropped
+        tags = list(dict.fromkeys(
+            t for t in (str(x).strip() for x in tags) if t in _VALID_DOCTRINE_TAGS
+        ))
+
         if not issue_text or not hook:
             continue
         if not _hook_phrase_in_text(hook, user_message):
             logger.info("decompose_situation: dropped issue with unverified hook %r", hook)
             continue
 
-        issues.append({"issue": issue_text, "hook_phrase": hook, "section_hooks": hooks})
+        issues.append({"issue": issue_text, "hook_phrase": hook,
+                       "section_hooks": hooks, "doctrine_tags": tags})
         if len(issues) >= MAX_ISSUES:
             break
 
@@ -512,6 +538,10 @@ _W_PHRASE_QUERY = 0.08   # candidate was surfaced by a verbatim-phrase query
 _W_RECENT = 0.03         # candidate is dated on/after the 1 Jul 2024 codes
 _W_SECTION_ALIGNED = 0.06   # early (snippet-only) confirmed section mention -- a real
                             # signal, but too thin a text sample yet for more weight
+_W_DOCTRINE_ANCHOR = 0.20   # hand-curated canonical judgment for this settled-doctrine
+                            # issue (doctrine_anchors.py) -- the strongest nudge here,
+                            # but still a nudge: _display_worthy + the anchors-first
+                            # ordering are what actually guarantee it shows
 
 # Applied in fetch_and_pin, once full judgment text is available -- unlike
 # the gentle nudges above, this is a real correction to content_score
@@ -812,6 +842,7 @@ def rank_candidates(candidates, user_message, *, rerank_fn=None,
             + (_W_PHRASE_QUERY if from_phrase else 0.0)
             + (_W_RECENT if recent else 0.0)
             + (_W_SECTION_ALIGNED if section_confirmed_early else 0.0)
+            + (_W_DOCTRINE_ANCHOR if cand.get("doctrine_anchor") else 0.0)
         )
         cand["rerank_score"] = rerank_score
         cand["rerank_used"] = rerank_used
@@ -821,10 +852,11 @@ def rank_candidates(candidates, user_message, *, rerank_fn=None,
     kept.sort(key=lambda c: c["score"], reverse=True)
 
     # Cap the number of already-in-corpus cases so the list stays mostly
-    # new judgments.
+    # new judgments -- but a doctrine anchor (the curated canonical case
+    # for a settled-doctrine issue) is exempt: it is here on purpose.
     out, corpus_seen = [], 0
     for cand in kept:
-        if cand["source"] == "corpus":
+        if cand["source"] == "corpus" and not cand.get("doctrine_anchor"):
             if corpus_seen >= _MAX_CORPUS_IN_RESULT:
                 continue
             corpus_seen += 1
@@ -1351,6 +1383,14 @@ def _display_worthy(cand):
     # only THIS specific pre-vetted panel excludes it outright.
     if cand.get("procedural_disposal") is True:
         return False
+    # A hand-curated canonical judgment for a settled-doctrine issue
+    # (doctrine_anchors.py): we already know it is the right case, so an
+    # off-point gloss (the gloss model being wrong) does not exclude it --
+    # same "curated map wins over a fluctuating model output" spirit as the
+    # cited_in_answer rule below. It is corpus, so never procedural / never
+    # a failed fetch; the checks above still run first for safety.
+    if cand.get("doctrine_anchor"):
+        return True
     gloss = cand.get("gloss")
     if gloss and _OFF_POINT_RE.search(gloss):
         return False
@@ -1366,6 +1406,48 @@ def _display_worthy(cand):
     # slightly higher bar than live IK hits.
     floor = _DISPLAY_CONTENT_FLOOR + (0.02 if cand["source"] == "corpus" else 0.0)
     return cs is not None and cs >= floor
+
+
+def _anchor_case_name(cand):
+    t = cand.get("triage") or {}
+    return (t.get("title") or cand.get("record", {}).get("case_name") or "").strip().lower()
+
+
+def _ensure_doctrine_anchors(ranked, coverage, user_message, *, rerank_fn=None,
+                             grounded_answer_text=None, today=None, anchors=None):
+    """Fix 1: make sure the hand-curated canonical judgment(s) for every
+    settled-doctrine issue are in `ranked` -- tag one that is already there
+    with `doctrine_anchor`, and rank + prepend one that is missing. No-op
+    when the question maps to no whitelisted topic (or none with a curated
+    anchor case). See doctrine_anchors.py."""
+    from doctrine_anchors import anchor_candidates
+
+    wanted = anchor_candidates(coverage)
+    if not wanted:
+        return ranked
+
+    have = {}
+    for c in ranked:
+        nm = _anchor_case_name(c)
+        if nm:
+            have.setdefault(nm, c)
+
+    missing = []
+    for a in wanted:
+        nm = (a["record"].get("case_name") or "").strip().lower()
+        if nm in have:
+            have[nm]["doctrine_anchor"] = a["doctrine_anchor"]
+        else:
+            missing.append(a)
+
+    if missing:
+        ranked_missing = rank_candidates(
+            missing, user_message, rerank_fn=rerank_fn,
+            grounded_answer_text=grounded_answer_text, today=today,
+            keep=_KEEP_FINAL, anchors=anchors,
+        )
+        ranked = ranked_missing + list(ranked)
+    return ranked
 
 
 def prepare_related_judgments(user_message, *, decompose_fn=None,
@@ -1398,6 +1480,15 @@ def prepare_related_judgments(user_message, *, decompose_fn=None,
     corpus_pool = corpus_candidates(
         anchors, local_search_fn=local_search_fn,
         local_search_many_fn=local_search_many_fn,
+    )
+    # Fix 1: fold in the curated canonical judgment(s) for any settled-
+    # doctrine issue BEFORE ranking, so the speculative prefetch carries
+    # them too (get_related_judgments' _ensure_doctrine_anchors is still
+    # the backstop for a stale `prepared` dict).
+    from doctrine_anchors import anchor_candidates, merge_into_corpus_pool
+    from settled_doctrine_whitelist import coverage_report
+    corpus_pool = merge_into_corpus_pool(
+        corpus_pool, anchor_candidates(coverage_report(profile.get("issues", []))),
     )
     corpus_ranked = rank_candidates(
         list(corpus_pool), user_message, rerank_fn=rerank_fn,
@@ -1673,6 +1764,18 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         # a 'record'/'raw' on every input.
         ranked = _merge_ranked(ranked, approved_candidates(profile))
 
+    # --- Fix 1 (2026-09-05): guarantee the hand-curated canonical
+    #     judgment(s) for every settled-doctrine issue are in `ranked`,
+    #     whichever path above built it -- so the trusted panel never
+    #     MISSES D.K. Basu on a custodial-torture question or Viraj Chetan
+    #     Shah on a Look-Out-Circular one just because the reranker scored
+    #     them low. wl is computed here and reused for the gate below.
+    wl = coverage_report(profile.get("issues", []))
+    ranked = _ensure_doctrine_anchors(
+        ranked, wl, user_message, rerank_fn=rerank_fn,
+        grounded_answer_text=grounded_answer_text, today=today, anchors=anchors,
+    )
+
     if pin and ranked:
         pin_query = " ".join(
             [profile.get("primary_grievance", "")]
@@ -1688,8 +1791,8 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
 
     # --- the whitelist gate: decides which of the two panels below the
     #     user gets, not whether ranking/glossing happens at all (see
-    #     unverified_for_display, added 2026-09-04) ---
-    wl = coverage_report(profile.get("issues", []))
+    #     unverified_for_display, added 2026-09-04). wl was computed above
+    #     for the doctrine-anchor step. ---
     show_user = wl["covered"]
 
     # --- the one bounded generative step. Gloss any candidate that could
@@ -1724,7 +1827,14 @@ def get_related_judgments(user_message, grounded_answer_text=None, *,
         except Exception:
             logger.exception("get_related_judgments: could not write review bundle")
 
-    for_display = [c for c in ranked if _display_worthy(c)][:_MAX_DISPLAY] if show_user else []
+    if show_user:
+        worthy = [c for c in ranked if _display_worthy(c)]
+        # Fix 1: the hand-curated canonical judgment(s) lead the trusted
+        # panel (in ranked order within each group), then the rest.
+        for_display = ([c for c in worthy if c.get("doctrine_anchor")]
+                       + [c for c in worthy if not c.get("doctrine_anchor")])[:_MAX_DISPLAY]
+    else:
+        for_display = []
 
     # --- unverified-review path (2026-09-04, recalibrated TWICE same day) --
     # for a question OUTSIDE the settled-doctrine whitelist, the panel

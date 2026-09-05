@@ -20,6 +20,10 @@ citation_currency_review/
 # live API calls). Keep locally for before/after comparison; not tracked.
 eval_out/
 
+# eval_related_judgments.py (Lane B eval harness) output: same deal --
+# regenerable run reports, live API calls in live mode. Not tracked.
+eval_related_out/
+
 # related_judgments.py (Lane B) output: regenerable, UNVERIFIED candidate
 # bundles from live Indian Kanoon searches. A human reads these to curate
 # genuinely-good judgments into the corpus by hand -- the bundle is a
