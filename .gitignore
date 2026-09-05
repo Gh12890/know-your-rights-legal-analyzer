@@ -30,3 +30,8 @@ related_judgments_review/
 # prepared draft, cached so a similar question retrieves them instantly.
 # Per-user, still UNVERIFIED, never feeds the grounded answer. Not tracked.
 related_judgments_approved.json
+
+# corpus-seeding pilot: scratch scrape of raw fetched paragraph text used
+# while curating a batch into corpus/+chunks/. Once approved paragraphs
+# are written to corpus/chunks, this working file is redundant.
+seed_full_text*.json
