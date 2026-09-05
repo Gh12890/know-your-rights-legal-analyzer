@@ -174,6 +174,111 @@ STATUTE_DOCTRINE_MAP = {
             "judgments were."
         ),
     },
+    # WHY (2026-09-05, Phase 1 of the loc-transit-remand-plan): a real
+    # test scenario -- detained by Immigration at an airport on a Look
+    # Out Circular (LOC) issued by another state's police, needing to
+    # contest an "upcoming transit remand" -- was traced through the
+    # whole chat pipeline and confirmed to hit ZERO deterministic
+    # matches anywhere (no offence-keyword anchor, no whitelist topic,
+    # no corpus content at all for "transit remand" or "LOC" -- grepped
+    # the full codebase). Yet BNSS 58 and 187 already, directly answer
+    # this: a person can lawfully be produced before ANY Magistrate
+    # within 24 hours (excluding travel time) regardless of that
+    # Magistrate's jurisdiction over the actual case (S.58), and that
+    # Magistrate may remand them and then forward them to the Magistrate
+    # who does have jurisdiction (S.187(2)) -- this pair of sections IS
+    # the statutory basis for what is colloquially called a "transit
+    # remand". Two entries below (one per section, matching this map's
+    # one-section-per-entry shape) rather than one, so both sections'
+    # real text reach the answer.
+    "bnss_58_transit_production_24_hours": {
+        "act": "BNSS",
+        "section_number": "58",
+        "trigger_groups": [
+            ("look", "out", "circular"),
+            ("lookout", "circular"),
+            ("lookout", "notice"),
+            ("transit", "remand"),
+            ("detained", "immigration"),
+            ("detention", "immigration"),
+            ("immigration", "airport"),
+            ("detained", "airport"),
+        ],
+        "context_note": (
+            "BNSS Section 58 requires that a person arrested/detained "
+            "without a warrant be produced before a Magistrate within 24 "
+            "hours -- and this 24-hour period specifically EXCLUDES the "
+            "time necessary for the journey from the place of arrest to the "
+            "Magistrate's Court. The section explicitly allows this "
+            "production before a Magistrate's Court \"whether having "
+            "jurisdiction or not\" -- so if someone is detained in one "
+            "city/state over a matter being investigated elsewhere (for "
+            "example, on a Look Out Circular), the law itself contemplates "
+            "producing them before the NEAREST Magistrate first, not "
+            "necessarily the one who will eventually try the case. This is "
+            "the statutory basis for what is commonly called a \"transit "
+            "remand\"."
+        ),
+        "verified_note": (
+            "BNSS 58 text pulled live via get_statute_section (not "
+            "hardcoded here), matching the phrase \"whether having "
+            "jurisdiction or not\" confirmed directly against the project's "
+            "own embedded statute chunk 2026-09-05 -- not a guessed or "
+            "recalled paraphrase. Added after a real test scenario (LOC "
+            "detention at Delhi IGI Airport, Chennai-issued, contesting a "
+            "transit remand) found this exact gap; see the "
+            "loc-transit-remand-gap project memory for the full trace."
+        ),
+    },
+    "bnss_187_transit_remand_forwarding": {
+        "act": "BNSS",
+        "section_number": "187",
+        "trigger_groups": [
+            ("look", "out", "circular"),
+            ("lookout", "circular"),
+            ("lookout", "notice"),
+            ("transit", "remand"),
+            ("detained", "immigration"),
+            ("detention", "immigration"),
+            ("immigration", "airport"),
+            ("detained", "airport"),
+        ],
+        "context_note": (
+            "BNSS Section 187(2) directly covers this situation: a "
+            "Magistrate to whom an arrested/detained person is produced may "
+            "authorise their detention \"irrespective of whether he has or "
+            "has no jurisdiction to try the case\". If that Magistrate has "
+            "no jurisdiction over the case and considers further detention "
+            "before them unnecessary, the law directs that they \"may order "
+            "the accused to be forwarded to a Magistrate having such "
+            "jurisdiction\". In practice this IS the transit-remand "
+            "mechanism -- a short remand order near the place of detention, "
+            "authorising the police to move the person to where the actual "
+            "investigation/FIR is based, where the substantive remand and "
+            "bail proceedings then continue.\n\n"
+            "The standard arrest safeguards remain fully in force at this "
+            "stage too: the grounds for the arrest/detention must still be "
+            "communicated (BNSS 47), and a relative or friend must still be "
+            "informed of the detention and where the person is being held "
+            "(BNSS 48). A person facing a transit remand can be represented "
+            "by a lawyer at THIS stage -- contesting whether the arrest/"
+            "detention itself was validly made, or whether these procedural "
+            "safeguards were actually followed, is a genuine, immediate "
+            "opportunity, not something that has to wait until reaching the "
+            "state where the case is registered."
+        ),
+        "verified_note": (
+            "BNSS 187(2) text pulled live via get_statute_section (not "
+            "hardcoded here), matching the \"irrespective of whether he has "
+            "or has no jurisdiction\" / \"forwarded to a Magistrate having "
+            "such jurisdiction\" language confirmed directly against the "
+            "project's own embedded statute chunk 2026-09-05. The BNSS "
+            "47/48 cross-references in the context_note were independently "
+            "pulled and confirmed the same way, not assumed from the older "
+            "IPC/CrPC framing. Added alongside the S.58 entry above for the "
+            "same real test scenario; see loc-transit-remand-gap."
+        ),
+    },
 }
 
 

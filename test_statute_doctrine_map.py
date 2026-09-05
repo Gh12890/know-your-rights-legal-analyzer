@@ -87,6 +87,68 @@ check(_482 not in match_statute_doctrine("can a woman be arrested at night by po
       "a night-arrest question does not also drag in 482")
 
 
+# ---- BNSS 58/187 transit remand / Look Out Circular (2026-09-05,
+# loc-transit-remand-plan Phase 1) ----
+
+_58 = "bnss_58_transit_production_24_hours"
+_187 = "bnss_187_transit_remand_forwarding"
+
+# Real scenario that surfaced this gap: detained by Immigration at an
+# airport on an LOC issued by another state's police, contesting a
+# transit remand -- confirmed to hit zero deterministic matches before
+# this fix.
+_loc_scenario = (
+    "I have been detained by Immigration at Delhi IGI Airport due to a "
+    "Look Out Circular (LOC) issued by the Chennai Cyber Crime / Tamil "
+    "Nadu Police. We need a lawyer to contest the upcoming transit remand."
+)
+for q in [
+    _loc_scenario,
+    "what is a look out circular and can I contest it",
+    "police from another state have a lookout notice against me at the airport",
+    "I was detained by immigration, what happens with the transit remand",
+]:
+    matched = match_statute_doctrine(q)
+    check(_58 in matched, f"58 triggers on: {q!r}")
+    check(_187 in matched, f"187 triggers on: {q!r}")
+
+# Must NOT fire for ordinary single-state arrest questions -- this is a
+# genuinely different fact pattern (cross-jurisdiction detention), not a
+# catch-all for every arrest/detention question.
+for q in [
+    "police arrested me yesterday for theft",
+    "my uncle was picked up for theft and beaten in custody",
+    "the police took my brother to the local station near our house",
+    "my cousin was detained by the local police for questioning",
+    "can a woman be arrested at night by police",
+    "i think the police are going to arrest me soon, what can i do",
+]:
+    matched = match_statute_doctrine(q)
+    check(_58 not in matched,
+          f"58 does NOT fire on an ordinary single-state arrest question: {q!r}")
+    check(_187 not in matched,
+          f"187 does NOT fire on an ordinary single-state arrest question: {q!r}")
+
+ov = get_statute_doctrine_override(_loc_scenario)
+check(len(ov) == 2, "LOC/transit-remand override resolves to exactly two entries")
+sections = {(r["act"], r["section_number"]) for r in ov}
+check(sections == {("BNSS", "58"), ("BNSS", "187")},
+      "the two entries are BNSS 58 and BNSS 187")
+for r in ov:
+    check(r["source"] == "curated_override",
+          f"BNSS {r['section_number']}: carries source='curated_override'")
+r58 = next(r for r in ov if r["section_number"] == "58")
+r187 = next(r for r in ov if r["section_number"] == "187")
+check("whether having jurisdiction or not" in r58["text"],
+      "BNSS 58's real statute text carries the jurisdiction-agnostic-production clause")
+check("forwarded to a magistrate having such jurisdiction" in r187["text"].lower(),
+      "BNSS 187's real statute text carries the transit-remand-forwarding clause")
+check("transit" in r58["context_note"].lower() and "transit" in r187["context_note"].lower(),
+      "both context_notes name the transit-remand concept explicitly")
+check("bnss 47" in r187["context_note"].lower() or "section 47" in r187["context_note"].lower(),
+      "BNSS 187's context_note cross-references the grounds-of-arrest safeguard (S.47)")
+
+
 # ---- every entry is structurally well-formed ----
 
 for key, entry in STATUTE_DOCTRINE_MAP.items():
