@@ -933,13 +933,18 @@ def _decompose_whitelisted_weak_overlap(msg):
             ]}
 
 
-whitelisted_weak_res = rj.get_related_judgments(
-    "there was a workplace dispute that turned into a police complaint and no chargesheet was filed for months",
-    write_bundle=False, pin=True,
-    decompose_fn=_decompose_whitelisted_weak_overlap, ik_search_many_fn=_fake_ik_search_theft,
-    local_search_fn=lambda q: [], rerank_fn=_fake_rerank, gloss_fn=_tracking_gloss,
-    fetch_many_fn=_fake_fetch_theft, clean_fn=_fake_clean, today=datetime.date(2026, 9, 3),
-)
+# Fix 4 (2026-09-06) gave default_bail a doctrine anchor, so every whitelist
+# topic now injects a guaranteed-display anchor. This regression guard tests
+# the OTHER path -- show_user True but for_display legitimately empty -- so
+# anchor injection is suppressed here to keep that path reachable.
+with patch("doctrine_anchors.anchor_candidates", lambda *a, **k: []):
+    whitelisted_weak_res = rj.get_related_judgments(
+        "there was a workplace dispute that turned into a police complaint and no chargesheet was filed for months",
+        write_bundle=False, pin=True,
+        decompose_fn=_decompose_whitelisted_weak_overlap, ik_search_many_fn=_fake_ik_search_theft,
+        local_search_fn=lambda q: [], rerank_fn=_fake_rerank, gloss_fn=_tracking_gloss,
+        fetch_many_fn=_fake_fetch_theft, clean_fn=_fake_clean, today=datetime.date(2026, 9, 3),
+    )
 check(whitelisted_weak_res["show_user"] is True,
       "sanity check on the test setup: this issue IS whitelisted (default_bail via the BNSS 187 section hook)")
 check(whitelisted_weak_res["for_display"] == [],

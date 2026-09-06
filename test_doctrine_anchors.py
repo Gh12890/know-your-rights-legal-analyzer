@@ -45,8 +45,11 @@ _corpus_names = {r["case_name"] for r in _load_corpus_embeddings()["records"]
 _bad = [(t, c) for t, cs in da.DOCTRINE_ANCHOR_CASES.items() for c in cs
         if c not in _corpus_names]
 check(not _bad, f"every anchor case name resolves in the corpus (bad: {_bad})")
-check(da.DOCTRINE_ANCHOR_CASES["default_bail"] == [],
-      "default_bail is explicitly an empty anchor list (known corpus gap)")
+check(da.DOCTRINE_ANCHOR_CASES["default_bail"] == [
+        "M. Ravindran v Intelligence Officer, Directorate of Revenue Intelligence",
+        "Bikramjit Singh v State of Punjab",
+      ],
+      "default_bail is anchored (Fix 4 corpus-seeding batch, 2026-09-06)")
 
 
 # ---------------------------------------------------------------------------
@@ -74,10 +77,12 @@ check([a["record"]["case_name"] for a in ap]
 
 check(da.anchor_candidates(coverage_report([{"issue": "x", "hook_phrase": "y"}])) == [],
       "no whitelisted issue -> no anchors")
-check(da.anchor_candidates(coverage_report([
-        {"issue": "default bail", "hook_phrase": "no chargesheet after ninety days",
-         "doctrine_tags": ["default_bail"]}])) == [],
-      "a covered issue whose topic has no anchor -> no anchors (not a crash)")
+from unittest.mock import patch as _patch
+with _patch.dict(da.DOCTRINE_ANCHOR_CASES, {"default_bail": []}):
+    check(da.anchor_candidates(coverage_report([
+            {"issue": "default bail", "hook_phrase": "no chargesheet after ninety days",
+             "doctrine_tags": ["default_bail"]}])) == [],
+          "a covered issue whose topic has an empty anchor list -> no anchors (not a crash)")
 
 # two issues, one topic each, sharing a case (Prabir Purkayastha anchors both
 # grounds_of_arrest_communicated and twenty_four_hour_production)

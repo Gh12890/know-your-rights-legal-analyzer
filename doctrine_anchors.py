@@ -42,9 +42,16 @@ DOCTRINE_ANCHOR_CASES = {
         "Pankaj Bansal v Union of India",
         "Vihaan Kumar v State of Haryana",
     ],
-    # KNOWN GAP (baseline finding #4): no corpus judgment for default bail
-    # yet. Left explicit so it is obvious this is a gap, not an omission.
-    "default_bail": [],
+    # Fix 4 (2026-09-06): default-bail corpus-seeding batch closed baseline
+    # finding #4. Ravindran leads (cleanest modern statement of when the right
+    # is "availed of" and what it survives, para 18); Bikramjit second (default
+    # bail is part of Article 21; the application "need not even be in writing").
+    # Rakesh Kumar Paul is also embedded + retrievable but is not a
+    # guaranteed-display anchor (2:1 split; the 60-vs-90-day ratio is narrower).
+    "default_bail": [
+        "M. Ravindran v Intelligence Officer, Directorate of Revenue Intelligence",
+        "Bikramjit Singh v State of Punjab",
+    ],
     "dk_basu_safeguards": [
         "D.K. Basu v State of West Bengal",
     ],

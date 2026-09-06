@@ -10,6 +10,22 @@
 > four live cases the baseline left failing now pass, verified live *even
 > with Indian Kanoon returning 403s*, because the anchors come from the
 > local corpus. Findings #4–#7 and research fixes 3–8 remain open.
+>
+> **Update 2026-09-06 (Fix 4):** finding **#4** closed. Added three
+> default-bail Supreme Court landmarks to the corpus — **M. Ravindran v
+> Intelligence Officer, DRI** (2021) 2 SCC 485, **Bikramjit Singh v State
+> of Punjab** (2020) 10 SCC 616, **Rakesh Kumar Paul v State of Assam**
+> (2017) 15 SCC 67 (9 curated `curated_excerpt` chunks, all
+> component-verified verbatim, embedded). `DOCTRINE_ANCHOR_CASES["default_bail"]`
+> now anchors Ravindran → Bikramjit (Rakesh Kumar Paul is embedded and
+> retrievable but not a guaranteed-display anchor). Live eval of
+> `default-bail-75-days`: `show_user=True`, both anchors lead the ranked
+> list (scores 1.02 / 0.96) and display, glosses on point, every invariant
+> held. `test_doctrine_anchors` / `test_related_judgments` /
+> `test_eval_related_judgments` updated (the "whitelisted but nothing
+> clears the floor" regression guard now suppresses anchor injection,
+> since no whitelist topic is anchor-less any more). Findings #5–#7 and
+> research fixes 3–8 remain open.
 
 ---
 
@@ -80,11 +96,13 @@ hours"), it does not match the `twenty_four_hour_production` patterns, so
 for a settled-law question. Add patterns for "produce/produced before
 (a) magistrate within [a] mandatory/statutory time limit".
 
-### 4. `default_bail` is a whitelisted topic with no corpus judgment
+### 4. `default_bail` is a whitelisted topic with no corpus judgment — CLOSED (Fix 4, 2026-09-06)
 
 `default-bail-75-days`: every candidate came from live IK and none was on
-point. Corpus-seeding target — Bikramjit Singh Bansal / Rakesh Kumar Paul
-/ M. Ravindran.
+point. **Fixed** by seeding the corpus with M. Ravindran v Intelligence
+Officer DRI, Bikramjit Singh v State of Punjab, and Rakesh Kumar Paul v
+State of Assam (9 chunks), and anchoring `default_bail` to Ravindran →
+Bikramjit. Re-run 2026-09-06: both anchors lead the panel and display.
 
 ### 5. Live dedup misses
 

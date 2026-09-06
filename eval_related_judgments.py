@@ -432,14 +432,17 @@ _OFF = {
         },
     },
     "off-whitelisted-but-weak": {
+        # Every whitelist topic now has a doctrine anchor (Fix 4 closed the
+        # last gap, default_bail), so this fixture suppresses anchor injection
+        # to keep exercising the 'both panels never empty' regression: a
+        # whitelisted question where nothing -- anchor or search hit -- clears
+        # the display floor, and unverified_for_display must fall back to the
+        # full ranked list rather than leaving the user with nothing.
+        "suppress_anchors": True,
         "decompose": {
             "primary_grievance": "held long without a chargesheet",
             "procedural_stage": "post-arrest",
             "issues": [
-                # default_bail is the one whitelisted topic with NO curated
-                # doctrine anchor (no corpus judgment yet), so it is still a
-                # real test of the 'both panels never empty' regression:
-                # for_display genuinely can end up empty here.
                 {"issue": "chargesheet not filed within the statutory limit",
                  "hook_phrase": "still no chargesheet after ninety days",
                  "section_hooks": ["BNSS 187"],
@@ -455,10 +458,10 @@ _OFF = {
         "expect": {
             "expect_show_user": True,
             "expect_topics": ["default_bail"],
-            "notes": "Whitelisted (default_bail) but that topic has no doctrine anchor and "
-                     "every candidate scores under the display floor -> for_display empty, "
-                     "unverified_for_display falls back to the full list (the 2026-09-05 "
-                     "'both panels empty' regression guard).",
+            "notes": "Whitelisted (default_bail) with anchor injection suppressed for this "
+                     "fixture; every candidate scores under the display floor -> for_display "
+                     "empty, unverified_for_display falls back to the full list (the "
+                     "2026-09-05 'both panels empty' regression guard).",
         },
     },
     "off-anchor-fills-panel": {
@@ -587,6 +590,9 @@ def _run(question, kwargs, *, disable_live, offline_slug):
         stack.append(patch.dict(os.environ, {rj._KILL_SWITCH_ENV: "1"}))
     if offline_slug is not None:
         stack.append(patch.object(rj, "approved_candidates", lambda profile, **kw: []))
+        if _OFF.get(offline_slug, {}).get("suppress_anchors"):
+            stack.append(patch("doctrine_anchors.anchor_candidates",
+                               lambda *a, **k: []))
     for ctx in stack:
         ctx.__enter__()
     try:
