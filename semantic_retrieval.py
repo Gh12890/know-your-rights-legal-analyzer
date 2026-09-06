@@ -32,7 +32,9 @@ check_cognizable_arrest_basis, just extended to open-ended questions.
 """
 
 import json
+import math
 import os
+import re
 import logging
 import numpy as np
 
@@ -190,6 +192,178 @@ def semantic_search(query, top_k=TOP_MATCHES_TO_CONSIDER, _raise_errors=False):
         record["score"] = float(scores[idx])
         results.append(record)
     return results
+
+
+# ---------------------------------------------------------------------
+# Lexical (BM25) search -- the "second way" to search the corpus.
+#
+# WHY (Lane B eval baseline, finding #1 + its "common thread", 2026-09-05):
+# semantic_search alone ranks by MEANING. It is good at paraphrase but
+# glosses over literal strings -- someone who types the exact phrase
+# "look out circular" or "Section 66A" or a case name does not reliably
+# get the judgment that contains those literal words, because the
+# embedding of a framework-heavy landmark ("OM/LOC-framework validity",
+# "Clause 8(j)") sits far from the plain description of the situation.
+# Okapi BM25 -- classic keyword ranking, the way Ctrl-F would score a
+# match -- is the complementary signal. Pure Python + numpy over the
+# ~1.6K already-loaded corpus chunks: no new dependency (rank_bm25 /
+# sklearn are not installed and requirements.txt is a fragile UTF-16
+# file on Streamlit Cloud), no API, no network, sub-millisecond.
+#
+# This is a RECALL aid for Lane B's corpus candidate pool, fused with
+# semantic_search in hybrid_search(). It is deliberately NOT wired into
+# Lane A's find_relevant_sections (the verified answer path) -- that
+# change would need its own eval_chat_answers run and ships separately.
+# ---------------------------------------------------------------------
+
+_LEX_TOKEN_RE = re.compile(r"[a-z0-9]+")
+_BM25_K1 = 1.5
+_BM25_B = 0.75
+_RRF_K = 60  # Reciprocal Rank Fusion constant (the standard default)
+
+_lexical_cache = None
+
+
+def _lex_tokenize(text):
+    return _LEX_TOKEN_RE.findall((text or "").lower())
+
+
+def _build_lexical_index():
+    """Build (once, cached) an inverted BM25 index over the same corpus
+    chunk records semantic_search uses. Returns None when the embeddings
+    file is absent -- the corpus records live in that same file."""
+    global _lexical_cache
+    if _lexical_cache is not None:
+        return _lexical_cache
+    corpus = _load_corpus_embeddings()
+    if corpus is None:
+        return None
+    records = corpus["records"]
+    doc_tokens = [_lex_tokenize(r.get("text", "")) for r in records]
+    n_docs = len(doc_tokens)
+    doc_len = np.array([len(t) for t in doc_tokens], dtype=float)
+    avgdl = float(doc_len.mean()) if n_docs else 0.0
+
+    postings = {}   # term -> list[(doc_idx, term_freq)]
+    df = {}         # term -> document frequency
+    for i, toks in enumerate(doc_tokens):
+        counts = {}
+        for t in toks:
+            counts[t] = counts.get(t, 0) + 1
+        for t, f in counts.items():
+            postings.setdefault(t, []).append((i, f))
+            df[t] = df.get(t, 0) + 1
+    idf = {t: math.log(1.0 + (n_docs - n + 0.5) / (n + 0.5)) for t, n in df.items()}
+
+    _lexical_cache = {
+        "records": records, "postings": postings, "idf": idf,
+        "doc_len": doc_len, "avgdl": avgdl or 1.0,
+    }
+    return _lexical_cache
+
+
+def lexical_search(query, top_k=TOP_MATCHES_TO_CONSIDER):
+    """Plain word-match (Okapi BM25) over the corpus chunk text -- the
+    Ctrl-F half of hybrid_search. Catches literal phrases ("look out
+    circular", "Section 66A", a case name) that meaning-only search
+    glosses over. No embeddings, no API, no network.
+
+    Returns the same {**record, 'score'} dict shape semantic_search
+    returns, EXCEPT 'score' here is the raw BM25 score (a positive
+    magnitude, NOT a cosine, NOT comparable across the two searches --
+    hybrid_search fuses by RANK, not score, for exactly this reason).
+    Returns [] (never None) when the corpus file is missing or the query
+    carries no indexable term -- lexical search has no external
+    dependency that can be 'unavailable' the way Voyage can."""
+    idx = _build_lexical_index()
+    if idx is None:
+        return []
+    q_terms = {t for t in _lex_tokenize(query) if t in idx["postings"]}
+    if not q_terms:
+        return []
+
+    k1, b = _BM25_K1, _BM25_B
+    doc_len, avgdl = idx["doc_len"], idx["avgdl"]
+    scores = {}
+    for t in q_terms:
+        idf_t = idx["idf"][t]
+        for doc_i, f in idx["postings"][t]:
+            denom = f + k1 * (1.0 - b + b * doc_len[doc_i] / avgdl)
+            scores[doc_i] = scores.get(doc_i, 0.0) + idf_t * (f * (k1 + 1.0)) / denom
+
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
+    out = []
+    for doc_i, s in ranked:
+        if s <= 0.0:
+            break
+        rec = dict(idx["records"][doc_i])
+        rec.pop("embedding", None)
+        rec["score"] = float(s)
+        rec["lexical_score"] = float(s)
+        out.append(rec)
+    return out
+
+
+def hybrid_search(query, top_k=TOP_MATCHES_TO_CONSIDER, *,
+                  semantic_fn=None, lexical_fn=None):
+    """Search the corpus BOTH ways -- by meaning (semantic_search) and by
+    literal words (lexical_search) -- and fuse the two ranked lists with
+    Reciprocal Rank Fusion (each list contributes 1/(RRF_K + rank); a
+    doc near the top of BOTH lists wins). Rank-based fusion, so BM25's
+    uncalibrated magnitude never competes with a cosine on raw scale.
+
+    A RECALL aid, not a re-ranker: it widens the candidate pool so an
+    exact phrase reaches the right judgment even when the meaning search
+    drifts. Whatever consumes this still applies its own threshold /
+    Voyage rerank downstream (Lane B's fetch_and_pin does).
+
+    Degrades cleanly:
+      - Voyage unavailable (semantic_search -> None): returns the lexical
+        results alone -- strictly more robust than semantic_search, which
+        returns None here.
+      - both arms empty AND semantic was the None kind: returns None (the
+        honest "corpus retrieval unavailable" signal callers already
+        handle); both arms empty otherwise: returns [].
+
+    Each record carries: 'score' (fused RRF score), 'semantic_score' /
+    'lexical_score' (raw, when that arm retrieved it), and 'retrieval'
+    ('hybrid' | 'semantic' | 'lexical')."""
+    semantic_fn = semantic_fn or semantic_search
+    lexical_fn = lexical_fn or lexical_search
+
+    sem_raw = semantic_fn(query, top_k=top_k)
+    lex = lexical_fn(query, top_k=top_k) or []
+    sem = sem_raw or []
+    if not sem and not lex:
+        return None if sem_raw is None else []
+
+    def _key(r):
+        return r.get("chunk_id") or (r.get("case_name"), r.get("paragraph_number"),
+                                     r.get("section_number"))
+
+    fused = {}
+    for rank, r in enumerate(sem):
+        e = fused.setdefault(_key(r), {"record": dict(r), "rrf": 0.0})
+        e["rrf"] += 1.0 / (_RRF_K + rank + 1)
+        e["record"]["semantic_score"] = r.get("score")
+    for rank, r in enumerate(lex):
+        e = fused.get(_key(r))
+        if e is None:
+            e = fused.setdefault(_key(r), {"record": dict(r), "rrf": 0.0})
+        e["rrf"] += 1.0 / (_RRF_K + rank + 1)
+        e["record"]["lexical_score"] = r.get("score")
+
+    out = []
+    for e in sorted(fused.values(), key=lambda x: x["rrf"], reverse=True)[:top_k]:
+        rec = e["record"]
+        rec.pop("embedding", None)
+        rec["score"] = e["rrf"]
+        ss = rec.get("semantic_score")
+        ls = rec.get("lexical_score")
+        rec["retrieval"] = ("hybrid" if ss is not None and ls is not None
+                            else "lexical" if ss is None else "semantic")
+        out.append(rec)
+    return out
 
 
 def rerank(query, documents, top_k=None, _raise_errors=False):

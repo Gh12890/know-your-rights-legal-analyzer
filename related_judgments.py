@@ -604,7 +604,14 @@ def corpus_candidates(anchors, *, local_search_fn=None, local_search_many_fn=Non
     """
     if local_search_many_fn is None and local_search_fn is None:
         try:
-            from semantic_retrieval import semantic_search as local_search_fn
+            # hybrid_search = semantic (meaning) + BM25 (literal words),
+            # rank-fused. The BM25 half is what lets an exact phrase a user
+            # types ("look out circular", "Section 66A", a case name) reach
+            # the right corpus judgment when the embedding of a
+            # framework-heavy landmark sits far from the plain wording.
+            # Recall only -- fetch_and_pin's Voyage rerank is still the
+            # authoritative ranker for what actually displays.
+            from semantic_retrieval import hybrid_search as local_search_fn
         except Exception:
             return []
 

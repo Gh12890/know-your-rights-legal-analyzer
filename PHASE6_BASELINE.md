@@ -24,8 +24,32 @@
 > held. `test_doctrine_anchors` / `test_related_judgments` /
 > `test_eval_related_judgments` updated (the "whitelisted but nothing
 > clears the floor" regression guard now suppresses anchor injection,
-> since no whitelist topic is anchor-less any more). Findings #5–#7 and
-> research fixes 3–8 remain open.
+> since no whitelist topic is anchor-less any more). Findings #5-#7 and
+> research fixes 3-8 remain open.
+>
+> **Update 2026-09-06 (Fix: hybrid corpus search):** Lane B's corpus
+> candidate pool is now retrieved **two ways** - `semantic_search`
+> (meaning) plus `semantic_retrieval.lexical_search` (Okapi BM25, pure
+> Python, no new dependency) - rank-fused via RRF in
+> `semantic_retrieval.hybrid_search`, wired into
+> `related_judgments.corpus_candidates`. Recall only: `fetch_and_pin`'s
+> Voyage rerank is still the authoritative ranker for what displays.
+> Live re-run of the four affected cases (0 check failures): **finding
+> #2 improved** - a "Section 66A" question now ranks Shreya Singhal
+> `0.664` at the head of the ranked list (baseline ~0.44, under the
+> floor, hidden ~half the runs); **`loc-igi-airport`** - Viraj Chetan
+> Shah now enters the pool as a genuine corpus candidate (`0.51`,
+> displayed) rather than never surfacing. Lexical false-friends (NALSA
+> on "partner"/"medical") never reached `for_display` - the downstream
+> rerank + floor filtered them, as designed. Also a free resilience
+> win: if Voyage is down, `hybrid_search` returns the lexical results
+> alone instead of an empty panel. **Finding #1 is only partly helped**
+> - Viraj Chetan Shah's chunks genuinely lack "airport"/"immigration"
+> vocabulary, so pure layman phrasing still needs the corpus-side
+> plain-language chunk (Fix 5). `test_hybrid_search.py` added. Lane A's
+> `find_relevant_sections` (the verified answer path) is deliberately
+> **not** switched to hybrid - that needs its own `eval_chat_answers`
+> run and ships separately.
 
 ---
 
@@ -74,6 +98,14 @@ instead, all glossed "not closely on point". Fix is corpus-side: add a
 plain-language chunk (or re-chunk) so the LOC landmark matches how a
 person actually describes an LOC detention.
 
+> **Partly addressed (2026-09-06):** hybrid corpus search + the Fix 1
+> doctrine anchor now get Viraj Chetan Shah into the pool and onto the
+> panel for `loc-igi-airport`. But the *retrieval* weakness this finding
+> names is real and unfixed — BM25 can't match "airport"/"immigration"
+> against a chunk that doesn't contain those words. The corpus-side
+> plain-language chunk (Fix 5) is still the right fix for the
+> retrieval-only path.
+
 ### 2. Canonical corpus judgments score just under the trusted-panel floor — INTERMITTENT
 
 `dk-basu-medical` (D.K. Basu) and `itact-66a-whatsapp` (Shreya Singhal):
@@ -86,6 +118,14 @@ stays suppressed and the landmark is shown **nowhere**. Candidates:
 raise/curve the floor for a verified corpus case, or always admit a
 corpus case whose gloss is on point, or fall back to unverified when the
 best corpus case is excluded.
+
+> **Improved (2026-09-06):** Fix 1's doctrine anchor already guarantees
+> both these landmarks display. On top of that, hybrid corpus search
+> lifts a "Section 66A" question's Shreya Singhal to `0.664` at the head
+> of the ranked list (well clear of the floor) because the chunk
+> contains the literal string "Section 66A". D.K. Basu likewise benefits
+> when the query names it. The floor-tuning ideas above are no longer
+> urgent.
 
 ### 3. `twenty_four_hour_production` whitelist entry has a phrasing gap — INTERMITTENT
 
