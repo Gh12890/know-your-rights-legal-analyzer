@@ -50,6 +50,16 @@
 > `find_relevant_sections` (the verified answer path) is deliberately
 > **not** switched to hybrid - that needs its own `eval_chat_answers`
 > run and ships separately.
+>
+> **Update 2026-09-06 (Fix 5):** finding **#1** closed. Four verbatim
+> plain-language `curated_excerpt` chunks added to the Viraj Chetan Shah
+> (LOC) corpus entry (para 3+7, para 155, para 194-195, and the MHA OM's
+> no-cognizable-offence clause). After re-embedding, Viraj Chetan Shah is
+> the #1 corpus hit for the exact eval query and every layman variant in
+> semantic, lexical, and hybrid search - no anchor help needed. Live
+> `loc-igi-airport` re-run: 0 check failures. See finding #1 for detail.
+> Findings #5-#7 and the Pankaj-Bansal / Vijay-Kumar-Ghai re-chunk
+> remain open.
 
 ---
 
@@ -86,7 +96,7 @@ gloss all vary).
 
 ## Findings, most to least serious
 
-### 1. A whitelisted corpus landmark is unreachable by its own doctrine's plain query — CONSISTENT
+### 1. A whitelisted corpus landmark is unreachable by its own doctrine's plain query — CLOSED (Fix 5, 2026-09-06)
 
 `loc-igi-airport`: **Viraj Chetan Shah v Union of India** (the LOC case,
 in the corpus, whitelisted topic `loc_validity_challenge`) **never
@@ -98,13 +108,27 @@ instead, all glossed "not closely on point". Fix is corpus-side: add a
 plain-language chunk (or re-chunk) so the LOC landmark matches how a
 person actually describes an LOC detention.
 
-> **Partly addressed (2026-09-06):** hybrid corpus search + the Fix 1
-> doctrine anchor now get Viraj Chetan Shah into the pool and onto the
-> panel for `loc-igi-airport`. But the *retrieval* weakness this finding
-> names is real and unfixed — BM25 can't match "airport"/"immigration"
-> against a chunk that doesn't contain those words. The corpus-side
-> plain-language chunk (Fix 5) is still the right fix for the
-> retrieval-only path.
+> **CLOSED (Fix 5, 2026-09-06).** Added four `curated_excerpt` chunks to
+> the Viraj Chetan Shah corpus entry, all verbatim from the court's own
+> plain-language prose: para 3+7 (what a PSB Look Out Circular *is* and
+> does — "no prior notice", "not even given a copy", "not … allowed to
+> board the flight"); para 155 (the procedural defects common to every
+> LOC); para 194–195 (the operative result — all PSB-triggered LOCs
+> quashed, Bureau of Immigration directed to ignore them); and the MHA
+> OM's own clause (h)/6(I) — no cognizable offence ⇒ the LOC subject
+> "cannot be detained/arrested or prevented from leaving the country".
+> After re-embedding, **Viraj Chetan Shah is the #1 corpus hit** on the
+> exact baseline eval query and on every layman variant tried
+> ("stopped at the airport", "immigration stopped me from leaving the
+> country, no criminal case"), in semantic search, lexical search, and
+> hybrid — no anchor help needed. Live `loc-igi-airport` re-run: 0 check
+> failures, Viraj Chetan Shah displayed with a much sharper gloss.
+> (Hybrid search also lifted Arnesh Kumar to #1 for a plain
+> "arrested without a Section 41A notice" query. Pankaj Bansal and Vijay
+> Kumar Ghai still miss their plain query — the "corpus retrieval
+> misses" list below — but Pankaj Bansal is an anchor and Vijay Kumar
+> Ghai's ground is covered by Usha Chakraborty; a targeted re-chunk of
+> those two is the natural next corpus-side pass, not part of Fix 5.)
 
 ### 2. Canonical corpus judgments score just under the trusted-panel floor — INTERMITTENT
 
@@ -183,6 +207,17 @@ The common thread with finding #1: **the judgment corpus is retrieved by
 semantic similarity to the user's plain words, and several landmarks
 don't match their own doctrine's plain-language description well.** This
 is the biggest single lever for Lane B answer quality.
+
+> **Update 2026-09-06:** two structural fixes landed against this common
+> thread — hybrid corpus search (semantic + BM25, commit 67f2c92) and
+> the Fix 5 plain-language re-chunk of the LOC landmark. `arnesh-no-notice`
+> is resolved (Arnesh Kumar now the #1 hit for a plain "arrested without
+> a 41A notice" query). `partnership-cheating` and
+> `grounds-of-arrest-not-given` still miss their own landmark by
+> retrieval, but each is covered another way (Usha Chakraborty / the
+> Pankaj Bansal doctrine anchor); a targeted re-chunk of Pankaj Bansal
+> and Vijay Kumar Ghai in their own plain words is the next corpus-side
+> pass.
 
 ## What passed cleanly every run
 
