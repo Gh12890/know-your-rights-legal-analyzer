@@ -172,7 +172,7 @@ div[data-testid="column"] div.stButton > button p{ font-size:.92rem; color:var(-
   box-shadow:0 0 0 3px var(--seal-tint) !important; }
 
 /* ---------- primary button (the one clear action) ---------- */
-div.stButton > button[kind="primary"]{
+button[kind="primary"], button[kind="primaryFormSubmit"]{
   background:var(--seal) !important; border:1px solid var(--seal-deep) !important;
   color:#fff !important;
   font-family:"IBM Plex Sans",sans-serif !important; font-weight:600 !important;
@@ -181,11 +181,12 @@ div.stButton > button[kind="primary"]{
   width:100%; margin-top:.9rem;
   box-shadow:0 8px 20px -12px rgba(15,84,77,.55);
 }
-div.stButton > button[kind="primary"]:hover{
+button[kind="primary"]:hover, button[kind="primaryFormSubmit"]:hover{
   background:var(--seal-deep) !important; border-color:var(--seal-deep) !important;
 }
-div.stButton > button[kind="primary"] p{ color:#fff !important; font-size:1rem !important;
-  font-weight:600 !important; }
+button[kind="primary"] p, button[kind="primaryFormSubmit"] p{
+  color:#fff !important; font-size:1rem !important; font-weight:600 !important; }
+[data-testid="stForm"]{ border:0 !important; padding:0 !important; }
 div.stButton > button[kind="secondary"]{
   background:transparent; border:1px solid var(--seal); color:var(--seal);
   font-family:"IBM Plex Sans",sans-serif; font-weight:500; border-radius:8px;
@@ -334,18 +335,33 @@ EXAMPLES = {
 if "text" not in st.session_state:
     st.session_state.text = ""
 
+
+def _reset_answer():
+    """Drop the previous answer + draft so a new question never shows a
+    stale reply."""
+    st.session_state.pop("answer", None)
+    st.session_state.pop("answer_msg", None)
+    st.session_state.pop("doc", None)
+
+
 st.html('<div class="r-label">Start with a situation</div>')
 cols = st.columns(len(EXAMPLES))
 for c, (label, val) in zip(cols, EXAMPLES.items()):
     if c.button(label, use_container_width=True, key=f"ex_{label[:10]}"):
         st.session_state.text = val
+        _reset_answer()
 
 st.html('<div class="r-label">&hellip; or describe your own</div>')
-msg = st.text_area("Describe your situation", key="text", height=120,
-                   label_visibility="collapsed",
-                   placeholder="e.g. My brother was arrested four days ago and still hasn't been produced in court…")
 
-go = st.button("Check my situation  →", type="primary", use_container_width=True)
+# A form so the textarea's current value and the submit click are processed
+# TOGETHER in one rerun -- without it, the first click after typing only
+# commits the text and the previous answer keeps showing.
+with st.form("situation_form", border=False, clear_on_submit=False):
+    msg = st.text_area("Describe your situation", key="text", height=120,
+                       label_visibility="collapsed",
+                       placeholder="e.g. My brother was arrested four days ago and still hasn't been produced in court…")
+    go = st.form_submit_button("Check my situation  →", type="primary",
+                               use_container_width=True)
 
 
 # --------------------------------------------------------------------------
@@ -470,13 +486,15 @@ def render_right(i, r):
 # run
 # --------------------------------------------------------------------------
 if go and msg.strip():
+    st.session_state.pop("doc", None)          # never carry a stale draft over
     with st.spinner("Working out your situation…"):
         answer = build_scenario_answer(msg)
     st.session_state.answer = answer
     st.session_state.answer_msg = msg
 
 answer = st.session_state.get("answer")
-if answer:
+# only show an answer that matches what's currently in the box
+if answer and st.session_state.get("answer_msg", "").strip() == (msg or "").strip():
     msg = st.session_state.get("answer_msg", msg)
     st.html('<hr class="r-rule">')
 

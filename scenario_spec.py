@@ -102,7 +102,7 @@ _SCENARIOS = [
     # -------------------------------------------------------------------
     Scenario(
         id="DEFAULT_BAIL",
-        label="Chargesheet deadline missed - default bail",
+        label="Held past the chargesheet deadline",
         role="family",
         stage="in custody, investigation ongoing, chargesheet not yet filed",
         stage_explainer=(
@@ -209,7 +209,7 @@ _SCENARIOS = [
     # -------------------------------------------------------------------
     Scenario(
         id="ARREST_WOMAN",
-        label="Woman arrested - grounds, night arrest, custody safeguards",
+        label="A woman has been arrested",
         role="family",
         stage="arrested, in custody, first 24 hours, reason not given",
         stage_explainer=(
@@ -478,7 +478,7 @@ _SCENARIOS = [
     # RESERVE 1 - the ONLY home of Arnesh Kumar.
     Scenario(
         id="SUMMONS_PRE_ARREST",
-        label="Notice to appear / fear of arrest (offence up to 7 years)",
+        label="A notice to appear, or a feared arrest",
         role="accused",
         stage="not arrested - served or expecting a notice to appear, or fears arrest",
         stage_explainer=(
@@ -573,7 +573,7 @@ _SCENARIOS = [
     # RESERVE 2 - minimal; a different domain, kept as a routing target.
     Scenario(
         id="CHEQUE_BOUNCE_NOTICE",
-        label="Cheque bounced - the notice stage",
+        label="A cheque has bounced",
         role="complainant",
         stage="cheque dishonoured, deciding whether to send the statutory notice",
         stage_explainer=(
