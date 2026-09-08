@@ -62,7 +62,9 @@ check(all(m.get("text") for m in ov), "every anchored paragraph has real text")
 check(all(m.get("source") == "curated_judgment_override" for m in ov),
       "every anchor is tagged curated_judgment_override")
 check(all(m.get("type") == "judgment" for m in ov), "every anchor is typed 'judgment'")
-check(len(ov) <= 6, "total anchored paragraphs are capped (<=6)")
+check(len(ov) <= 8, "total anchored paragraphs are capped (<=8)")
+check(len({m["case_name"] for m in ov}) >= 4,
+      "a multi-issue query surfaces at least 4 distinct cases (round-robin)")
 per_case = {}
 for m in ov:
     per_case[m["case_name"]] = per_case.get(m["case_name"], 0) + 1

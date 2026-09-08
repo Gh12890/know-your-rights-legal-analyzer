@@ -40,9 +40,11 @@ import logging
 logger = logging.getLogger("judgment_doctrine_map")
 
 # Caps to keep a multi-trigger query (arrest + cheating + FIR-refusal) from
-# flooding the prompt. Entries earlier in the map win. Per-entry cap keeps
-# one talkative doctrine from crowding out the others.
-_MAX_ANCHORED_PARAGRAPHS = 6
+# flooding the prompt. Paragraphs are gathered round-robin -- one per matched
+# doctrine first, then second paragraphs -- so every relevant CASE gets in
+# before any case gets a second paragraph. Entries earlier in the map win
+# ties. Per-entry cap keeps one talkative doctrine from crowding out others.
+_MAX_ANCHORED_PARAGRAPHS = 8
 _MAX_PARAGRAPHS_PER_ENTRY = 2
 
 
@@ -124,6 +126,47 @@ JUDGMENT_DOCTRINE_MAP = {
             "7-direction checklist (fallback_12/13) is separately mapped as "
             "'arnesh_kumar_checklist' in retrieval.JUDGMENT_CITATION_MAP. "
             "Added 2026-09-08."
+        ),
+    },
+    "notice_is_the_rule_arrest_is_the_exception_bnss": {
+        "case_key": "satender_kumar_antil_2026",
+        "paragraph_numbers": ["31", "33"],
+        "opinion_author": None,
+        "trigger_groups": [
+            ("arrested", "cheating"), ("arrested", "breach of trust"),
+            ("arrested", "theft"), ("arrested", "stole"), ("arrested", "hurt"),
+            ("arrested", "assault"), ("arrested", "forgery"), ("arrested", "318"),
+            ("arrested", "316"), ("arrested", "directly"),
+            ("arrested", "without", "notice"), ("no notice", "arrest"),
+            ("arrest", "not necessary"), ("35(3)",), ("41a",), ("41-a",),
+            ("came to my house", "arrested"), ("straight to arrest",),
+            ("should have got a notice",),
+        ],
+        "context_note": (
+            "In Satender Kumar Antil v CBI, 2026 INSC 115 (order dated "
+            "15 January 2026) the Supreme Court, interpreting the new "
+            "Bharatiya Nagarik Suraksha Sanhita, held plainly that for an "
+            "offence punishable with imprisonment up to seven years a NOTICE "
+            "under Section 35(3) of the BNSS is the RULE and an arrest under "
+            "Section 35(6) is the EXCEPTION. Its conclusions: an arrest is a "
+            "statutory discretion, never mandatory; the officer must ask "
+            "whether arrest is a necessity before making it; even where the "
+            "Section 35(1)(b) conditions exist, the arrest must not be made "
+            "unless it is 'absolutely warranted'; and the power to arrest "
+            "after a notice has issued is 'not a matter of routine, but an "
+            "exception'. This is the current-code restatement of Arnesh "
+            "Kumar."
+        ),
+        "verified_note": (
+            "Paras 31 and 33 (the court's own holding and its lettered "
+            "conclusions) read verbatim in chunks/satender_kumar_antil_v_"
+            "central_bureau_of_investigation_(2026)_chunks.json; both are "
+            "x1 (paras 24 and 32 in this file are duplicated because it "
+            "quotes the 2022 Satender Kumar Antil and Arnesh Kumar inline -- "
+            "deliberately not used). Citation 2026 INSC 115. case_key is "
+            "'satender_kumar_antil_2026' -- the hardcoded key in "
+            "retrieval._JUDGMENT_CHUNK_FILES (auto-register skips a file "
+            "already registered under any key). Added 2026-09-08."
         ),
     },
     "twenty_four_hour_production_and_custodial_safeguards": {
@@ -290,6 +333,141 @@ JUDGMENT_DOCTRINE_MAP = {
             "west_bengal_chunks.json (11-chunk file). Added 2026-09-08."
         ),
     },
+    "property_dispute_dressed_as_forgery_or_cheating": {
+        "case_key": "md_ibrahim",
+        "paragraph_numbers": [
+            "civil_dispute_criminal_cloak_caution",
+            "forgery_false_document_ownership_claim",
+        ],
+        "opinion_author": None,
+        "trigger_groups": [
+            ("forgery", "property"), ("forged", "property"),
+            ("forgery", "land"), ("forged", "land"),
+            ("forgery", "sale deed"), ("forged", "sale deed"),
+            ("forgery", "document", "dispute"),
+            ("false document", "property"), ("false document", "land"),
+            ("forged", "signature", "property"), ("forged", "signature", "land"),
+            ("forgery", "ancestral"), ("cheating", "ancestral"),
+            ("fir", "property dispute"), ("fir", "land dispute"),
+            ("arrested", "property dispute"), ("arrested", "land dispute"),
+            ("civil", "property", "criminal"),
+        ],
+        "context_note": (
+            "In Md. Ibrahim v State of Bihar (2009) 8 SCC 751 the Supreme "
+            "Court set aside a criminal case arising from a land dispute, "
+            "warning against the growing tendency to give a civil dispute "
+            "the 'cloak of a criminal offence' to apply pressure. On "
+            "forgery, it held that a person who executes a sale deed "
+            "claiming that the property is his own -- even if that "
+            "ownership claim is wrong or disputed -- does not thereby make "
+            "a 'false document': forgery requires making a document "
+            "dishonestly purporting to be made by someone who did not make "
+            "it, or with a false date, etc. A genuine document containing a "
+            "claim later found to be untrue is not a forged document, and a "
+            "boundary/title dispute is for the civil court."
+        ),
+        "verified_note": (
+            "Para slugs 'civil_dispute_criminal_cloak_caution' and "
+            "'forgery_false_document_ownership_claim' read verbatim in "
+            "chunks/md_ibrahim_v_state_of_bihar_chunks.json. Citation "
+            "(2009) 8 SCC 751. Added 2026-09-08."
+        ),
+    },
+    # ---- theft: dishonest intention is the ingredient -----------------
+    "theft_requires_dishonest_intention": {
+        "case_key": "kn_mehra",
+        "paragraph_numbers": ["essential_ingredients"],
+        "opinion_author": None,
+        "trigger_groups": [
+            ("theft", "intention"), ("theft", "dishonest"),
+            ("stole", "intention"), ("stole", "dishonest"),
+            ("theft", "consent"), ("stole", "consent"),
+            ("arrested", "theft", "dispute"),
+            ("theft", "did not intend"), ("theft", "no intention"),
+            ("borrowed", "theft"), ("permission", "theft"),
+        ],
+        "context_note": (
+            "In K.N. Mehra v State of Rajasthan, AIR 1957 SC 369 the Supreme "
+            "Court set out the two essential ingredients of theft: (1) the "
+            "movable property was moved out of a person's possession WITHOUT "
+            "their consent, and (2) the moving was done WITH A DISHONEST "
+            "INTENTION at that time. Both must be present. If the person had "
+            "consent (express or implied) to take the thing, or genuinely "
+            "had no dishonest intention when they took it, the offence of "
+            "theft is not made out."
+        ),
+        "verified_note": (
+            "Slug 'essential_ingredients' read verbatim in "
+            "chunks/kn_mehra_v_state_of_rajasthan_chunks.json (single "
+            "chunk). Citation AIR 1957 SC 369. Added 2026-09-08."
+        ),
+    },
+    "temporary_taking_can_still_be_theft": {
+        "case_key": "pyare_lal_bhargava",
+        "paragraph_numbers": ["theft_temporary_deprivation"],
+        "opinion_author": None,
+        "trigger_groups": [
+            ("theft", "returned"), ("theft", "gave back"),
+            ("theft", "brought back"), ("stole", "returned"),
+            ("stole", "gave it back"), ("took", "returned", "theft"),
+            ("temporarily", "theft"), ("temporary", "theft"),
+            ("borrowed", "theft"), ("meant to return",),
+        ],
+        "context_note": (
+            "In Pyare Lal Bhargava v State of Rajasthan, AIR 1963 SC 1094 "
+            "the Supreme Court held that theft does not require permanent "
+            "deprivation -- a temporary taking or dispossession is enough, "
+            "even where the person intended to return the property later, "
+            "because depriving the owner of possession for any period is "
+            "'wrongful loss'. So 'I was going to give it back' is not, by "
+            "itself, a defence to theft; the questions remain consent and "
+            "dishonest intention at the time of taking."
+        ),
+        "verified_note": (
+            "Slug 'theft_temporary_deprivation' read verbatim in "
+            "chunks/pyare_lal_bhargava_v_state_of_rajasthan_chunks.json. "
+            "Citation AIR 1963 SC 1094. Added 2026-09-08."
+        ),
+    },
+    # ---- cruelty / dowry harassment: over-implication of relatives ----
+    "over_implication_of_husbands_relatives_in_cruelty_cases": {
+        "case_key": "kahkashan_kausar_sonam",
+        "paragraph_numbers": ["18_synthesis", "17_subba_rao_quote"],
+        "opinion_author": None,
+        "trigger_groups": [
+            ("498a", "relatives"), ("498a", "in-laws"), ("498a", "family"),
+            ("498a", "parents"), ("498a", "sister"), ("498a", "brother"),
+            ("cruelty", "relatives"), ("cruelty", "in-laws"),
+            ("cruelty", "husband", "family"),
+            ("dowry", "case", "relatives"), ("dowry", "case", "in-laws"),
+            ("dowry", "harassment", "relatives"),
+            ("85", "relatives"), ("85", "in-laws"),
+            ("false", "dowry", "case"), ("false", "498a"),
+            ("wife", "case", "my parents"), ("wife", "case", "my family"),
+            ("named", "all", "family"), ("distant relative", "dowry"),
+        ],
+        "context_note": (
+            "In Kahkashan Kausar @ Sonam v State of Bihar (2022) 6 SCC 599 "
+            "the Supreme Court quashed a Section 498A IPC (cruelty; now "
+            "Section 85 BNS) case against the husband's relatives, noting a "
+            "consistent line of authority expressing concern about the "
+            "'misuse of Section 498A' and the 'tendency of implicating "
+            "relatives of the husband in matrimonial disputes' with general "
+            "and omnibus allegations. Where the complaint makes only vague, "
+            "non-specific allegations against a relative -- no distinct role, "
+            "no specific instance of cruelty attributed to that person -- the "
+            "proceedings against that relative are liable to be quashed. "
+            "This does not dilute a genuine, specific cruelty allegation "
+            "against the husband or a named relative."
+        ),
+        "verified_note": (
+            "Slugs '18_synthesis' (the court's own synthesis of the "
+            "authorities) and '17_subba_rao_quote' (the K. Subba Rao / "
+            "quoted caution) read verbatim in "
+            "chunks/kahkashan_kausar_sonam_v_state_of_bihar_chunks.json. "
+            "Citation (2022) 6 SCC 599. Added 2026-09-08."
+        ),
+    },
     # ---- FIR not registered -------------------------------------------
     "fir_registration_is_mandatory_lalita_kumari": {
         "case_key": "lalita_kumari",
@@ -362,6 +540,46 @@ JUDGMENT_DOCTRINE_MAP = {
             "verbatim in their chunk files. Added 2026-09-08."
         ),
     },
+    "default_bail_oral_application_enough_and_courts_duty": {
+        "case_key": "rakesh_kumar_paul",
+        "paragraph_numbers": [
+            "40_written_or_oral_application_for_default_bail_is_of_no_consequence",
+            "44_court_has_a_duty_to_apprise_the_accused_of_the_right",
+        ],
+        "opinion_author": None,
+        "trigger_groups": [
+            ("chargesheet", "days"), ("charge sheet", "days"),
+            ("no chargesheet",), ("haven't filed", "chargesheet"),
+            ("hasn't filed", "chargesheet"), ("not filed", "chargesheet"),
+            ("default bail",), ("statutory bail",),
+            ("60 days", "custody"), ("90 days", "custody"),
+            ("ninety days",), ("sixty days",),
+            ("no lawyer", "chargesheet"), ("cannot afford", "lawyer", "custody"),
+        ],
+        "context_note": (
+            "In Rakesh Kumar Paul v State of Assam (2017) 15 SCC 67 the "
+            "Supreme Court held that in matters of personal liberty the "
+            "court must not be technical: whether the accused makes a "
+            "WRITTEN application for default bail or only an ORAL one is of "
+            "no consequence, and once the time limit has passed without a "
+            "chargesheet the accused need only indicate they are ready to "
+            "furnish bail. It also held it is the DUTY of the court, on "
+            "coming to know that an accused before it is entitled to default "
+            "bail, to inform them of that indefeasible right. (The case also "
+            "held that 'imprisonment for not less than ten years' means the "
+            "offence must carry a minimum of ten years for the 90-day limit "
+            "to apply -- otherwise the limit is 60 days.)"
+        ),
+        "verified_note": (
+            "Slugs '40_written_or_oral_application_for_default_bail_is_of_no_"
+            "consequence' and '44_court_has_a_duty_to_apprise_the_accused_of_"
+            "the_right' read verbatim in "
+            "chunks/rakesh_kumar_paul_v_state_of_assam_chunks.json. Citation "
+            "(2017) 15 SCC 67. Added 2026-09-08. Complements the M. Ravindran "
+            "entry above; section-order sort + total cap keep the pair from "
+            "flooding a default-bail answer."
+        ),
+    },
 }
 
 
@@ -398,8 +616,8 @@ def get_judgment_doctrine_override(question: str) -> list:
     """
     from retrieval import get_judgment_paragraphs
 
-    results = []
-    seen = set()
+    # Resolve each matched doctrine to an ordered list of its paragraphs.
+    per_doctrine = []
     for key in match_judgment_doctrine(question):
         entry = JUDGMENT_DOCTRINE_MAP[key]
         paras = get_judgment_paragraphs(
@@ -413,10 +631,18 @@ def get_judgment_doctrine_override(question: str) -> list:
                 entry["paragraph_numbers"],
             )
             continue
-        # keep the map's own paragraph order, not the chunk-file order
         order = {str(pn): i for i, pn in enumerate(entry["paragraph_numbers"])}
         paras.sort(key=lambda pp: order.get(str(pp.get("paragraph_number")), 99))
-        for p in paras[:_MAX_PARAGRAPHS_PER_ENTRY]:
+        per_doctrine.append((entry, paras[:_MAX_PARAGRAPHS_PER_ENTRY]))
+
+    # Round-robin: every matched case contributes its first paragraph before
+    # any case contributes its second.
+    results, seen = [], set()
+    for rank in range(_MAX_PARAGRAPHS_PER_ENTRY):
+        for entry, paras in per_doctrine:
+            if rank >= len(paras):
+                continue
+            p = paras[rank]
             sig = (p.get("case_name"), str(p.get("paragraph_number")))
             if sig in seen:
                 continue
