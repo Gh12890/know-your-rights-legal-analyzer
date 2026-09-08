@@ -1,0 +1,40 @@
+name: keep-warm
+
+# Keeps the Railway container from spinning down, so a visitor never
+# lands on a 15-40s cold start (Python boot + 38 MB embeddings load).
+# GitHub throttles scheduled runs on busy repos, so the effective
+# interval is roughly every 5-15 minutes -- enough to keep it warm.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping the health endpoint
+        run: |
+          set -euo pipefail
+          URL="${KEEP_WARM_URL:-https://recourse.co.in/_stcore/health}"
+          echo "Pinging $URL"
+          for attempt in 1 2 3; do
+            body="$(curl -fsS --max-time 45 "$URL" || true)"
+            echo "attempt $attempt -> '${body}'"
+            if [ "$body" = "ok" ]; then
+              echo "healthy"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::warning::health endpoint did not return 'ok' after 3 attempts (may be a slow cold start)"
+          # also warm the main page so the first script run is done
+          curl -fsS --max-time 60 -o /dev/null "https://recourse.co.in/" || true
+    env:
+      KEEP_WARM_URL: ${{ vars.KEEP_WARM_URL }}
