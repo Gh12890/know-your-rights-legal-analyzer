@@ -551,6 +551,19 @@ CHEQUE_BOUNCE_CASE_NAMES = frozenset({
     "Prakash Chimanlal Sheth v Jagruti Keyur Rajpopat",
 })
 
+FREEZE_CASE_NAMES = frozenset({
+    "State of Maharashtra v Tapas D. Neogy",
+    "Neelkanth Pharma Logistics Pvt. Ltd. v Union of India",
+    "Malabar Gold and Diamond Limited v Union of India",
+})
+
+# domain= value -> the subset of OUT_OF_CHAT_DOMAIN_CASE_NAMES that
+# becomes admissible for that (and only that) inline answer path.
+_DOMAIN_CARVE_OUT = {
+    "cheque_bounce": CHEQUE_BOUNCE_CASE_NAMES,
+    "freeze": FREEZE_CASE_NAMES,
+}
+
 
 def find_relevant_sections(query, domain=None):
     """Higher-level function for BOTH statute and judgment lookup: returns
@@ -600,13 +613,15 @@ def find_relevant_sections(query, domain=None):
 
     # The freeze/cheque cases are excluded from every chat/Lane-B judgment
     # match by default (OUT_OF_CHAT_DOMAIN_CASE_NAMES) so they never leak
-    # into an arrest answer as vocabulary-overlap noise. domain=="cheque_
-    # bounce" is the ONE caller that has already established the question
-    # IS a Section 138 matter -- for it, and only it, the five cheque cases
-    # become admissible (the freeze cases + Tapas Neogy stay excluded).
+    # into an arrest answer as vocabulary-overlap noise. domain="cheque_
+    # bounce" / "freeze" are the callers that have already established the
+    # question IS that kind of matter -- for each, and only that one, its
+    # own carve-out of cases becomes admissible; the OTHER domain's cases
+    # (and State of Maharashtra v Tapas D. Neogy for a cheque call, etc.)
+    # stay excluded.
     _excluded_cases = OUT_OF_CHAT_DOMAIN_CASE_NAMES
-    if domain == "cheque_bounce":
-        _excluded_cases = OUT_OF_CHAT_DOMAIN_CASE_NAMES - CHEQUE_BOUNCE_CASE_NAMES
+    if domain in _DOMAIN_CARVE_OUT:
+        _excluded_cases = OUT_OF_CHAT_DOMAIN_CASE_NAMES - _DOMAIN_CARVE_OUT[domain]
 
     statute_matches = [r for r in results if r["type"] == "statute" and r["score"] >= STATUTE_SIMILARITY_THRESHOLD]
     judgment_matches = [r for r in results if r["type"] == "judgment" and r["score"] >= JUDGMENT_SIMILARITY_THRESHOLD

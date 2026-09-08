@@ -1542,55 +1542,132 @@ def format_retrieved_text_for_prompt(matches):
     return joined
 
 
-def _answer_cheque_bounce_inline(question):
-    """Produce a full grounded answer for a Section 138 NI Act cheque-
-    bounce question, using the shared corpus's cheque case law (admitted
-    via find_relevant_sections(domain="cheque_bounce")) plus the curated
-    anchors in cheque_bounce_doctrine_map.
+# ---------------------------------------------------------------------------
+# Inline answers for the two "covered elsewhere in the tool" domains
+# (cheque bounce, bank freeze). The chat-only recourse_app has no
+# document-upload handoff, so instead of dead-ending these it answers
+# them from the shared corpus's own case law + a curated doctrine map.
+# app.py passes no inline_domains and keeps its unchanged redirect +
+# assessment-flow handoff. The arrest path is not touched.
+# ---------------------------------------------------------------------------
+
+import re as _re_inline
+
+# A first-person bank-account-FREEZE phrase (the person's own account /
+# funds locked, blocked, or lien-marked). Deliberately specific -- a bare
+# "frozen" or "account" is not enough.
+_FREEZE_PHRASE = _re_inline.compile(
+    r"\b("
+    r"(bank\s+)?account\s+(was|is|has\s+been|got|been)\s+(frozen|blocked|locked|debit[- ]?frozen)"
+    r"|(frozen|froze|blocked|debit[- ]?froze|debit[- ]?frozen)\s+(my|our|the\s+company'?s?|his|her)\s+"
+    r"(bank\s+)?account"
+    r"|bank\s+(has\s+)?(frozen|blocked|debit[- ]?frozen|put\s+a\s+hold\s+on|marked\s+a\s+lien)"
+    r"|(debit\s+freeze|account\s+freeze|blanket\s+freeze)\s+(on|of)\s+(my|our|the)\s+account"
+    r"|lien\s+(has\s+been\s+)?(marked|placed|put)\s+on\s+(my|our|the)\s+(bank\s+)?account"
+    r"|my\s+(bank\s+)?account\s+(is\s+)?under\s+(a\s+)?lien"
+    r"|can'?t\s+(access|withdraw|operate|use)\s+(my|our)\s+(bank\s+)?(account|money|funds|balance)"
+    r"|money\s+in\s+my\s+account\s+is\s+(frozen|blocked|locked)"
+    r")\b",
+    _re_inline.I,
+)
+# ...but NOT when the person themselves has been arrested -- then it is
+# primarily an arrest question and the arrest pipeline should own it.
+_PERSONAL_ARREST_PHRASE = _re_inline.compile(
+    r"\b(i\s+(was|got|am\s+being|have\s+been)\s+arrested|arrested\s+me|police\s+arrested\s+me"
+    r"|i'?m\s+in\s+(police\s+|judicial\s+)?custody|in\s+the\s+lock[- ]?up|taken\s+into\s+custody"
+    r"|my\s+(brother|son|husband|father|wife|daughter|sister|mother)\s+(was|got|has\s+been)\s+arrested)\b",
+    _re_inline.I,
+)
+
+
+def _looks_like_bank_account_freeze(question: str) -> bool:
+    q = question or ""
+    return bool(_FREEZE_PHRASE.search(q)) and not _PERSONAL_ARREST_PHRASE.search(q)
+
+
+_INLINE_DOMAIN_CONFIG = {
+    "cheque_bounce": {
+        "override_import": ("cheque_bounce_doctrine_map", "get_cheque_bounce_override"),
+        "closing_line": (
+            "What you can do next: take the summons, the demand notice and the cheque "
+            "copy to a lawyer or your nearest District Legal Services Authority, who can "
+            "help you file your reply and decide whether to contest or to settle."
+        ),
+    },
+    "freeze": {
+        "override_import": ("freeze_doctrine_map", "get_freeze_override"),
+        "closing_line": (
+            "What you can do next: put a written request to the investigating officer and "
+            "the bank asking for the freeze order and the reasons, and take those to a "
+            "lawyer or your nearest District Legal Services Authority -- the release of a "
+            "wrongly-frozen account is usually pursued before the Magistrate or the High "
+            "Court."
+        ),
+    },
+}
+
+
+def _retarget_inline_closing_line(text, replacement):
+    """The shared RESPONSE_GENERATION_PROMPT ends with an arrest/FIR-
+    flavoured "...upload the FIR or arrest memo here" line. These domains
+    have no document-upload step in the chat-only app, so swap a trailing
+    "upload ... here" line for a domain-appropriate one."""
+    lines = (text or "").rstrip().split("\n")
+    for i in range(len(lines) - 1, -1, -1):
+        stripped = lines[i].strip()
+        if not stripped:
+            continue
+        low = stripped.lower()
+        if "upload" in low and ("here" in low or "full check" in low):
+            lines[i] = replacement
+        break
+    return "\n".join(lines)
+
+
+def _answer_inline_domain(question, domain):
+    """Produce a full grounded answer for a 'covered_elsewhere_in_tool'
+    domain (cheque_bounce / freeze) from the shared corpus's own case law
+    (admitted via find_relevant_sections(domain=...)) plus that domain's
+    curated doctrine anchors.
 
     Returns an answer_question-shaped dict on success, or None to let the
     caller fall back to the normal covered_elsewhere_in_tool redirect
-    (e.g. retrieval down AND no anchor fired -- nothing honest to say).
+    (retrieval down AND no anchor fired -- nothing honest to say).
 
     situation_detected is forced False: the recourse_app upload path feeds
     documents to the arrest analyzer, which has nothing to do with a
-    cheque notice, so no upload prompt should follow a cheque answer.
+    cheque notice or a freeze letter, so no upload prompt should follow.
     """
     from semantic_retrieval import find_relevant_sections
-    from cheque_bounce_doctrine_map import get_cheque_bounce_override
 
-    overrides = get_cheque_bounce_override(question)
-    result = find_relevant_sections(question, domain="cheque_bounce")
+    cfg = _INLINE_DOMAIN_CONFIG[domain]
+    mod_name, fn_name = cfg["override_import"]
+    override_fn = getattr(__import__(mod_name), fn_name)
+
+    overrides = override_fn(question)
+    result = find_relevant_sections(question, domain=domain)
     state = result.get("state")
 
     sem_judgments = result.get("judgment_matches", []) if state in ("single_match", "conflicting_matches") else []
     sem_statutes = result.get("matches", []) if state in ("single_match", "conflicting_matches") else []
 
     if not (overrides or sem_judgments):
-        # no_match with nothing anchored, or retrieval down with nothing
-        # anchored -- don't invent an answer; let the redirect stand.
         return None
 
-    # The PROMPT gets everything: the curated anchor paragraphs PLUS the
-    # semantic hits (extra factual context helps the model reason).
+    # The PROMPT gets everything: curated anchors PLUS the semantic hits
+    # (extra factual context helps the model reason).
     prompt_matches = sem_statutes + sem_judgments + overrides
     retrieved_text = format_retrieved_text_for_prompt(prompt_matches)
     response_text = generate_grounded_response(question, retrieved_text, matches=prompt_matches)
     if not response_text:
         return None
 
-    # The shared RESPONSE_GENERATION_PROMPT's closing-line examples are
-    # arrest/FIR-flavoured ("upload the FIR or arrest memo here"). There
-    # is no document-upload step for a cheque matter in this app, so swap
-    # a trailing "upload ... here" line for a cheque-appropriate one.
-    response_text = _retarget_cheque_closing_line(response_text)
+    response_text = _retarget_inline_closing_line(response_text, cfg["closing_line"])
 
     # The DISPLAY ("Read the source") shows only the curated, verified,
     # on-point anchor paragraphs -- never the semantic hits, which for a
-    # cheque story pull in the OTHER case's background facts (Rangappa's
-    # own Rs. 45,000 hand-loan, Bir Singh's Cheque No. 034212, ...) and
-    # just confuse the reader. A statute the answer actually cites is
-    # still worth showing.
+    # narrative story pull in an unrelated case's background facts. A
+    # statute the answer actually cites is still worth showing.
     display_matches = list(overrides) + [
         m for m in sem_statutes if m.get("section_number") and not m.get("case_name")
     ]
@@ -1600,28 +1677,8 @@ def _answer_cheque_bounce_inline(question):
         "matches": display_matches,
         "response_text": response_text,
         "situation_detected": False,
-        "redirect_domain": "cheque_bounce",
+        "redirect_domain": domain,
     }
-
-
-_CHEQUE_CLOSING_LINE = (
-    "What you can do next: take the summons, the demand notice and the cheque copy "
-    "to a lawyer or your nearest District Legal Services Authority, who can help you "
-    "file your reply and decide whether to contest or to settle."
-)
-
-
-def _retarget_cheque_closing_line(text):
-    lines = (text or "").rstrip().split("\n")
-    for i in range(len(lines) - 1, -1, -1):
-        stripped = lines[i].strip()
-        if not stripped:
-            continue
-        low = stripped.lower()
-        if "upload" in low and ("here" in low or "full check" in low):
-            lines[i] = _CHEQUE_CLOSING_LINE
-        break
-    return "\n".join(lines)
 
 
 def answer_question(question, inline_domains=frozenset()):
@@ -1689,18 +1746,32 @@ def answer_question(question, inline_domains=frozenset()):
     if category == "unrelated":
         return {"state": "unrelated"}
 
+    # Deterministic freeze nudge: a bank-account-freeze narrative that
+    # also mentions a police investigation / "no FIR" reads as arrest-
+    # flavoured, and the LLM classifier lands on in_scope (or cheque)
+    # a real fraction of the time -- confirmed 2026-09-08. When the
+    # message unmistakably describes the person's OWN bank account being
+    # frozen/lien-marked and NOT the person being arrested, force the
+    # freeze route so the freeze case law is what answers it. Same
+    # "known, verified gap" spirit as the statute/offence anchors below.
+    if _looks_like_bank_account_freeze(question) and category in (
+        "in_scope", "adjacent_uncovered", "covered_elsewhere_in_tool",
+    ):
+        category, redirect_domain = "covered_elsewhere_in_tool", "freeze"
+
     if category == "covered_elsewhere_in_tool":
-        # A caller that has NO document-upload handoff of its own (the
+        # A caller with NO document-upload handoff of its own (the
         # chat-only recourse_app) can ask this function to answer a
-        # cheque-bounce question inline instead of dead-ending it: the
-        # shared corpus now holds the Section 138 case law (Rangappa,
-        # Bir Singh, Prakash Chimanlal Sheth, Damodar S. Prabhu, Kaveri
-        # Plastics), and cheque_bounce_doctrine_map anchors the load-
-        # bearing paragraphs. Freeze stays a redirect (no corpus for it).
-        # Callers that DO have the handoff (app.py) pass nothing and get
-        # the unchanged redirect -- arrest classification is untouched.
-        if redirect_domain == "cheque_bounce" and "cheque_bounce" in inline_domains:
-            inline = _answer_cheque_bounce_inline(question)
+        # cheque-bounce or bank-freeze question INLINE instead of dead-
+        # ending it: the shared corpus holds the Section 138 case law
+        # (Rangappa, Bir Singh, Prakash Chimanlal Sheth, Damodar S.
+        # Prabhu, Kaveri Plastics) and the account-freeze case law (Tapas
+        # D. Neogy, Neelkanth Pharma, Malabar Gold), and the per-domain
+        # doctrine maps anchor the load-bearing paragraphs. Callers that
+        # DO have the handoff (app.py) pass nothing and get the unchanged
+        # redirect -- arrest classification is untouched either way.
+        if redirect_domain in inline_domains and redirect_domain in _INLINE_DOMAIN_CONFIG:
+            inline = _answer_inline_domain(question, redirect_domain)
             if inline is not None:
                 return inline
         return {"state": "covered_elsewhere_in_tool", "reasoning": reasoning, "redirect_domain": redirect_domain}
