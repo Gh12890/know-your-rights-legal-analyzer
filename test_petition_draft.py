@@ -172,7 +172,25 @@ try:
     for name, body in (("_test_petition", txt), ("_test_cheque", ct), ("_test_freeze", ft)):
         p = pd.to_pdf(body, output_path=os.path.join(tempfile.gettempdir(), name + ".pdf"))
         check(os.path.exists(p) and os.path.getsize(p) > 1500, f"to_pdf writes a non-trivial PDF ({name})")
+        try:
+            import fitz
+            pdf_text = "\n".join(pg.get_text() for pg in fitz.open(p))
+            check("KNOW YOUR RIGHTS" not in pdf_text, f"PDF has no 'KNOW YOUR RIGHTS' letterhead ({name})")
+            check("Criminal Petition (draft)" not in pdf_text, f"PDF has no 'Criminal Petition (draft)' sub-line ({name})")
+            check("RECOURSE" in pdf_text and "DRAFT PETITION" in pdf_text,
+                  f"PDF letterhead is 'RECOURSE — DRAFT PETITION' ({name})")
+            check("INDEPENDENTLY VERIFIED" not in pdf_text,
+                  f"PDF strips the per-ground NOT-VERIFIED blocks ({name})")
+            check("<<" not in pdf_text and ">>" not in pdf_text,
+                  f"PDF has no orphaned guillemets ({name})")
+            check("GROUNDS" in pdf_text and "PRAYER" in pdf_text and "AFFIDAVIT" in pdf_text,
+                  f"PDF keeps the petition structure ({name})")
+        except ImportError:
+            pass
         os.remove(p)
+    # the editable text still carries the marker (useful while editing)
+    check("NOT INDEPENDENTLY VERIFIED" in txt,
+          "the editable draft text still shows the NOT-VERIFIED marker per ground")
 except ImportError:
     print("[SKIP] PDF test — reportlab not importable")
 
