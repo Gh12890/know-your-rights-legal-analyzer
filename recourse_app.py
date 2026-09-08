@@ -1,31 +1,28 @@
 """
 recourse_app.py  --  the single-flow public app for the ILTN Vibeathon.
 
-One input box. One answer, built for the situation the person is in.
+One input box. One answer, grounded in the law and real judgments.
 
-Thin UI over the engine:
-  scenario_router.route_situation      -> which situation (LLM classify only)
-  scenario_answer.build_scenario_answer -> the tailored answer (pure Python)
-  scenario_draft.build_document        -> the first-draft document (pure Python)
-  scenario_verification                -> the four-way citation seal
+Thin UI over the free-text engine:
+  chat_assistant.answer_question  -> scope check, checked retrieval (BNS/BNSS
+                                     + judgments), offence-keyword anchors,
+                                     plain-language grounded answer with the
+                                     ungrounded-statement guards
+  recourse_upload.check_arrest_document -> deterministic compliance check on an
+                                     uploaded arrest memo / FIR / remand order
 
-The model never states the legal conclusion. It routes the message to one of a
-fixed set of situations and phrases explanations in plain words; the rights,
-sections, cases, document and every verdict come from curated data and
-deterministic code.
+The model never states a verdict on the person's case. It only explains what
+the retrieved sections and judgments say, working from a fixed library -- never
+its own knowledge -- and its answer is screened for statements that library
+does not support before anyone sees it.
 """
 
 import html as _html
-import tempfile
 
 import streamlit as st
 
-from scenario_answer import build_scenario_answer, _case_library
-from scenario_draft import build_document, document_pdf
+from chat_assistant import answer_question
 from recourse_upload import extract_text, check_arrest_document
-
-# situations where "upload the papers" makes sense -- an arrest has happened
-_UPLOAD_SCENARIOS = {"DEFAULT_BAIL", "ARREST_GENERAL", "ARREST_WOMAN", "SUMMONS_PRE_ARREST"}
 
 st.set_page_config(page_title="Recourse — know your rights when it matters most",
                    page_icon="⚖️", layout="centered")
@@ -41,7 +38,6 @@ def _warm():
         _load_corpus_embeddings()
     except Exception:
         pass
-    _case_library()
     return True
 
 
@@ -333,18 +329,17 @@ st.html("""
 <div class="r-wordmark">Recourse</div>
 <hr class="r-rule-seal">
 <div class="r-tag">An arrest. An FIR. A night in custody. You have more rights
-than you know &mdash; and the paper to use them.</div>
+than you know &mdash; and the law to back them.</div>
 <div class="r-lead">Tell Recourse what is happening, in your own words. It works out
-what stage you are at, what the police can and cannot do, your rights <b>right
-now</b>, what to do in the next 24 hours &mdash; and drafts a document you can
-hand to a lawyer or the court.</div>
+what you can do <b>right now</b>, the exact sections of the law that apply, and
+what the real judgments say &mdash; then points you to the papers to check.</div>
 <div class="r-who">For the person a case is happening to, and their family &mdash;
-not for law firms. Legal information and a first draft, not legal advice.</div>
+not for law firms. Legal information, not legal advice.</div>
 
 <div class="r-pillars">
-  <div class="r-pillar"><b>Your rights, right now</b><span>only the ones your facts raise</span></div>
+  <div class="r-pillar"><b>What to do right now</b><span>concrete first steps</span></div>
   <div class="r-pillar"><b>In your own words</b><span>no legal language needed</span></div>
-  <div class="r-pillar"><b>Checked four ways</b><span>every section, every judgment</span></div>
+  <div class="r-pillar"><b>Traced to the source</b><span>every section and judgment shown</span></div>
 </div>
 """)
 
@@ -401,16 +396,22 @@ def _footer():
 
     with st.expander("How Recourse works — and why it won't invent a case"):
         st.markdown(
-            "- The AI model has **three jobs only**: work out which situation your message "
-            "describes, and phrase explanations in plain words. It is **never allowed to "
-            "state the legal conclusion**.\n"
-            "- The rights, the section numbers, the cases and the document all come from a "
-            "**hand-checked library and fixed rules** — not from the model.\n"
-            "- Every case is checked four ways: **it exists** in the checked library, it is "
-            "**still good law**, the passage is **quoted verbatim** from the judgment, and "
-            "it was **mapped to your right by a person, not a similarity score**.\n"
-            "- Where a check can't be satisfied, Recourse shows an amber note — it never "
-            "shows a false green tick. Outside its scope, it says so plainly."
+            "- You describe the situation in plain words. Recourse works from a **fixed "
+            "library** — the Bharatiya Nyaya Sanhita, the BNSS, and real Supreme Court and "
+            "High Court judgments — **never from the model's own knowledge**.\n"
+            "- It retrieves the sections and judgments that match, and for a common "
+            "accusation named in plain words (theft, cheating, hurt, forgery, a bounced "
+            "cheque) it **anchors the exact offence** so the answer names the right "
+            "section, not a guessed one.\n"
+            "- The plain-language answer is then **screened for anything the library "
+            "doesn't support** — a section number it never retrieved, a wrong "
+            "cognisable/bailable claim, a case stretched further than it holds — and that "
+            "is caught before you see it.\n"
+            "- Where a section has been **renumbered** from the old codes, or a judgment's "
+            "standing is **uncertain**, Recourse says so. Outside its scope — a pure civil "
+            "dispute, another area of law — it says so plainly rather than guessing.\n"
+            "- The model **never states a verdict on your case**. It explains what the "
+            "retrieved law says; what it means for you is for a lawyer."
         )
 
     with st.expander("About Recourse"):
@@ -424,91 +425,143 @@ def _footer():
             "that a missed chargesheet deadline makes bail a matter of right. Rights that "
             "exist on paper are lost in the first 24 hours because nobody in the room "
             "knows them.\n\n"
-            "**What it does.** Takes a plain-language description, works out the *situation* "
-            "(who you are, what stage you are at, what specific things have happened) and "
-            "returns only the rights those facts raise — with the section, a real "
-            "judgment, and a first-draft document you can hand to a lawyer, a Legal "
-            "Services Authority, or the Magistrate.\n\n"
+            "**What it does.** Takes a plain-language description and returns a short "
+            "**what-to-do-right-now**, the **exact sections** that apply, what the **real "
+            "judgments** say, and — where an arrest has happened — a check of the actual "
+            "arrest papers against the safeguards.\n\n"
             "**What it is not.** Not legal advice. It cannot see anything beyond what you "
             "type. It is orientation and a starting point — the next step is always a "
             "lawyer. Your nearest **District Legal Services Authority** provides that help "
             "free.\n\n"
-            "**How it was built.** The verification engine — checked retrieval, the "
-            "IPC-to-BNS mapping, the rule that the model never states a legal conclusion — "
-            "was built over several months. The access-to-justice layer on top (the "
-            "situation router, the plain-language rights, the document generator, this "
-            "interface) was built for the ILTN Vibeathon."
+            "**How it was built.** The engine — checked retrieval, the IPC-to-BNS mapping, "
+            "the offence anchors, the rule that the model never states a verdict — was "
+            "built over several months. The access-to-justice layer on top (this "
+            "interface, the plain-language framing, the paper check) was built for the "
+            "ILTN Vibeathon."
         )
 
     st.markdown(
-        '<p class="r-foot">Recourse gives legal information and a starting-point document, '
-        'not legal advice. It cannot see anything beyond what you type. For a real case, '
-        'take this to a lawyer or your nearest District Legal Services Authority, which '
-        'provides that help free.</p>', unsafe_allow_html=True)
+        '<p class="r-foot">Recourse gives legal information, not legal advice. It cannot '
+        'see anything beyond what you type. For a real case, take this to a lawyer or your '
+        'nearest District Legal Services Authority, which provides that help free.</p>',
+        unsafe_allow_html=True)
 
 
 # --------------------------------------------------------------------------
-# render one right
+# render the grounded answer + its sources
 # --------------------------------------------------------------------------
-def _seal_html(badge):
-    checks = badge.get("checks", []) if badge else []
-    if not checks:
-        return ""
-    rows = "".join(
-        f'<span class="r-chk{"" if c["ok"] else " bad"}">'
-        f'{"&#10003;" if c["ok"] else "!"} {esc(c["label"])}</span>'
-        for c in checks
-    )
-    return (f'<div class="r-seal"><div class="r-seal-head">Checked</div>'
-            f'<div class="r-seal-row">{rows}</div></div>')
+def _sources_worth_showing(matches, reply_text, cap=6):
+    """The 'Read the source' list: every match the answer actually
+    references first (its section number or case name appears in the
+    reply), then fill up to `cap` from the top of the score-ordered list.
+    Deduped by (source, label)."""
+    reply_lc = (reply_text or "").lower()
+
+    def _label(m):
+        return str(m.get("section_number") or m.get("paragraph_number") or "")
+
+    def _referenced(m):
+        cn = (m.get("case_name") or "").lower()
+        return (m.get("section_number") and f"section {m['section_number']}" in reply_lc) \
+            or (cn and cn.split(" v ")[0].strip() in reply_lc)
+
+    picked, seen = [], set()
+    for m in sorted(matches or [], key=lambda m: not _referenced(m)):
+        key = (m.get("case_name") or "BNS/BNSS", _label(m))
+        if key in seen:
+            continue
+        seen.add(key)
+        picked.append(m)
+        if len(picked) >= cap:
+            break
+    return picked
 
 
-def render_right(i, r):
-    st.markdown(
-        f'<div class="r-card">'
-        f'<div><span class="r-rnum">{i}</span>'
-        f'<span class="r-rtext">{esc(r["plain_text"])}</span></div>',
-        unsafe_allow_html=True,
-    )
-    if r.get("section_label"):
-        st.markdown(f'<span class="r-sectag">{esc(r["section_label"])}</span>',
-                    unsafe_allow_html=True)
+def _render_currency_caveat(m):
+    """If a cited judgment carries a legal-currency note (Project 2), show it."""
+    if not m.get("case_name"):
+        return
+    try:
+        from citation_currency import get_citation_currency_for_case_name
+        for rec in get_citation_currency_for_case_name(m["case_name"]):
+            note = rec.get("plain_note") or rec.get("note") or rec.get("summary")
+            if note:
+                st.markdown(f'<div class="r-concord">{esc(note)}</div>', unsafe_allow_html=True)
+    except Exception:
+        pass
 
-    if r.get("statute_text"):
-        with st.expander(f"What {r['section_label']} says"):
-            st.markdown(f'<div class="r-mono">{esc(r["statute_text"].strip())}</div>',
-                        unsafe_allow_html=True)
 
-    if r.get("case"):
-        hint = f' <span class="r-casehint">— {esc(r["para_hint"])}</span>' if r.get("para_hint") else ""
-        st.markdown(f'<div class="r-case">{esc(r["case"])}{hint}</div>', unsafe_allow_html=True)
-        st.markdown(_seal_html(r.get("badge") or {}), unsafe_allow_html=True)
+def render_answer(result: dict):
+    """Render one chat_assistant.answer_question() result in the Recourse
+    style. Every branch is honest: a real grounded answer, an out-of-scope
+    note, or a technical-trouble note -- never a silent guess."""
+    state = result.get("state")
 
-        with st.expander("How this citation was checked"):
-            for chk in (r.get("badge") or {}).get("checks", []):
-                st.markdown(f'**{"&#10003;" if chk["ok"] else "&#9888;"} {chk["label"]}** '
-                            f'&mdash; {chk["note"]}', unsafe_allow_html=True)
+    if state in ("single_match", "conflicting_matches"):
+        st.markdown('<div class="r-label">Your situation</div>', unsafe_allow_html=True)
+        if state == "conflicting_matches":
+            st.markdown('<p class="r-conf">More than one provision applies and they don\'t '
+                        'all say the same thing &mdash; Recourse lays out each rather than '
+                        'picking one for you.</p>', unsafe_allow_html=True)
+        reply = result.get("response_text") or ""
+        if reply:
+            st.markdown(reply)
+        else:
+            m0 = (result.get("matches") or [{}])[0]
+            st.markdown("Here is what the law says on this:\n\n> "
+                        + esc((m0.get("text") or "").strip()[:800]))
 
-        ex = r.get("case_excerpt") or {}
-        if ex.get("text"):
-            with st.expander("In the court's words"):
-                st.markdown(f'<div class="r-mono">{esc(ex["text"].strip())}</div>',
-                            unsafe_allow_html=True)
-                src = []
-                if ex.get("citation"):
-                    src.append(esc(ex["citation"]))
-                if ex.get("para"):
-                    src.append(f'para/section: {esc(ex["para"])}')
-                if ex.get("source_url"):
-                    src.append(f'<a href="{esc(ex["source_url"])}" target="_blank">read the judgment</a>')
-                if src:
-                    st.markdown(f'<span class="r-src">{" &nbsp;·&nbsp; ".join(src)}</span>',
+        shown = _sources_worth_showing(result.get("matches"), reply)
+        if shown:
+            with st.expander("Read the source — the sections and judgments this rests on"):
+                for m in shown:
+                    label = m.get("section_number") or m.get("paragraph_number") or ""
+                    source = m.get("case_name") or "BNS / BNSS"
+                    head = f"{source} — Section {label}" if m.get("section_number") else \
+                           (f"{source} — para {label}" if label else source)
+                    st.markdown(f"**{esc(head)}**")
+                    _render_currency_caveat(m)
+                    st.markdown(f'<div class="r-mono">{esc((m.get("text") or "").strip()[:900])}</div>',
                                 unsafe_allow_html=True)
-    elif r.get("case_ref"):
-        st.markdown(f'<div class="r-casehint">Same authority as above — {esc(r["case_ref"])}.</div>',
-                    unsafe_allow_html=True)
+        return bool(result.get("situation_detected"))
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    # ---- everything below is an honest non-answer ----
+    st.markdown('<div class="r-label">Out of scope</div>', unsafe_allow_html=True)
+
+    if state == "covered_elsewhere_in_tool":
+        dom = result.get("redirect_domain")
+        label = {"freeze": "a frozen bank account", "cheque_bounce": "a bounced cheque"}.get(dom, "this")
+        st.markdown("## That's a different kind of matter")
+        st.markdown(f'<div class="r-oos">This looks like it is about <b>{esc(label)}</b>. '
+                    'Recourse focuses on arrest, FIR, police procedure and bail. For a cheque '
+                    'or bank-freeze matter, take the notice or letter to a lawyer or your '
+                    'nearest District Legal Services Authority.</div>', unsafe_allow_html=True)
+    elif state == "adjacent_uncovered":
+        st.markdown("## Recourse can't help with this one")
+        reason = result.get("reasoning") or ""
+        st.markdown(f'<div class="r-oos">This looks like a real legal question, but it is '
+                    'outside what Recourse checks &mdash; it covers police arrests, FIRs, '
+                    'criminal procedure and bail under the BNS and BNSS. '
+                    + (f'<br><span class="r-src">{esc(reason)}</span>' if reason else "")
+                    + '</div>', unsafe_allow_html=True)
+        st.markdown('<p class="r-foot">For this kind of question, speak with a lawyer who '
+                    'handles that area of law.</p>', unsafe_allow_html=True)
+    elif state == "unrelated":
+        st.markdown("## That doesn't look like a legal question")
+        st.markdown('<div class="r-oos">Recourse is built for police arrests, FIRs and '
+                    'criminal procedure under Indian law. Ask about any of those in your '
+                    'own words.</div>', unsafe_allow_html=True)
+    elif state == "no_match":
+        st.markdown("## Not enough to go on yet")
+        st.markdown('<div class="r-oos">Recourse looked but could not find anything in the '
+                    'law and judgments it holds that clearly matches this. Try adding detail '
+                    '&mdash; what happened, and roughly when &mdash; or name the section of '
+                    'law if you know it.</div>', unsafe_allow_html=True)
+    else:  # classifier_unavailable / retrieval_unavailable / anything unexpected
+        st.markdown("## Something isn't working right now")
+        st.markdown('<div class="r-oos">This is a technical problem on Recourse\'s side, not '
+                    'your question. Try again in a moment.</div>', unsafe_allow_html=True)
+    return False
 
 
 # --------------------------------------------------------------------------
@@ -564,10 +617,10 @@ def _render_concord(old_code):
 # run
 # --------------------------------------------------------------------------
 if (go or st.session_state.pop("_autorun", False)) and msg.strip():
-    for _k in ("doc", "doc_check", "doc_check_sig"):
+    for _k in ("doc_check", "doc_check_sig"):
         st.session_state.pop(_k, None)          # never carry stale artefacts over
-    with st.spinner("Working out your situation…"):
-        st.session_state.answer = build_scenario_answer(msg)
+    with st.spinner("Reading the law and the judgments on this…"):
+        st.session_state.answer = answer_question(msg)
     st.session_state.answer_msg = msg
 
 answer = st.session_state.get("answer")
@@ -581,110 +634,28 @@ if answer:
                     '<b>Check my situation</b> again to update the answer below.</p>',
                     unsafe_allow_html=True)
 
-    if answer["status"] != "answered":
-        st.markdown('<div class="r-label">Out of scope</div>', unsafe_allow_html=True)
-        st.markdown("## Recourse can't help with this one")
-        st.markdown(f'<div class="r-oos">{esc(answer["honest_note"])}</div>', unsafe_allow_html=True)
-        st.markdown('<p class="r-foot">Recourse covers arrest, FIR, police procedure and '
-                    'bail for the person a case is happening to. It says so plainly rather '
-                    'than guessing.</p>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div class="r-label">Your situation</div>', unsafe_allow_html=True)
-        st.markdown(f"## {esc(answer['scenario_label'])}")
-        st.markdown(f'<p class="r-conf">Recognised as {esc(answer["target_id"])} '
-                    f'&nbsp;·&nbsp; confidence {answer["confidence"]:.0%}</p>',
-                    unsafe_allow_html=True)
+    situation = render_answer(answer)
 
-        st.markdown("### What this means")
-        st.markdown(f'<p class="r-means">{esc(answer["stage_explainer"])}</p>',
-                    unsafe_allow_html=True)
-
-        st.markdown('<div class="r-label">Your rights right now</div>', unsafe_allow_html=True)
-        for i, r in enumerate(answer.get("rights") or [], 1):
-            try:
-                render_right(i, r)
-            except Exception:
-                # never let one right's fancy rendering swallow the rest of the answer
-                st.markdown(
-                    f'<div class="r-card"><div><span class="r-rnum">{i}</span>'
-                    f'<span class="r-rtext">{esc(r.get("plain_text", ""))}</span></div>'
-                    + (f'<div class="r-sectag">{esc(r.get("section_label", ""))}</div>'
-                       if r.get("section_label") else "")
-                    + (f'<div class="r-case">{esc(r.get("case", ""))}</div>'
-                       if r.get("case") else "")
-                    + '</div>', unsafe_allow_html=True)
-
-        if answer["negations"]:
-            st.markdown("### What your situation does *not* raise")
-            for n in answer["negations"]:
-                st.markdown(f'<div class="r-neg">{esc(n["line"])}</div>', unsafe_allow_html=True)
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("### The police can")
-            for x in answer["police_can"]:
-                st.markdown(f'<div class="r-do"><span class="r-dot">&#10003;</span>'
-                            f'<span>{esc(x)}</span></div>', unsafe_allow_html=True)
-        with c2:
-            st.markdown("### They cannot")
-            for x in answer["police_cannot"]:
-                st.markdown(f'<div class="r-do cant"><span class="r-dot">&#10007;</span>'
-                            f'<span>{esc(x)}</span></div>', unsafe_allow_html=True)
-
-        st.markdown("### Next 24 hours")
-        for n, x in enumerate(answer["next_24h"], 1):
-            st.markdown(f'<div class="r-do"><span class="r-dot">{n}</span>'
-                        f'<span>{esc(x)}</span></div>', unsafe_allow_html=True)
-
-        if answer["red_flags"]:
-            st.markdown("### See a lawyer immediately if")
-            for x in answer["red_flags"]:
-                st.markdown(f'<div class="r-flag">{esc(x)}</div>', unsafe_allow_html=True)
-
-        # ---- document ----
-        st.markdown('<div class="r-label">Your document</div>', unsafe_allow_html=True)
-        doc = build_document(answer, msg)
-        if doc["available"]:
-            st.markdown(f'Recourse can prepare a first draft: **{doc["title"].title()}**.')
-            if st.button("Prepare the draft", type="secondary"):
-                st.session_state.doc = doc
-            d = st.session_state.get("doc")
-            if d and d.get("target") == doc["target"]:
-                st.markdown(f'<div class="r-mono">{esc(d["text"])}</div>', unsafe_allow_html=True)
-                try:
-                    path = tempfile.mkstemp(suffix=".pdf")[1]
-                    document_pdf(d, path)
-                    with open(path, "rb") as fh:
-                        st.download_button("Download as PDF", fh.read(),
-                                           file_name="recourse-draft.pdf", mime="application/pdf")
-                except Exception:
-                    st.download_button("Download as text", d["text"].encode("utf-8"),
-                                       file_name="recourse-draft.txt", mime="text/plain")
-        else:
-            st.markdown('<p class="r-foot">No draft document for this situation yet.</p>',
-                        unsafe_allow_html=True)
-
-        # ---- optional: check the actual papers ----
-        if answer["target_id"] in _UPLOAD_SCENARIOS:
-            st.markdown('<div class="r-label">Have the papers?</div>', unsafe_allow_html=True)
-            st.markdown(
-                "The rights above are what the law **requires**. Upload the **arrest "
-                "memo, the FIR copy, or a remand order** and Recourse checks whether "
-                "each safeguard was **actually followed** — using the same fixed rules "
-                "the wider tool has always used, not the AI.")
-            up = st.file_uploader("Upload a document (PDF or text)", type=["pdf", "txt"],
-                                  label_visibility="collapsed", key="doc_upload")
-            if up is not None:
-                sig = f"{up.name}:{up.size}"
-                if st.session_state.get("doc_check_sig") != sig:
-                    ext = extract_text(up)
-                    if not ext["ok"]:
-                        st.session_state["doc_check"] = {"ok": False, "error": ext["error"]}
-                    else:
-                        with st.spinner("Checking the document against the safeguards…"):
-                            st.session_state["doc_check"] = check_arrest_document(ext["text"])
-                    st.session_state["doc_check_sig"] = sig
-                if st.session_state.get("doc_check"):
-                    render_doc_check(st.session_state["doc_check"])
+    # ---- optional: check the actual papers (an arrest has happened) ----
+    if situation:
+        st.markdown('<div class="r-label">Have the papers?</div>', unsafe_allow_html=True)
+        st.markdown(
+            "The answer above is what the law **requires**. Upload the **arrest "
+            "memo, the FIR copy, or a remand order** and Recourse checks whether "
+            "each safeguard was **actually followed** — with fixed rules, not the AI.")
+        up = st.file_uploader("Upload a document (PDF or text)", type=["pdf", "txt"],
+                              label_visibility="collapsed", key="doc_upload")
+        if up is not None:
+            sig = f"{up.name}:{up.size}"
+            if st.session_state.get("doc_check_sig") != sig:
+                ext = extract_text(up)
+                if not ext["ok"]:
+                    st.session_state["doc_check"] = {"ok": False, "error": ext["error"]}
+                else:
+                    with st.spinner("Checking the document against the safeguards…"):
+                        st.session_state["doc_check"] = check_arrest_document(ext["text"])
+                st.session_state["doc_check_sig"] = sig
+            if st.session_state.get("doc_check"):
+                render_doc_check(st.session_state["doc_check"])
 
 _footer()
