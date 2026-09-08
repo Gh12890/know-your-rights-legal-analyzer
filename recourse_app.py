@@ -806,8 +806,16 @@ def render_arrest_checklist():
 
         s = res["summary"]
         cls = "r-summ hasdefect" if s["violated"] or s["to_confirm"] else "r-summ"
-        st.markdown(f'<div class="{cls}">{esc(s["meter"])} &nbsp; {esc(s["headline"])}</div>',
-                    unsafe_allow_html=True)
+        _band_color = {"red": "#b3261e", "orange": "#a3521a",
+                       "amber": "#8a6d1a", "green": "#2f6b3f"}.get(s["band"], "#6a6250")
+        st.markdown(
+            f'<div class="{cls}">'
+            f'<div style="font-family:\'IBM Plex Sans\',sans-serif;font-weight:700;'
+            f'font-size:.95rem;letter-spacing:.03em;text-transform:uppercase;'
+            f'color:{_band_color};margin-bottom:.4rem">'
+            f'{esc(s["meter"])} &nbsp; {esc(s.get("label") or "")}</div>'
+            f'{esc(s["headline"])}</div>',
+            unsafe_allow_html=True)
 
         for r in res["rows"]:
             st.markdown(

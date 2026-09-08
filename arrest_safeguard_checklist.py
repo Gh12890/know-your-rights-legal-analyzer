@@ -244,7 +244,8 @@ def evaluate(answers: dict) -> dict:
               "to_confirm": int,    # needs the record
               "meter": str,         # 🟩🟨🟧🟥 style
               "band": "green"|"amber"|"orange"|"red",
-              "headline": str,
+              "label": str,         # short banner, e.g. "Critical — rights likely violated"
+              "headline": str,      # one-sentence explanation
           },
         }
     """
@@ -267,26 +268,35 @@ def evaluate(answers: dict) -> dict:
     violated = sum(1 for r in rows if r["bucket"] == "bad")
     to_confirm = sum(1 for r in rows if r["bucket"] == "warn")
 
-    if violated >= 3:
+    if violated >= 5:
         band, meter = "red", "🟩🟨🟧🟥"
-        headline = (f"{violated} safeguards were not followed. On this account the "
-                    f"arrest and continued custody look legally vulnerable — this is "
-                    f"worth putting before a lawyer or the Magistrate now.")
-    elif violated == 2:
+        label = "Critical — rights likely violated"
+        headline = (f"{violated} safeguards were not followed. On this account the arrest "
+                    f"and continued custody look legally vulnerable — put this before a "
+                    f"lawyer or the Magistrate now.")
+    elif violated >= 3:
         band, meter = "orange", "🟩🟨🟧⬜"
+        label = "Serious — several safeguards not followed"
+        headline = (f"{violated} safeguards were not followed. Each is a recognised ground "
+                    f"to raise before the Magistrate and in a bail application.")
+    elif violated == 2:
+        band, meter = "amber", "🟩🟨⬜⬜"
+        label = "Concerns — 2 safeguards not followed"
         headline = ("2 safeguards were not followed. Each is a recognised ground to "
                     "raise before the Magistrate and in a bail application.")
     elif violated == 1:
         band, meter = "amber", "🟩🟨⬜⬜"
+        label = "Concern — 1 safeguard not followed"
         headline = ("1 safeguard was not followed. It is a recognised ground to raise "
                     "before the Magistrate and in a bail application.")
     elif to_confirm:
         band, meter = "amber", "🟩🟨⬜⬜"
-        headline = (f"Nothing here is clearly broken, but {to_confirm} point(s) depend "
-                    f"on what the record shows. The items marked below tell you exactly "
-                    f"what to ask for.")
+        label = f"{to_confirm} point(s) to confirm from the record"
+        headline = (f"Nothing here is clearly broken, but {to_confirm} point(s) depend on "
+                    f"what the record shows. The items marked below tell you what to ask for.")
     else:
         band, meter = "green", "🟩⬜⬜⬜"
+        label = "No safeguard clearly broken"
         headline = ("On the answers given, none of these safeguards was clearly broken. "
                     "This is not a ruling on the case — only a check of the procedure.")
 
@@ -297,6 +307,7 @@ def evaluate(answers: dict) -> dict:
             "to_confirm": to_confirm,
             "meter": meter,
             "band": band,
+            "label": label,
             "headline": headline,
         },
     }

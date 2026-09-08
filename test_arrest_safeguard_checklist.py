@@ -72,11 +72,28 @@ check(wg["bucket"] == "bad" and "Vihaan Kumar" in wg["finding"],
       "written_grounds=No -> bad + names Vihaan Kumar")
 
 
-# ---- three violations -> red ----
+# ---- three violations -> orange "Serious" ----
 r = evaluate({**allgood, "written_grounds": NO, "family_informed": NO, "produced_24h": NO})
-check(r["summary"]["violated"] == 3 and r["summary"]["band"] == "red",
-      "three 'No' -> red band")
+check(r["summary"]["violated"] == 3 and r["summary"]["band"] == "orange",
+      "three 'No' -> orange band")
+check("Serious" in r["summary"]["label"], "three 'No' -> label says 'Serious'")
+
+# ---- five violations -> red "Critical" ----
+r = evaluate({**allgood, "written_grounds": NO, "family_informed": NO, "produced_24h": NO,
+              "memo_witnessed": NO, "medical_exam": NO})
+check(r["summary"]["violated"] == 5 and r["summary"]["band"] == "red",
+      "five 'No' -> red band")
+check("Critical" in r["summary"]["label"], "five 'No' -> label says 'Critical'")
 check("🟥" in r["summary"]["meter"], "red band -> meter includes 🟥")
+
+# ---- every summary carries a non-empty label ----
+for n in (0, 1, 2, 3, 5):
+    ans = {}
+    keys = ["written_grounds", "family_informed", "produced_24h", "memo_witnessed", "medical_exam"]
+    for i in range(n):
+        ans[keys[i]] = NO
+    check(bool(evaluate(ans)["summary"].get("label")),
+          f"{n} violations -> summary has a label")
 
 
 # ---- 'not sure' surfaces as a to-confirm, never a violation ----
