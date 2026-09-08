@@ -244,6 +244,62 @@ JUDGMENT_DOCTRINE_MAP = {
             "used). Citation 2025:CHC-AS:1826. Added 2026-09-08."
         ),
     },
+    # ---- right to marry a partner of one's own choice ----------------
+    "adult_free_to_marry_of_choice_false_kidnapping_case": {
+        "case_key": "lata_singh",
+        "paragraph_numbers": [
+            "major_free_to_marry_no_offence_made_out",
+            "false_criminal_case_is_abuse_of_process",
+            "right_of_a_major_to_marry_of_choice_and_police_protection_direction",
+        ],
+        "opinion_author": None,
+        "trigger_groups": [
+            ("kidnap", "wife"), ("kidnap", "my wife"), ("kidnap", "my own wife"),
+            ("kidnapping", "wife"), ("kidnapped", "wife"),
+            ("kidnap", "adult"), ("kidnapping", "adult"), ("kidnapped", "adult"),
+            ("kidnap", "she is a major"), ("kidnap", "major"),
+            ("married", "against", "wishes"), ("marriage", "against", "family"),
+            ("marriage", "against", "wishes"),
+            ("inter-caste", "marriage"), ("inter caste", "marriage"),
+            ("inter-religious", "marriage"), ("different caste", "marriage"),
+            ("her family", "kidnap"), ("her family", "complaint", "married"),
+            ("she came with me", "own"), ("came with me", "willingly"),
+            ("left with me", "voluntarily"), ("her own free will",),
+            ("she", "told the police", "voluntarily"),
+            ("honour killing",), ("honor killing",),
+            ("366",), ("366a",), ("368",),
+            ("elopement",), ("eloped",),
+        ],
+        "context_note": (
+            "In Lata Singh v State of Uttar Pradesh, (2006) 5 SCC 475 the "
+            "petitioner's brothers -- furious that she had married outside "
+            "her caste -- lodged a false kidnapping report against her "
+            "husband and his relatives, several of whom were arrested and "
+            "jailed. The Supreme Court held: an adult woman is a major and "
+            "is 'free to marry anyone she likes or live with anyone she "
+            "likes'; there is no bar to an inter-caste marriage; and on "
+            "those facts 'we cannot see what offence was committed by the "
+            "petitioner, her husband or her husband's relatives'. It "
+            "quashed the entire criminal case as 'an abuse of the process "
+            "of the Court' brought only because she married outside her "
+            "caste, and directed the police across the country to protect "
+            "such couples from harassment, threats and violence and to "
+            "proceed instead against those who harass them. The right of "
+            "two consenting adults to marry a partner of their own choice "
+            "has since been affirmed as part of Article 21 (Shafin Jahan v "
+            "Asokan K.M.; Shakti Vahini v Union of India)."
+        ),
+        "verified_note": (
+            "Slugs 'major_free_to_marry_no_offence_made_out', "
+            "'false_criminal_case_is_abuse_of_process' and "
+            "'right_of_a_major_to_marry_of_choice_and_police_protection_"
+            "direction' seeded + verbatim-verified from IK doc 1364215 "
+            "(seed_lata_singh.py) 2026-09-08 into "
+            "chunks/lata_singh_v_state_of_uttar_pradesh_chunks.json; "
+            "embedded into corpus_embeddings.json the same day. Citation "
+            "(2006) 5 SCC 475."
+        ),
+    },
     # ---- civil / commercial dispute given a criminal colour --------------
     "civil_dispute_criminalised_as_cheating_or_cbt": {
         "case_key": "vijay_kumar_ghai",

@@ -1,0 +1,17 @@
+{
+  "case_name": "Lata Singh v State of Uttar Pradesh",
+  "citation": "(2006) 5 SCC 475",
+  "court": "Supreme Court of India",
+  "source_url": "https://indiankanoon.org/doc/1364215/",
+  "source_type": "primary",
+  "retrieved_date": "2026-09-08",
+  "ik_doc_id": "1364215",
+  "bench": "Ashok Bhan,Markandey Katju",
+  "author": "Markandey Katju",
+  "why_seeded": "The corpus had no 'right to marry a person of one's own choice' landmark. Lata Singh is the on-point authority for a false kidnapping FIR by a woman's family over a marriage they disapproved of, and for the police-protection direction for inter-caste / inter-religious couples.",
+  "chunk_slugs": [
+    "major_free_to_marry_no_offence_made_out",
+    "false_criminal_case_is_abuse_of_process",
+    "right_of_a_major_to_marry_of_choice_and_police_protection_direction"
+  ]
+}
