@@ -33,6 +33,11 @@ try:
 except Exception:  # never let an optional feature break the page
     _asc = None
 
+try:
+    import petition_draft as _pd
+except Exception:
+    _pd = None
+
 st.set_page_config(page_title="Recourse — know your rights when it matters most",
                    page_icon="⚖️", layout="centered")
 
@@ -802,7 +807,7 @@ def render_arrest_checklist():
                 st.markdown('<p class="r-foot">Answer at least one question above, '
                             'then press <b>Show the findings</b>.</p>',
                             unsafe_allow_html=True)
-            return
+            return None
 
         s = res["summary"]
         cls = "r-summ hasdefect" if s["violated"] or s["to_confirm"] else "r-summ"
@@ -831,14 +836,88 @@ def render_arrest_checklist():
             'answers — it is not a ruling on the case. Take it, and any papers you '
             'do have, to a lawyer or your nearest District Legal Services Authority.</p>',
             unsafe_allow_html=True)
+        return res
+
+
+def _answer_draft_context(answer):
+    """From the chat answer's matches: (civil_dispute flag, offence sections).
+    civil_dispute -> the answer leaned on the 'civil matter given criminal
+    colour' line of cases, so the petition should also ask for quashing."""
+    matches = (answer or {}).get("matches") or []
+    _CIVIL = ("Md. Ibrahim", "Bhajan Lal", "Vijay Kumar Ghai", "Usha Chakraborty",
+              "Satishchandra Ratanlal Shah")
+    civil = any(any(c in (m.get("case_name") or "") for c in _CIVIL) for m in matches)
+    secs, seen = [], set()
+    for m in matches:
+        sn = str(m.get("section_number") or "")
+        act = str(m.get("act") or "")
+        if sn and act.upper() == "BNS" and not m.get("case_name") and sn not in seen:
+            seen.add(sn)
+            secs.append(sn)
+    return civil, secs[:4]
+
+
+def render_petition_draft(question_text, *, checklist_result=None, doc_check_result=None):
+    """The 'Turn this into a draft' step: a High Court criminal petition
+    assembled deterministically from the findings, shown in an editable
+    box with a Download PDF. No AI in this path. Wrapped by the caller in
+    try/except; import guarded."""
+    if _pd is None:
+        return
+    answer = st.session_state.get("answer") or {}
+    civil, secs = _answer_draft_context(answer)
+
+    if checklist_result is not None:
+        sig = f"cl:{abs(hash(question_text)) % 10**8}:{civil}:{'.'.join(secs)}"
+        seed = lambda: _pd.from_checklist(
+            question_text, checklist_result, civil_dispute=civil, offence_sections=secs)
+    elif doc_check_result is not None:
+        sig = f"dc:{abs(hash(question_text)) % 10**8}:{civil}:{'.'.join(secs)}"
+        seed = lambda: _pd.from_doc_check(
+            question_text, doc_check_result, civil_dispute=civil, offence_sections=secs)
+    else:
+        return
+
+    with st.expander("Turn this into a draft — a criminal petition you can edit and take to a lawyer"):
+        st.markdown(
+            "This assembles a **draft High Court criminal petition** from the findings "
+            "above — **fixed rules, no AI**. Every `[ ___ ]` is for you or your lawyer to "
+            "fill; every case passage is marked **NOT INDEPENDENTLY VERIFIED** until it is "
+            "checked in the judgment. It is a starting point, not a filed document.")
+
+        text_key = f"_petition_{sig}"
+        if text_key not in st.session_state:
+            st.session_state[text_key] = seed()
+        st.text_area("Draft (editable)", height=480, key=text_key)
+
+        pdf_key = f"_petition_pdf_{sig}"
+        if st.button("Prepare PDF", key=f"_petition_btn_{sig}"):
+            import os, tempfile
+            try:
+                path = _pd.to_pdf(
+                    st.session_state[text_key],
+                    output_path=os.path.join(tempfile.gettempdir(), "recourse_petition_draft.pdf"))
+                with open(path, "rb") as fh:
+                    st.session_state[pdf_key] = fh.read()
+            except Exception:
+                logging.getLogger("recourse_app").exception("petition PDF failed")
+                st.markdown('<p class="r-foot">Could not build the PDF just now — you can '
+                            'still copy the text above.</p>', unsafe_allow_html=True)
+
+        if st.session_state.get(pdf_key):
+            st.download_button(
+                "Download draft (PDF)", data=st.session_state[pdf_key],
+                file_name="recourse_criminal_petition_draft.pdf",
+                mime="application/pdf", key=f"_petition_dl_{sig}")
 
 
 # --------------------------------------------------------------------------
 # run
 # --------------------------------------------------------------------------
 if (go or st.session_state.pop("_autorun", False)) and msg.strip():
-    for _k in ("doc_check", "doc_check_sig", "_sg_result"):
-        st.session_state.pop(_k, None)          # never carry stale artefacts over
+    for _k in list(st.session_state.keys()):
+        if _k in ("doc_check", "doc_check_sig", "_sg_result") or _k.startswith("_petition_"):
+            st.session_state.pop(_k, None)      # never carry stale artefacts over
     with st.spinner("Reading the law and the judgments on this…"):
         # recourse_app is chat-only: it has no document-upload handoff, so
         # cheque-bounce and bank-freeze questions are answered inline from
@@ -889,13 +968,27 @@ if answer:
                     with st.spinner("Checking the document against the safeguards…"):
                         st.session_state["doc_check"] = check_arrest_document(ext["text"])
                 st.session_state["doc_check_sig"] = sig
-            if st.session_state.get("doc_check"):
-                render_doc_check(st.session_state["doc_check"])
+            _dc = st.session_state.get("doc_check")
+            if _dc:
+                render_doc_check(_dc)
+                # a real arrest doc with a defect -> offer the petition draft
+                if _dc.get("is_arrest_document") and (_dc.get("n_defects") or _dc.get("n_unknown")):
+                    try:
+                        render_petition_draft(msg, doc_check_result=_dc)
+                    except Exception:
+                        logging.getLogger("recourse_app").exception("petition (doc) render failed")
 
         # ---- the no-document route ----
+        _cl = None
         try:
-            render_arrest_checklist()
+            _cl = render_arrest_checklist()
         except Exception:
             logging.getLogger("recourse_app").exception("arrest checklist render failed")
+
+        if _cl and (_cl.get("summary", {}).get("violated") or _cl.get("summary", {}).get("to_confirm")):
+            try:
+                render_petition_draft(msg, checklist_result=_cl)
+            except Exception:
+                logging.getLogger("recourse_app").exception("petition (checklist) render failed")
 
 _footer()

@@ -233,6 +233,48 @@ SAFEGUARDS = [
 _SAFEGUARDS_BY_ID = {s["id"]: s for s in SAFEGUARDS}
 
 
+# For petition_draft.py: a short heading and the "FOR THAT <lead>" clause
+# for each safeguard, so a "Not followed" finding becomes a formal ground.
+# Kept here (not on each SAFEGUARD dict) so the checklist data stays lean.
+GROUND_LEADS = {
+    "written_grounds": (
+        "Grounds of arrest not furnished in writing",
+        "the grounds of the arrest were not furnished to the arrested person in writing"),
+    "notice_before_arrest": (
+        "No notice to appear before arrest",
+        "no notice to appear was issued before the arrest, although the offence alleged "
+        "carries imprisonment of up to seven years"),
+    "family_informed": (
+        "Family not informed of the arrest or place of custody",
+        "no relative or friend of the arrested person was informed of the arrest or of "
+        "the place where he was held"),
+    "memo_witnessed": (
+        "Arrest memo not attested by a witness",
+        "the arrest memo was not attested by an independent witness"),
+    "medical_exam": (
+        "No medical examination at the time of arrest",
+        "no medical examination of the arrested person was conducted and recorded at the "
+        "time of arrest"),
+    "produced_24h": (
+        "Not produced before a Magistrate within 24 hours",
+        "the arrested person was not produced before a Magistrate within twenty-four "
+        "hours of the arrest, excluding the time necessary for the journey"),
+    "night_arrest_woman": (
+        "Woman arrested between sunset and sunrise",
+        "the arrested person, being a woman, was arrested between sunset and sunrise "
+        "without the prior written permission of a Judicial Magistrate"),
+    "female_officer": (
+        "No woman police officer involved",
+        "no woman police officer was involved in the arrest and custody of the arrested "
+        "person, who is a woman"),
+    "default_bail": (
+        "Statutory (default) bail not given effect",
+        "the investigation has not been completed within the period prescribed and the "
+        "arrested person's right to statutory (default) bail has not been given effect, "
+        "notwithstanding the rejection of bail on merits"),
+}
+
+
 def evaluate(answers: dict) -> dict:
     """answers: {safeguard_id: answer_code}. Missing / unknown ids are
     skipped. Returns:
