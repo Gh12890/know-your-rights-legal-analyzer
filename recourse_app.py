@@ -22,6 +22,10 @@ import streamlit as st
 
 from scenario_answer import build_scenario_answer, _case_library
 from scenario_draft import build_document, document_pdf
+from recourse_upload import extract_text, check_arrest_document
+
+# situations where "upload the papers" makes sense -- an arrest has happened
+_UPLOAD_SCENARIOS = {"DEFAULT_BAIL", "ARREST_WOMAN", "SUMMONS_PRE_ARREST"}
 
 st.set_page_config(page_title="Recourse — know your rights when it matters most",
                    page_icon="⚖️", layout="centered")
@@ -267,6 +271,31 @@ div.stButton > button[kind="secondary"]{
   font-size:.85rem !important; color:var(--ink-soft) !important; }
 [data-testid="stExpander"] summary:hover{ color:var(--seal) !important; }
 
+/* ---------- document compliance check ---------- */
+.r-checkrow{ border:1px solid var(--rule); border-radius:10px; background:var(--surface);
+  padding:.8rem 1rem; margin:.5rem 0; }
+.r-checkrow .r-chead{ font-family:"Newsreader",serif; font-weight:600; font-size:1rem;
+  color:var(--ink); }
+.r-verdict{ display:inline-block; font-family:"IBM Plex Sans",sans-serif; font-size:.74rem;
+  font-weight:600; letter-spacing:.02em; padding:.14rem .55rem; border-radius:999px;
+  margin:.35rem 0; }
+.r-verdict.ok{ background:var(--seal-tint); color:var(--seal-deep); }
+.r-verdict.bad{ background:#efd9c6; color:#8a4a12; }
+.r-verdict.warn{ background:var(--amber-tint); color:var(--amber); }
+.r-verdict.unknown{ background:#e9e4d7; color:#6a6250; }
+.r-verdict.na{ background:#eceae2; color:#8a8676; }
+.r-checkrow .r-cexp{ font-family:"Newsreader",serif; font-size:.92rem; color:var(--ink-soft);
+  line-height:1.5; }
+.r-summ{ border-left:3px solid var(--seal); background:var(--seal-tint);
+  padding:.75rem 1rem; border-radius:0 6px 6px 0; margin:.6rem 0;
+  font-family:"Newsreader",serif; color:var(--ink); }
+.r-summ.hasdefect{ border-left-color:var(--amber); background:var(--amber-tint); }
+.r-concord{ font-family:"IBM Plex Sans",sans-serif; font-size:.85rem; color:var(--ink-soft);
+  border:1px solid var(--rule); border-radius:8px; padding:.7rem .9rem; margin:.5rem 0;
+  background:var(--surface); }
+.r-concord code{ font-family:"IBM Plex Mono",monospace; font-size:.82rem;
+  background:var(--seal-tint); color:var(--seal-deep); padding:.05rem .3rem; border-radius:4px; }
+
 /* ---------- out of scope ---------- */
 .r-oos{
   border:1px solid var(--rule); border-left:3px solid var(--amber);
@@ -337,11 +366,10 @@ if "text" not in st.session_state:
 
 
 def _reset_answer():
-    """Drop the previous answer + draft so a new question never shows a
-    stale reply."""
-    st.session_state.pop("answer", None)
-    st.session_state.pop("answer_msg", None)
-    st.session_state.pop("doc", None)
+    """Drop the previous answer + draft + doc-check so a new question never
+    shows a stale reply."""
+    for k in ("answer", "answer_msg", "doc", "doc_check", "doc_check_sig"):
+        st.session_state.pop(k, None)
 
 
 st.html('<div class="r-label">Start with a situation</div>')
@@ -483,10 +511,60 @@ def render_right(i, r):
 
 
 # --------------------------------------------------------------------------
+# the "have the papers?" compliance check
+# --------------------------------------------------------------------------
+def render_doc_check(result: dict):
+    if not result.get("ok"):
+        st.markdown(f'<p class="r-foot">{esc(result.get("error") or result.get("note") or "Could not read that file.")}</p>',
+                    unsafe_allow_html=True)
+        return
+
+    if not result.get("is_arrest_document"):
+        st.markdown(f'<div class="r-oos">{esc(result.get("note"))}</div>', unsafe_allow_html=True)
+        _render_concord(result.get("old_code"))
+        return
+
+    cls = "r-summ hasdefect" if result.get("n_defects") else "r-summ"
+    st.markdown(f'<div class="{cls}">{esc(result.get("overall"))}</div>', unsafe_allow_html=True)
+
+    for c in result.get("checks", []):
+        st.markdown(
+            f'<div class="r-checkrow">'
+            f'<div class="r-chead">{esc(c["plain"])}</div>'
+            f'<span class="r-verdict {c["bucket"]}">{esc(c["label"])}</span>'
+            f'<div class="r-cexp">{esc(c["explanation"])}</div>'
+            f'</div>', unsafe_allow_html=True)
+
+    _render_concord(result.get("old_code"))
+
+    st.markdown(
+        '<p class="r-foot">This is a check of the safeguards against what the document '
+        'itself says — it cannot see anything that happened outside the document. '
+        '"Possibly not followed" means the document is silent where it should have '
+        'spoken. Take the document, and this, to a lawyer or the Magistrate.</p>',
+        unsafe_allow_html=True)
+
+
+def _render_concord(old_code):
+    if not old_code:
+        return
+    parts = []
+    for e in old_code:
+        new = e.get("new") or "no re-enacted successor"
+        parts.append(f'<code>{esc(e["old"])}</code> &rarr; <code>{esc(new)}</code>')
+    st.markdown(
+        '<div class="r-concord">This document cites the pre-2024 codes. Current '
+        'equivalents: ' + " &nbsp;·&nbsp; ".join(parts)
+        + ' &mdash; the case law generally carries over to the new numbering.</div>',
+        unsafe_allow_html=True)
+
+
+# --------------------------------------------------------------------------
 # run
 # --------------------------------------------------------------------------
 if go and msg.strip():
-    st.session_state.pop("doc", None)          # never carry a stale draft over
+    for _k in ("doc", "doc_check", "doc_check_sig"):
+        st.session_state.pop(_k, None)          # never carry stale artefacts over
     with st.spinner("Working out your situation…"):
         answer = build_scenario_answer(msg)
     st.session_state.answer = answer
@@ -569,5 +647,28 @@ if answer and st.session_state.get("answer_msg", "").strip() == (msg or "").stri
         else:
             st.markdown('<p class="r-foot">No draft document for this situation yet.</p>',
                         unsafe_allow_html=True)
+
+        # ---- optional: check the actual papers ----
+        if answer["target_id"] in _UPLOAD_SCENARIOS:
+            st.markdown('<div class="r-label">Have the papers?</div>', unsafe_allow_html=True)
+            st.markdown(
+                "The rights above are what the law **requires**. Upload the **arrest "
+                "memo, the FIR copy, or a remand order** and Recourse checks whether "
+                "each safeguard was **actually followed** — using the same fixed rules "
+                "the wider tool has always used, not the AI.")
+            up = st.file_uploader("Upload a document (PDF or text)", type=["pdf", "txt"],
+                                  label_visibility="collapsed", key="doc_upload")
+            if up is not None:
+                sig = f"{up.name}:{up.size}"
+                if st.session_state.get("doc_check_sig") != sig:
+                    ext = extract_text(up)
+                    if not ext["ok"]:
+                        st.session_state["doc_check"] = {"ok": False, "error": ext["error"]}
+                    else:
+                        with st.spinner("Checking the document against the safeguards…"):
+                            st.session_state["doc_check"] = check_arrest_document(ext["text"])
+                    st.session_state["doc_check_sig"] = sig
+                if st.session_state.get("doc_check"):
+                    render_doc_check(st.session_state["doc_check"])
 
 _footer()
