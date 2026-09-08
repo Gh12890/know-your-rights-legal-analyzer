@@ -450,23 +450,27 @@ def _footer():
 # --------------------------------------------------------------------------
 # render the grounded answer + its sources
 # --------------------------------------------------------------------------
-def _sources_worth_showing(matches, reply_text, cap=6):
-    """The 'Read the source' list: every match the answer actually
-    references first (its section number or case name appears in the
-    reply), then fill up to `cap` from the top of the score-ordered list.
-    Deduped by (source, label)."""
+def _sources_worth_showing(matches, reply_text, cap=12):
+    """The 'Read the source' list: hand-anchored curated sources and every
+    match the answer actually references come first, then fill up to `cap`
+    from the top of the score-ordered list. Deduped by (source, label)."""
     reply_lc = (reply_text or "").lower()
 
     def _label(m):
         return str(m.get("section_number") or m.get("paragraph_number") or "")
 
-    def _referenced(m):
+    def _priority(m):
+        # lower sorts first: curated overrides, then anything the answer
+        # names, then the rest in their existing (score) order
+        if str(m.get("source") or "").startswith("curated"):
+            return 0
         cn = (m.get("case_name") or "").lower()
-        return (m.get("section_number") and f"section {m['section_number']}" in reply_lc) \
+        named = (m.get("section_number") and f"section {m['section_number']}" in reply_lc) \
             or (cn and cn.split(" v ")[0].strip() in reply_lc)
+        return 1 if named else 2
 
     picked, seen = [], set()
-    for m in sorted(matches or [], key=lambda m: not _referenced(m)):
+    for m in sorted(matches or [], key=_priority):
         key = (m.get("case_name") or "BNS/BNSS", _label(m))
         if key in seen:
             continue
@@ -512,16 +516,26 @@ def render_answer(result: dict):
                         + esc((m0.get("text") or "").strip()[:800]))
 
         shown = _sources_worth_showing(result.get("matches"), reply)
+        statutes = [m for m in shown if m.get("section_number") and not m.get("case_name")]
+        judgments = [m for m in shown if m.get("case_name")]
         if shown:
             with st.expander("Read the source — the sections and judgments this rests on"):
-                for m in shown:
-                    label = m.get("section_number") or m.get("paragraph_number") or ""
-                    source = m.get("case_name") or "BNS / BNSS"
-                    head = f"{source} — Section {label}" if m.get("section_number") else \
-                           (f"{source} — para {label}" if label else source)
-                    st.markdown(f"**{esc(head)}**")
-                    _render_currency_caveat(m)
+                for m in statutes:
+                    st.markdown(f'**{esc(m["act"])} Section {esc(m["section_number"])}**')
                     st.markdown(f'<div class="r-mono">{esc((m.get("text") or "").strip()[:900])}</div>',
+                                unsafe_allow_html=True)
+                if judgments:
+                    st.markdown('<div class="r-label" style="margin-top:1rem">Judgments</div>',
+                                unsafe_allow_html=True)
+                for m in judgments:
+                    cite = f' &nbsp;·&nbsp; <span class="r-src">{esc(m["citation"])}</span>' if m.get("citation") else ""
+                    st.markdown(f'**{esc(m["case_name"])}**{cite}', unsafe_allow_html=True)
+                    _render_currency_caveat(m)
+                    para = str(m.get("paragraph_number") or "")
+                    if para and not para.startswith("fallback"):
+                        st.markdown(f'<span class="r-src">paragraph {esc(para.split("_")[0])}</span>',
+                                    unsafe_allow_html=True)
+                    st.markdown(f'<div class="r-mono">{esc((m.get("text") or "").strip()[:1100])}</div>',
                                 unsafe_allow_html=True)
         return bool(result.get("situation_detected"))
 

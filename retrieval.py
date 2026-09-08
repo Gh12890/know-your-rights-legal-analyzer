@@ -25,6 +25,7 @@ doesn't mean Python is inferring anything new from it.
 """
 
 import json
+import logging
 import os
 
 
@@ -72,6 +73,41 @@ _JUDGMENT_CHUNK_FILES = {
     "kaveri_plastics": "chunks/kaveri_plastics_v_mahdoom_bawa_bahrudeen_noorul_chunks.json",
     "prakash_chimanlal_sheth": "chunks/prakash_chimanlal_sheth_v_jagruti_keyur_rajpopat_chunks.json",
 }
+
+
+def _auto_register_judgment_chunks():
+    """Every non-statute *_chunks.json on disk should be reachable by
+    get_judgment_paragraphs(). The hardcoded map above kept drifting out of
+    sync with the corpus -- every seeding batch (2026-09-01, and again the
+    09-05/09-06/09-08 batches) added chunk files that were never registered
+    here, so get_judgment_doctrine() / any doctrine anchor pointing at them
+    silently resolved to nothing (see the 2026-09-01 CONFIRMED REAL BUG
+    note above -- it recurred). This scans chunks/ once at import and adds
+    any unregistered judgment file under its '<stem before _v_>' key
+    (matching the existing convention: arnesh_kumar_v_state_of_bihar ->
+    'arnesh_kumar'), plus its full stem as an alias. Hardcoded entries are
+    never overwritten -- a few of them key on the post-'_v_' half
+    deliberately (e.g. 'tapas_d_neogy' from 'state_of_maharashtra_v_...').
+    """
+    import glob
+    statute_basenames = {os.path.basename(p) for p in _STATUTE_CHUNK_FILES.values()}
+    registered_paths = {os.path.normpath(p) for p in _JUDGMENT_CHUNK_FILES.values()}
+    for path in glob.glob("chunks/*_chunks.json"):
+        base = os.path.basename(path)
+        if base in statute_basenames or os.path.normpath(path) in registered_paths:
+            continue
+        stem = base[: -len("_chunks.json")]
+        key = stem.split("_v_")[0]
+        for candidate in (key, stem):
+            if candidate and candidate not in _JUDGMENT_CHUNK_FILES:
+                _JUDGMENT_CHUNK_FILES[candidate] = path
+
+
+try:
+    _auto_register_judgment_chunks()
+except Exception:  # never let a corpus-scan hiccup break import
+    logging.getLogger("retrieval").exception("_auto_register_judgment_chunks failed")
+
 
 _statute_cache = {}
 _judgment_cache = {}

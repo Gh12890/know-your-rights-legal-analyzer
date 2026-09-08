@@ -1646,18 +1646,31 @@ def answer_question(question):
         from itact_section_status import get_cyber_backstory_note
         statute_overrides = statute_overrides + get_cyber_backstory_note(question)
 
+    # Curated JUDGMENT anchors -- the case-law counterpart of the statute
+    # doctrine overrides above. voyage-law-2 similarity is weak on long
+    # narrative queries, so the genuinely-relevant judgments (civil-dispute-
+    # dressed-as-cheating, grounds of arrest in writing, ...) score below
+    # JUDGMENT_SIMILARITY_THRESHOLD and never reach the answer even though
+    # the corpus holds them. This wires them by keyword, same as
+    # statute_doctrine_map. See judgment_doctrine_map module docstring.
+    from judgment_doctrine_map import get_judgment_doctrine_override
+    judgment_overrides = get_judgment_doctrine_override(question)
+
+    # everything curated that must reach the answer regardless of ranking
+    overrides = statute_overrides + judgment_overrides
+
     result = find_relevant_sections(question)
 
     if result["state"] == "unavailable":
         # Even if retrieval is unavailable, a curated override may
         # still apply -- don't discard it just because the general
         # embedding-based path is down.
-        if statute_overrides:
-            retrieved_text = format_retrieved_text_for_prompt(statute_overrides)
-            response_text = generate_grounded_response(question, retrieved_text, matches=statute_overrides)
+        if overrides:
+            retrieved_text = format_retrieved_text_for_prompt(overrides)
+            response_text = generate_grounded_response(question, retrieved_text, matches=overrides)
             return {
                 "state": "single_match",
-                "matches": statute_overrides,
+                "matches": overrides,
                 "response_text": response_text,
                 "situation_detected": _looks_like_situation(response_text),
             }
@@ -1677,19 +1690,19 @@ def answer_question(question):
         # overrides (e.g. once a false-positive judgment match, like the
         # out-of-domain Rangappa fix above, correctly stops padding
         # find_relevant_sections's result out of "no_match").
-        if statute_overrides:
-            retrieved_text = format_retrieved_text_for_prompt(statute_overrides)
-            response_text = generate_grounded_response(question, retrieved_text, matches=statute_overrides)
+        if overrides:
+            retrieved_text = format_retrieved_text_for_prompt(overrides)
+            response_text = generate_grounded_response(question, retrieved_text, matches=overrides)
             return {
                 "state": "single_match",
-                "matches": statute_overrides,
+                "matches": overrides,
                 "response_text": response_text,
                 "situation_detected": _looks_like_situation(response_text),
             }
         return {"state": "no_match"}
 
     if result["state"] == "conflicting_matches":
-        all_matches = result["matches"] + result.get("judgment_matches", []) + statute_overrides
+        all_matches = result["matches"] + result.get("judgment_matches", []) + overrides
         retrieved_text = format_retrieved_text_for_prompt(all_matches)
         response_text = generate_grounded_response(question, retrieved_text, is_conflict=True, matches=all_matches)
         return {
@@ -1706,7 +1719,7 @@ def answer_question(question):
     # it was the single highest-scoring result overall) AND any
     # curated statute overrides that matched alongside the normal
     # semantic results.
-    all_matches = result["matches"] + result.get("judgment_matches", []) + statute_overrides
+    all_matches = result["matches"] + result.get("judgment_matches", []) + overrides
     retrieved_text = format_retrieved_text_for_prompt(all_matches)
     response_text = generate_grounded_response(question, retrieved_text, matches=all_matches)
     return {
