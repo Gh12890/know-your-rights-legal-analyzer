@@ -89,12 +89,17 @@ Architecturally this is **one new layer** (`scenario_router.py` + `SCENARIO_SPEC
 
 ---
 
-## STEP 3 — Anti-generic + corpus top-up · *8 Sep*
-**Exit: 3 different inputs per hero → different cases & rights each time. Every hero case anchor resolves clean.**
+## STEP 3 — Anti-generic + corpus top-up · *8 Sep* ✅ DONE (commit 923ee3e)
+**Exit: 3 different inputs per hero → different cases & rights each time. Every hero case anchor resolves clean.** — met.
 
-Implement the 6 mechanics above. Corpus: add **only** Lalita Kumari + one zero-FIR authority + one s.43(5)/woman-dignity case. Verbatim `curated_excerpt`, embed, verify retrieval per scenario. **Hard cap: 4 cases.**
-
-**If the top-up isn't done by noon → swap hero 3 to `FALSE-FIR-AGAINST-ME` and move on.**
+- Mechanics 2 (sub-issue pinning via triggers), 3 (suppression), 4 (negation) — built in `scenario_answer.py` (Step 2).
+- Mechanic 1 (scenario-scoped cases): the scenario layer serves cases ONLY from each scenario's own pool — Arnesh Kumar appears in exactly one scenario. Lane B panel scoping is a Step 4 integration detail.
+- Mechanic 5 (corpus, fact axis): batch 4 seeded **2** cases (under the cap of 4), both fetched live + verbatim-verified + finality-checked:
+  - **Lalita Kumari v Government of Uttar Pradesh** (2014) 2 SCC 1 — para 111 holding → FIR_NOT_REGISTERED anchor (was not in corpus).
+  - **Deepa v S. Vijayalakshmi** (Madras HC DB, 2025) — Section 43(5) BNSS directory-not-mandatory → ARREST_WOMAN night-arrest pin (had no case).
+- Mechanic 6 (document pulls the user's facts) — Step 4.
+- **HERO 3 DECISION: keep `FIR_NOT_REGISTERED`.** Lalita Kumari now seeded; the s.175(3) route + victim-side role stand. No swap to FALSE-FIR-AGAINST-ME.
+- Open (teammate, post-submission ok): a nursing-mother / woman-dignity specific authority (currently leans on D.K. Basu); a territorial-jurisdiction / zero-FIR authority (currently grounded in Lalita Kumari 111(i)/(iv)).
 
 ---
 
