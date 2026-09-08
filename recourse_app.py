@@ -25,7 +25,7 @@ from scenario_draft import build_document, document_pdf
 from recourse_upload import extract_text, check_arrest_document
 
 # situations where "upload the papers" makes sense -- an arrest has happened
-_UPLOAD_SCENARIOS = {"DEFAULT_BAIL", "ARREST_WOMAN", "SUMMONS_PRE_ARREST"}
+_UPLOAD_SCENARIOS = {"DEFAULT_BAIL", "ARREST_GENERAL", "ARREST_WOMAN", "SUMMONS_PRE_ARREST"}
 
 st.set_page_config(page_title="Recourse — know your rights when it matters most",
                    page_icon="⚖️", layout="centered")

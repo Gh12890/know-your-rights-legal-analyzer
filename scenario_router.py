@@ -207,7 +207,7 @@ def _keyword_route(message: str) -> dict:
     }
 
 
-_ROUTER_PROMPT = """You are a router for a legal-information tool for people in India who are dealing with the police, an arrest, an FIR, or bail. Read the person's message and decide which ONE situation it best fits.
+_ROUTER_PROMPT = """You are a router for a legal-information tool for people in India who are dealing with the police, an arrest, an FIR, bail, or a bounced-cheque (Section 138) notice. Read the person's message and decide which ONE situation it best fits.
 
 Choose exactly one scenario_id from this fixed list:
 
@@ -216,7 +216,7 @@ Choose exactly one scenario_id from this fixed list:
 - ARREST_GENERAL: a person has been arrested (and it is NOT specifically a woman, and NOT specifically a default-bail chargesheet-delay question) - the message is about an arrest that has already happened and any of: grounds of arrest not given, arrested directly without a notice, family not informed, no lawyer, beaten in custody, not produced in 24 hours. This is the default for "the police arrested me / my brother / my son / my father".
 - FIR_NOT_REGISTERED: the person is a victim / complainant AND has gone to the police AND the police have REFUSED or FAILED to register the FIR. Do NOT choose this just because a crime happened to the person - only when a refusal to register is actually described or clearly implied.
 - SUMMONS_PRE_ARREST: the person has NOT been arrested yet - they have (or expect) a notice to appear, or fear an imminent arrest, for an offence punishable with up to 7 years.
-- CHEQUE_BOUNCE_NOTICE: a cheque has bounced and the question is about the demand notice / complaint timeline.
+- CHEQUE_BOUNCE_NOTICE: a cheque has bounced / been dishonoured / returned unpaid, and the person wants to know what to do next - the demand notice, the 15-day and 30-day timelines, the Section 138 complaint. Choose this whenever a bounced cheque is the core fact, even if the police are not involved.
 - GROUNDS_NOT_GIVEN: someone was arrested and was not told the grounds / reasons for the arrest. (Use ARREST_GENERAL unless grounds-of-arrest is the ONLY issue.)
 - NOT_PRODUCED_24H: someone was arrested and has not been produced before a Magistrate within 24 hours.
 - CUSTODIAL_VIOLENCE: someone was beaten, tortured, or mistreated in police custody.
@@ -314,6 +314,18 @@ def route_situation(message: str) -> dict:
         "confidence": confidence,
         "via": "llm",
     }
+
+    # Structural override: for the two scenarios whose keyword patterns are
+    # near-unambiguous (a bounced cheque, a named chargesheet delay), a
+    # concrete keyword hit beats an LLM "OUT_OF_SCOPE" -- the model tends to
+    # read these as "not a police matter" and wrongly bail.
+    if sid == "OUT_OF_SCOPE" and kw["scenario_id"] in ("CHEQUE_BOUNCE_NOTICE", "DEFAULT_BAIL"):
+        kw["factors"] = factors
+        kw["role"] = result["role"]
+        kw["stage"] = result["stage"]
+        kw["offence_hint"] = result["offence_hint"]
+        kw["via"] = "llm+keyword"
+        return kw
 
     # Low-confidence guard: the model itself is unsure. If the keyword
     # router found something concrete, trust that instead; otherwise be
