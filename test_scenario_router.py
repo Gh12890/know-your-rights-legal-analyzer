@@ -34,9 +34,9 @@ def check(cond, desc):
 # ---------------------------------------------------------------------------
 # catalogue integrity
 # ---------------------------------------------------------------------------
-_BUILT = {"DEFAULT_BAIL", "ARREST_WOMAN", "FIR_NOT_REGISTERED",
+_BUILT = {"DEFAULT_BAIL", "ARREST_GENERAL", "ARREST_WOMAN", "FIR_NOT_REGISTERED",
           "SUMMONS_PRE_ARREST", "CHEQUE_BOUNCE_NOTICE"}
-check(set(SCENARIOS) == _BUILT, f"5 scenarios built (got {sorted(SCENARIOS)})")
+check(set(SCENARIOS) == _BUILT, f"{len(_BUILT)} scenarios built (got {sorted(SCENARIOS)})")
 check(_BUILT <= set(SCENARIO_IDS), "every built scenario id is a routing target")
 check("OUT_OF_SCOPE" in SCENARIO_IDS, "OUT_OF_SCOPE is in the enum")
 
@@ -71,11 +71,26 @@ for sid, s in SCENARIOS.items():
     has_always = any((r.triggers is ALWAYS or not r.triggers) for r in s.rights)
     check(has_always or not s.rights, f"{sid} has an always-on right")
 
-# Arnesh Kumar appears in EXACTLY ONE scenario's case pool (the anti-generic rule)
-_arnesh = [sid for sid, s in SCENARIOS.items()
-           if any("arnesh kumar" in c.lower() for c in s.cases)]
-check(_arnesh == ["SUMMONS_PRE_ARREST"],
-      f"Arnesh Kumar lives only in SUMMONS_PRE_ARREST (found in {_arnesh})")
+# Arnesh Kumar is confined to the two arrest-notice scenarios only (the
+# anti-generic rule) -- NOT in default-bail, FIR, cheque or as a repeat
+# landmark everywhere.
+_arnesh = {sid for sid, s in SCENARIOS.items()
+          if any("arnesh kumar" in c.lower() for c in s.cases)}
+check(_arnesh <= {"SUMMONS_PRE_ARREST", "ARREST_GENERAL"},
+      f"Arnesh Kumar confined to the arrest-notice scenarios (found in {sorted(_arnesh)})")
+# default-bail / FIR / cheque must NOT carry Arnesh Kumar
+for _sid in ("DEFAULT_BAIL", "FIR_NOT_REGISTERED", "CHEQUE_BOUNCE_NOTICE"):
+    check(not any("arnesh kumar" in c.lower() for c in SCENARIOS[_sid].cases),
+          f"{_sid} does not carry Arnesh Kumar")
+
+# a man arrested for theft must NOT get the "A woman has been arrested" answer
+from scenario_answer import build_scenario_answer as _bsa
+_goat = _bsa("Police came to my house and arrested me saying i stole a goat")
+check(_goat["target_id"] == "ARREST_GENERAL",
+      f"goat-theft (male) -> ARREST_GENERAL, not ARREST_WOMAN (got {_goat['target_id']})")
+check(_goat["scenario_label"] != "A woman has been arrested",
+      f"goat-theft heading is not the woman one (got {_goat['scenario_label']!r})")
+check(len(_goat["rights"]) >= 3, f"goat-theft answer has rights ({len(_goat['rights'])})")
 
 
 # ---------------------------------------------------------------------------

@@ -50,6 +50,7 @@ _HAIKU_MODEL = "claude-haiku-4-5-20251001"
 SCENARIO_IDS = [
     # built
     "DEFAULT_BAIL",
+    "ARREST_GENERAL",
     "ARREST_WOMAN",
     "FIR_NOT_REGISTERED",
     "SUMMONS_PRE_ARREST",
@@ -70,11 +71,14 @@ SCENARIO_IDS = [
 
 # Until their own spec blocks are written, these routing targets are answered
 # with the closest built scenario. Deliberately explicit -- not a fuzzy guess.
+# The grounds / 24h / custodial-violence / lawyer grievances resolve to
+# ARREST_GENERAL, NOT ARREST_WOMAN -- a man arrested for theft must never get
+# an answer headed "A woman has been arrested".
 _RESOLVE_TARGET = {
-    "GROUNDS_NOT_GIVEN": "ARREST_WOMAN",     # grounds-of-arrest rights live here too
-    "NOT_PRODUCED_24H": "ARREST_WOMAN",      # 24h production is an always-on right there
-    "CUSTODIAL_VIOLENCE": "ARREST_WOMAN",    # red-flag path + D.K. Basu
-    "NO_LAWYER_ACCESS": "ARREST_WOMAN",
+    "GROUNDS_NOT_GIVEN": "ARREST_GENERAL",
+    "NOT_PRODUCED_24H": "ARREST_GENERAL",
+    "CUSTODIAL_VIOLENCE": "ARREST_GENERAL",
+    "NO_LAWYER_ACCESS": "ARREST_GENERAL",
     "ANTICIPATORY_BAIL": "SUMMONS_PRE_ARREST",
     "FALSE_FIR_AGAINST_ME": "FIR_NOT_REGISTERED",  # placeholder until hero-3 decision
     "ITACT_66A": "OUT_OF_SCOPE",             # handled by chat_assistant's own override
@@ -125,14 +129,22 @@ _KEYWORD_ROUTES = [
     ]),
     ("ARREST_WOMAN", [
         ("sister", "arrest"), ("wife", "arrest"), ("daughter", "arrest"),
-        ("mother", "arrest"), ("woman", "arrest"), ("she", "arrested"),
-        ("her", "arrested"), ("nursing mother",), ("lady constable",),
-        ("arrested", "night"), ("arrested", "last night"),
+        ("mother", "arrest"), ("woman", "arrest"), ("women", "arrest"),
+        ("she", "arrested"), ("her", "arrested"), ("girl", "arrest"),
+        ("nursing mother",), ("lady constable",), ("woman police officer",),
     ]),
     ("CUSTODIAL_VIOLENCE", [
         ("beaten", "custody"), ("beaten", "lockup"), ("beaten", "police station"),
         ("tortured",), ("third degree",), ("slapped", "lockup"),
         ("kept awake",), ("custodial",),
+    ]),
+    ("ARREST_GENERAL", [
+        ("arrested me",), ("i was arrested",), ("i am arrested",),
+        ("arrested my brother",), ("arrested my son",), ("arrested my father",),
+        ("arrested my husband",), ("arrested my friend",),
+        ("police arrested",), ("arrested him",), ("was arrested",),
+        ("came to my house", "arrest"), ("directly arrested",),
+        ("arrested", "without", "notice"), ("arrested",),
     ]),
     ("NOT_PRODUCED_24H", [
         ("not produced",), ("24 hours", "magistrate"), ("still not", "magistrate"),
@@ -196,11 +208,12 @@ _ROUTER_PROMPT = """You are a router for a legal-information tool for people in 
 Choose exactly one scenario_id from this fixed list:
 
 - DEFAULT_BAIL: someone is in custody, the investigation is dragging, and the chargesheet / final report has not been filed within the time limit (60 or 90 days).
-- ARREST_WOMAN: a woman has been arrested (often the sender's sister / wife / daughter / mother); questions about grounds of arrest, night arrest, informing the family, custody safeguards.
+- ARREST_WOMAN: a WOMAN or girl has been arrested (the arrested person is female - the sender's sister / wife / daughter / mother, or "she" / "her"). Only choose this when the arrested person is clearly a woman.
+- ARREST_GENERAL: a person has been arrested (and it is NOT specifically a woman, and NOT specifically a default-bail chargesheet-delay question) - the message is about an arrest that has already happened and any of: grounds of arrest not given, arrested directly without a notice, family not informed, no lawyer, beaten in custody, not produced in 24 hours. This is the default for "the police arrested me / my brother / my son / my father".
 - FIR_NOT_REGISTERED: the person is a victim / complainant and the police are refusing or failing to register their FIR for a cognizable offence.
 - SUMMONS_PRE_ARREST: the person has NOT been arrested yet - they have (or expect) a notice to appear, or fear an imminent arrest, for an offence punishable with up to 7 years.
 - CHEQUE_BOUNCE_NOTICE: a cheque has bounced and the question is about the demand notice / complaint timeline.
-- GROUNDS_NOT_GIVEN: someone was arrested and was not told the grounds / reasons for the arrest.
+- GROUNDS_NOT_GIVEN: someone was arrested and was not told the grounds / reasons for the arrest. (Use ARREST_GENERAL unless grounds-of-arrest is the ONLY issue.)
 - NOT_PRODUCED_24H: someone was arrested and has not been produced before a Magistrate within 24 hours.
 - CUSTODIAL_VIOLENCE: someone was beaten, tortured, or mistreated in police custody.
 - NO_LAWYER_ACCESS: an arrested person is being denied access to a lawyer.

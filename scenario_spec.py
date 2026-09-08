@@ -208,6 +208,144 @@ _SCENARIOS = [
 
     # -------------------------------------------------------------------
     Scenario(
+        id="ARREST_GENERAL",
+        label="Someone has been arrested",
+        role="family",
+        stage="arrested, in custody, first 24 hours",
+        stage_explainer=(
+            "An arrest is only lawful if certain safeguards are followed at the "
+            "moment it happens and in the hours right after. The person must be "
+            "told WHY they are being arrested, in enough detail to actually "
+            "respond to it. For most offences punishable with up to 7 years the "
+            "police are expected to serve a written notice to appear first, not "
+            "arrest straight away. A relative or friend must be told about the "
+            "arrest and where the person is being held. And the person must be "
+            "produced before a Magistrate within 24 hours. These are not "
+            "formalities - if they are broken, the continued custody itself can "
+            "be challenged as unlawful."
+        ),
+        rights=[
+            Right(
+                plain_text=(
+                    "The person, and the family, have a right to be told the "
+                    "grounds of the arrest - the actual reasons and the substance "
+                    "of the allegation, not just a section number read out."
+                ),
+                section="47", act="BNSS",
+                case="Prabir Purkayastha v State (NCT of Delhi)",
+                triggers=ALWAYS,
+            ),
+            Right(
+                plain_text=(
+                    "For an offence punishable with up to 7 years, the police are "
+                    "expected to serve a written notice to appear first; arresting "
+                    "straight away is the exception and needs reasons recorded in "
+                    "writing."
+                ),
+                section="35", act="BNSS",
+                case="Arnesh Kumar v State of Bihar",
+                triggers=[("directly",), ("straight away",), ("without", "notice"),
+                          ("no notice",), ("never gave", "notice"), ("came to my house",),
+                          ("came to our house",), ("stole",), ("theft",), ("cheat",),
+                          ("goat",), ("shop",), ("minor",), ("small",)],
+            ),
+            Right(
+                plain_text=(
+                    "A relative or friend has a right to be told that the person "
+                    "has been arrested and exactly where they are being held, as "
+                    "soon as the arrest is made."
+                ),
+                section="48", act="BNSS",
+                case="D.K. Basu v State of West Bengal",
+                triggers=[("nobody told us",), ("didn't tell us",), ("did not tell",),
+                          ("family",), ("we don't know where",), ("dont know where",),
+                          ("not informed",), ("no information",), ("where he is",),
+                          ("where she is",)],
+            ),
+            Right(
+                plain_text=(
+                    "The person must be examined by a doctor after arrest, the "
+                    "arrest memo must be attested by a witness, and any injury or "
+                    "ill-treatment in custody must be recorded."
+                ),
+                section="", act="",
+                case="D.K. Basu v State of West Bengal",
+                triggers=[("beat",), ("beaten",), ("hit",), ("slap",), ("tortur",),
+                          ("thrash",), ("injur",), ("medical",), ("doctor",),
+                          ("memo",), ("witness",), ("kept awake",), ("lockup",),
+                          ("lock-up",), ("lock up",)],
+            ),
+            Right(
+                plain_text=(
+                    "The person has a right to meet and consult a lawyer, "
+                    "including during questioning."
+                ),
+                section="38", act="BNSS",
+                case="D.K. Basu v State of West Bengal",
+                triggers=[("lawyer",), ("advocate",), ("counsel",), ("legal aid",)],
+            ),
+            Right(
+                plain_text=(
+                    "The person must be produced before a Magistrate within 24 "
+                    "hours of arrest, not counting the time needed for the journey "
+                    "to court."
+                ),
+                section="58", act="BNSS",
+                case="Rakhi Mitra and Anr v State of West Bengal",
+                triggers=ALWAYS,
+            ),
+        ],
+        police_can=[
+            "Arrest without a warrant for a cognizable offence, provided they give "
+            "the grounds of arrest.",
+            "Arrest despite the notice-first rule where they record specific "
+            "reasons why arrest is necessary, or for an offence above 7 years.",
+        ],
+        police_cannot=[
+            "Keep the grounds of arrest from the person or the family.",
+            "Arrest routinely for a minor offence without recording why arrest was "
+            "necessary.",
+            "Refuse to let the person meet a lawyer, or refuse to tell the family "
+            "where they are held.",
+        ],
+        next_24h=[
+            "Ask, in writing, for the grounds of arrest and a copy of the arrest "
+            "memo - keep a copy of your request.",
+            "Write down the exact date and time of the arrest and who was present.",
+            "Find out which Magistrate the person will be produced before, and when.",
+            "Arrange a lawyer for that production hearing - procedural breaches are "
+            "raised there, in front of the Magistrate, not saved for later.",
+        ],
+        negations=[
+            Negation(
+                line=(
+                    "If the offence is one punishable with more than 7 years, the "
+                    "written-notice-first rule does not apply - the focus is the "
+                    "grounds of arrest and the 24-hour production."
+                ),
+                absent_triggers=[("stole",), ("theft",), ("cheat",), ("goat",),
+                                 ("shop",), ("minor",), ("small",), ("directly",),
+                                 ("no notice",), ("without", "notice")],
+                review=True,
+            ),
+        ],
+        paper_type="magistrate_representation",
+        red_flags=[
+            "If the person has visible injuries or says they were hit, slapped or "
+            "kept awake - that is custodial violence. Raise it with the Magistrate "
+            "at the production hearing and ask for a medical examination to be "
+            "recorded, straight away.",
+        ],
+        cases=[
+            "Prabir Purkayastha v State (NCT of Delhi)",
+            "Arnesh Kumar v State of Bihar",
+            "D.K. Basu v State of West Bengal",
+            "Rakhi Mitra and Anr v State of West Bengal",
+        ],
+    ),
+
+    # -------------------------------------------------------------------
+    Scenario(
         id="ARREST_WOMAN",
         label="A woman has been arrested",
         role="family",
@@ -249,7 +387,7 @@ _SCENARIOS = [
                 para_hint="held s.43(5) BNSS not mandatory",
                 triggers=[("night",), ("sunset",), ("sunrise",), ("last night",),
                           ("evening",), ("9 pm",), ("10 pm",), ("11 pm",),
-                          ("midnight",), ("am",), ("late",)],
+                          ("midnight",), ("late night",), ("after dark",)],
                 note="Statute text verbatim-verified in statute_doctrine_map.py (bnss_43_5). "
                      "Deepa v S. Vijayalakshmi (Madras HC DB, 2025) is now in the corpus "
                      "and is squarely on Section 43(5) BNSS: it holds the provision "
@@ -332,8 +470,8 @@ _SCENARIOS = [
                 ),
                 absent_triggers=[("night",), ("sunset",), ("sunrise",),
                                  ("last night",), ("evening",), ("9 pm",),
-                                 ("10 pm",), ("11 pm",), ("midnight",), ("am",),
-                                 ("late",)],
+                                 ("10 pm",), ("11 pm",), ("midnight",),
+                                 ("late night",), ("after dark",)],
             ),
         ],
         paper_type="magistrate_representation",
