@@ -148,6 +148,72 @@ check(_seen.get("called") and pool and pool[0]["record"]["case_name"] == "Spy v 
 
 
 # ---------------------------------------------------------------------------
+# Lane A wiring (2026-09-08): find_relevant_sections lexical backfill.
+# A judgment BM25 pulls up, that meaning-search ranked just under the
+# JUDGMENT_SIMILARITY_THRESHOLD floor, is admitted -- but ONLY when it is
+# also a real (sub-floor) semantic hit, a strong lexical hit, and shares
+# >= 3 distinct meaningful words with the question. A lexical-ONLY hit
+# (the NALSA-on-"union of india" noise class) is rejected.
+# ---------------------------------------------------------------------------
+from semantic_retrieval import (
+    _shares_enough_terms, _content_terms, find_relevant_sections,
+    JUDGMENT_SIMILARITY_THRESHOLD as _JT,
+)
+
+check(_shares_enough_terms("irrigation channel boundary dispute fence",
+                           "a dispute regarding the boundary and the irrigation channel and a broken fence"),
+      "keyword-overlap gate: passes on 3+ shared distinctive terms")
+check(not _shares_enough_terms("my father was arrested at the police station last night",
+                               "the transgender community and the constitution of india"),
+      "keyword-overlap gate: fails when only stopwords / generic words overlap")
+check("court" not in _content_terms("the court and the police station"),
+      "_content_terms drops the backfill stopwords")
+check("166" in _content_terms("section 166 of the bnss"),
+      "_content_terms keeps a bare section number")
+
+_STOP = object()
+
+
+def _sem(recs):
+    return lambda q, top_k=50, _raise_errors=False: recs
+
+
+def _run_backfill(sem_recs, lex_recs):
+    orig_ss, orig_ls = sr.semantic_search, sr.lexical_search
+    try:
+        sr.semantic_search = _sem(sem_recs)
+        sr.lexical_search = lambda q, top_k=50: lex_recs
+        return find_relevant_sections("boundary dispute irrigation channel fence neighbour arrested father")
+    finally:
+        sr.semantic_search, sr.lexical_search = orig_ss, orig_ls
+
+
+# a judgment just under the 0.40 floor, strong in BM25 -> admitted, tagged
+_j_underfloor = _rec("J1", case_name="Under Floor v State", type="judgment",
+                     text="boundary dispute irrigation channel fence neighbour")
+_res = _run_backfill(
+    sem_recs=[dict(_j_underfloor, score=_JT - 0.08)],
+    lex_recs=[dict(_j_underfloor, score=40.0), dict(_j_underfloor, score=40.0)],
+)
+_bf = [m for m in _res.get("judgment_matches", []) if m.get("retrieval") == "lexical"]
+check(_bf and _bf[0]["case_name"] == "Under Floor v State",
+      "lexical backfill admits an under-floor judgment that is ALSO a strong BM25 hit")
+check(_bf and _bf[0]["score"] < _JT and _bf[0].get("lexical_score") == 40.0,
+      "backfilled judgment scored just under the floor + keeps its lexical_score")
+
+# a lexical-ONLY hit (absent from the semantic list) -> rejected as noise
+_res2 = _run_backfill(
+    sem_recs=[dict(_rec("X", case_name="Real Match v State", type="judgment",
+                        text="boundary dispute irrigation channel fence"), score=_JT + 0.05)],
+    lex_recs=[dict(_rec("N", case_name="NALSA v Union of India", type="judgment",
+                        text="boundary dispute irrigation channel fence union india"), score=50.0)],
+)
+check("NALSA v Union of India" not in
+      {m.get("case_name") for m in _res2.get("judgment_matches", [])},
+      "lexical backfill rejects a lexical-ONLY hit (not in the semantic top-50)")
+
+
+# ---------------------------------------------------------------------------
 print()
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILED")

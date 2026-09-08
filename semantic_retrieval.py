@@ -580,8 +580,14 @@ def find_relevant_sections(query):
     concern (statutes disagreeing on cognizable/bailable status), not a
     general "should judgments be included" question."""
     results = semantic_search(query)
+    lex_hits = lexical_search(query) or []
+
     if results is None:
-        return {"state": "unavailable"}
+        # Voyage down: fall back to lexical-only rather than the blanket
+        # "unavailable" -- strictly more useful, still honest.
+        if not lex_hits:
+            return {"state": "unavailable"}
+        results = []
 
     statute_matches = [r for r in results if r["type"] == "statute" and r["score"] >= STATUTE_SIMILARITY_THRESHOLD]
     judgment_matches = [r for r in results if r["type"] == "judgment" and r["score"] >= JUDGMENT_SIMILARITY_THRESHOLD
@@ -592,6 +598,52 @@ def find_relevant_sections(query):
     # the MATCH_SCORE_GAP / MAX_*_MATCHES_FOR_PROMPT note above.
     statute_matches = _cap_matches(statute_matches, MAX_STATUTE_MATCHES_FOR_PROMPT)
     judgment_matches = _cap_matches(judgment_matches, MAX_JUDGMENT_MATCHES_FOR_PROMPT)
+
+    # --- LEXICAL BACKFILL (judgments only) ---------------------------------
+    # A judgment BM25 pulled up on literal keyword overlap that meaning-
+    # search ranked just below JUDGMENT_SIMILARITY_THRESHOLD. Admitted only
+    # when BOTH signals agree it is relevant (RRF philosophy): it must be a
+    # real -- if sub-floor -- cosine hit (>= _BACKFILL_MIN_SEMANTIC) AND a
+    # strong lexical hit, AND share >= _MIN_SHARED_TERMS distinct meaningful
+    # words with the question. One paragraph per distinct case; capped;
+    # scored just under the floor so it sorts after every semantic match.
+    # Runs after _cap_matches so it never touches the statute conflict
+    # logic. A lexical-ONLY hit (case absent from the semantic top-50) is
+    # NOT admitted here -- that is the noise class (NALSA on "union of
+    # india", etc.); the curated doctrine anchors cover the cases that
+    # genuinely need pure-keyword rescue.
+    _seen_cases = {(m.get("case_name") or "").lower()
+                   for m in statute_matches + judgment_matches if m.get("case_name")}
+    _by_key = {_bkey(r): r for r in results}
+    _top_lex = lex_hits[0]["score"] if lex_hits else 0.0
+    _added = []
+    for lx in lex_hits[:_LEXICAL_BACKFILL_SCAN]:
+        if lx.get("type") != "judgment":
+            continue
+        cn = (lx.get("case_name") or "")
+        if not cn or cn.lower() in _seen_cases or cn in OUT_OF_CHAT_DOMAIN_CASE_NAMES:
+            continue
+        if _top_lex and lx.get("score", 0.0) < _BACKFILL_MIN_LEXICAL_FRAC * _top_lex:
+            continue
+        if not _shares_enough_terms(query, lx.get("text", "")):
+            continue
+        sem_rec = _by_key.get(_bkey(lx))
+        sem_score = (sem_rec or {}).get("score")
+        if sem_score is None or sem_score < _BACKFILL_MIN_SEMANTIC:
+            continue  # not also a real meaning hit -> skip (noise guard)
+        rec = dict(sem_rec)
+        rec["retrieval"] = "lexical"
+        rec["lexical_score"] = lx.get("score")
+        rec["semantic_score"] = sem_score
+        rec["score"] = min(sem_score, JUDGMENT_SIMILARITY_THRESHOLD - 0.001)
+        _added.append(rec)
+        _seen_cases.add(cn.lower())
+        if len(_added) >= _MAX_LEXICAL_BACKFILL:
+            break
+    if _added:
+        logger.info("find_relevant_sections: lexical backfill added %d judgment(s): %s",
+                    len(_added), [r.get("case_name") for r in _added])
+        judgment_matches = judgment_matches + _added
 
     if not statute_matches and not judgment_matches:
         return {"state": "no_match", "results": results}
@@ -667,6 +719,66 @@ def find_relevant_sections(query):
     state = _conflict_state(enriched)
 
     return {"state": state, "matches": enriched, "judgment_matches": judgment_matches}
+
+
+# ---------------------------------------------------------------------
+# Lexical backfill for the CHAT answer path (Lane A).
+#
+# WHY (2026-09-08): find_relevant_sections ranks judgments by MEANING and
+# then filters at JUDGMENT_SIMILARITY_THRESHOLD (0.40). A long narrative
+# question ("boundary dispute over an irrigation channel ... they broke
+# our fence ... the police arrested my father on the neighbour's
+# statement") pushes the genuinely on-point judgment's cosine below 0.40
+# and it never reaches the answer -- the exact gap the hand-written
+# doctrine anchors have been patching one scenario at a time. This adds
+# BM25 (lexical_search) as a RECALL aid to the same function: a judgment
+# chunk that shares real, literal keywords with the question is admitted
+# even below the cosine floor, behind a keyword-overlap gate and clearly
+# tagged retrieval="lexical". Statutes are left to the (already strong)
+# offence-keyword + statute_doctrine_map paths -- this only backfills
+# judgments, and only a couple, sorted after every real semantic match.
+_LEXICAL_BACKFILL_SCAN = 10   # how far down the BM25 list to look
+_MAX_LEXICAL_BACKFILL = 2     # how many below-floor judgments to admit (distinct cases)
+_MIN_SHARED_TERMS = 3         # distinct meaningful query words the chunk must contain
+_BACKFILL_MIN_SEMANTIC = 0.22 # floor: the chunk must still be in the semantic top-50 with
+                              # SOME meaning relevance -- not zero (a lexical-only hit is
+                              # the noise class and is rejected by the sem_rec-is-None guard)
+_BACKFILL_MIN_LEXICAL_FRAC = 0.35  # ... and a strong lexical hit vs the top BM25 score
+
+_BACKFILL_STOPWORDS = frozenset("""
+a an the and or but if then than that this these those there here of to in on at by for with
+from into over under about as is are was were be been being have has had do does did not no
+my our your his her their its it we you they he she i me us them him them who whom whose which
+what when where why how so such can could would should may might will shall must been ongoing
+police station custody arrested arrest complaint file filed said told them father brother son
+mother sister wife husband family last week night day time went came arrived men man house home
+court courts case cases state states india union section sections law laws legal judgment
+judgement order orders petition appeal accused person people matter matters right rights
+""".split())
+
+
+def _bkey(r):
+    return r.get("chunk_id") or (r.get("case_name"), r.get("paragraph_number"),
+                                 r.get("section_number"))
+
+
+def _content_terms(text):
+    """Meaningful words for the keyword-overlap gate: >=4-letter tokens
+    that aren't stopwords, plus any bare section number."""
+    out = set()
+    for t in _lex_tokenize(text):
+        if t.isdigit() and len(t) >= 2:
+            out.add(t)
+        elif len(t) >= 4 and t not in _BACKFILL_STOPWORDS:
+            out.add(t)
+    return out
+
+
+def _shares_enough_terms(query, chunk_text, minimum=_MIN_SHARED_TERMS):
+    q = _content_terms(query)
+    if len(q) < minimum:
+        return False
+    return len(q & _content_terms(chunk_text)) >= minimum
 
 
 def _cap_matches(matches, max_keep, gap=MATCH_SCORE_GAP):
