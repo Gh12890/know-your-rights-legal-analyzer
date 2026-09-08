@@ -378,6 +378,7 @@ for c, (label, val) in zip(cols, EXAMPLES.items()):
     if c.button(label, use_container_width=True, key=f"ex_{label[:10]}"):
         st.session_state.text = val
         _reset_answer()
+        st.session_state._autorun = True
 
 st.html('<div class="r-label">&hellip; or describe your own</div>')
 
@@ -562,7 +563,7 @@ def _render_concord(old_code):
 # --------------------------------------------------------------------------
 # run
 # --------------------------------------------------------------------------
-if go and msg.strip():
+if (go or st.session_state.pop("_autorun", False)) and msg.strip():
     for _k in ("doc", "doc_check", "doc_check_sig"):
         st.session_state.pop(_k, None)          # never carry stale artefacts over
     with st.spinner("Working out your situation…"):
