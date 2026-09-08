@@ -387,7 +387,7 @@ st.html('<div class="r-label">&hellip; or describe your own</div>')
 with st.form("situation_form", border=False, clear_on_submit=False):
     msg = st.text_area("Describe your situation", key="text", height=120,
                        label_visibility="collapsed",
-                       placeholder="e.g. My brother was arrested four days ago and still hasn't been produced in court…")
+                       placeholder="e.g. My brother was arrested four days ago and still hasn't been produced in court…") or ""
     go = st.form_submit_button("Check my situation  →", type="primary",
                                use_container_width=True)
 
@@ -566,15 +566,19 @@ if go and msg.strip():
     for _k in ("doc", "doc_check", "doc_check_sig"):
         st.session_state.pop(_k, None)          # never carry stale artefacts over
     with st.spinner("Working out your situation…"):
-        answer = build_scenario_answer(msg)
-    st.session_state.answer = answer
+        st.session_state.answer = build_scenario_answer(msg)
     st.session_state.answer_msg = msg
 
 answer = st.session_state.get("answer")
-# only show an answer that matches what's currently in the box
-if answer and st.session_state.get("answer_msg", "").strip() == (msg or "").strip():
+if answer:
+    _box_now = msg.strip()
     msg = st.session_state.get("answer_msg", msg)
     st.html('<hr class="r-rule">')
+    # if the box has been edited since this answer was produced, say so
+    if _box_now and _box_now != msg.strip():
+        st.markdown('<p class="r-foot">You\'ve changed your description &mdash; press '
+                    '<b>Check my situation</b> again to update the answer below.</p>',
+                    unsafe_allow_html=True)
 
     if answer["status"] != "answered":
         st.markdown('<div class="r-label">Out of scope</div>', unsafe_allow_html=True)
@@ -595,8 +599,19 @@ if answer and st.session_state.get("answer_msg", "").strip() == (msg or "").stri
                     unsafe_allow_html=True)
 
         st.markdown('<div class="r-label">Your rights right now</div>', unsafe_allow_html=True)
-        for i, r in enumerate(answer["rights"], 1):
-            render_right(i, r)
+        for i, r in enumerate(answer.get("rights") or [], 1):
+            try:
+                render_right(i, r)
+            except Exception:
+                # never let one right's fancy rendering swallow the rest of the answer
+                st.markdown(
+                    f'<div class="r-card"><div><span class="r-rnum">{i}</span>'
+                    f'<span class="r-rtext">{esc(r.get("plain_text", ""))}</span></div>'
+                    + (f'<div class="r-sectag">{esc(r.get("section_label", ""))}</div>'
+                       if r.get("section_label") else "")
+                    + (f'<div class="r-case">{esc(r.get("case", ""))}</div>'
+                       if r.get("case") else "")
+                    + '</div>', unsafe_allow_html=True)
 
         if answer["negations"]:
             st.markdown("### What your situation does *not* raise")
