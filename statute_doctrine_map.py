@@ -475,6 +475,97 @@ STATUTE_DOCTRINE_MAP = {
             "Added 2026-09-08."
         ),
     },
+    # WHY (2026-09-08): "the police won't register my complaint" is one of
+    # the three headline situations this tool is built for, but the chat
+    # engine's answer for it leaned on semantic retrieval and came back
+    # with the theft-offence law and BNSS 106 (seizure of stolen property)
+    # -- directionally right ("move the Magistrate to direct registration")
+    # but never citing the sections or the governing judgment. These two
+    # entries wire the FIR-registration route deterministically.
+    "fir_refusal_registration_duty_bnss_173": {
+        "act": "BNSS",
+        "section_number": "173",
+        "trigger_groups": [
+            ("won't register",), ("wont register",), ("will not register",),
+            ("not registering",), ("didn't register",), ("did not register",),
+            ("refuse", "register"), ("refusing", "register"), ("refused", "register"),
+            ("refuse", "fir"), ("refusing", "fir"), ("refused", "fir"),
+            ("won't", "fir"), ("wont", "fir"), ("not lodge",), ("won't lodge",),
+            ("refusing", "complaint"), ("won't take", "complaint"),
+            ("won't", "complaint"), ("wont", "complaint"),
+            ("no fir",), ("zero fir",), ("fir", "not", "registered"),
+            ("police", "not", "registering"), ("station", "turned me away"),
+            ("sent me away",), ("no action", "complaint"),
+        ],
+        "context_note": (
+            "BNSS Section 173(1) makes registration of a First Information "
+            "Report MANDATORY once information disclosing a cognizable "
+            "offence is given to the officer in charge of a police station. "
+            "The Supreme Court held this in Lalita Kumari v Government of "
+            "Uttar Pradesh (2014) 2 SCC 1: the police have no discretion to "
+            "refuse -- if the information discloses a cognizable offence, an "
+            "FIR must be registered; a preliminary enquiry is permitted "
+            "only in a narrow set of categories (matrimonial, commercial, "
+            "medical negligence, corruption, or an abnormal delay) and even "
+            "then must be completed within a fixed period and cannot be "
+            "used to sidestep registration. Section 173(3) is the "
+            "preliminary-enquiry provision for offences punishable with "
+            "three to seven years, with the prior permission of a superior "
+            "officer. Section 173(4) gives the complainant a direct remedy "
+            "where the officer in charge refuses: send the substance of the "
+            "information, in writing and by post, to the Superintendent of "
+            "Police, who if satisfied a cognizable offence is disclosed "
+            "either investigates or directs an investigation. A woman "
+            "complainant in the sexual-offence categories is entitled to "
+            "have the information recorded by a woman officer and, in "
+            "specified cases, at her residence."
+        ),
+        "verified_note": (
+            "BNSS 173 text pulled live via get_statute_section. s.173 is the "
+            "BNSS re-enactment of CrPC 154 (concordance). Lalita Kumari v "
+            "Govt of UP (2014) 2 SCC 1 is in this project's judgment corpus "
+            "(chunks/lalita_kumari_v_government_of_uttar_pradesh_chunks.json, "
+            "seeded 2026-09-08, para 111 holding verbatim-verified). Entry "
+            "added 2026-09-08."
+        ),
+    },
+    "fir_refusal_magistrate_direction_bnss_175": {
+        "act": "BNSS",
+        "section_number": "175",
+        "trigger_groups": [
+            ("won't register",), ("wont register",), ("will not register",),
+            ("not registering",), ("didn't register",), ("did not register",),
+            ("refuse", "register"), ("refusing", "register"), ("refused", "register"),
+            ("refuse", "fir"), ("refusing", "fir"), ("refused", "fir"),
+            ("won't", "fir"), ("not lodge",), ("won't lodge",),
+            ("refusing", "complaint"), ("won't take", "complaint"),
+            ("no fir",), ("zero fir",), ("fir", "not", "registered"),
+            ("sp", "no action"), ("superintendent", "no action"),
+            ("magistrate", "register"), ("court", "direct", "fir"),
+        ],
+        "context_note": (
+            "BNSS Section 175(3) is the court route when the police will "
+            "not act. A person aggrieved by a refusal to register an FIR, or "
+            "by inaction after registration, may -- after first sending the "
+            "complaint in writing to the Superintendent of Police under "
+            "Section 173(4) -- apply to the Magistrate empowered to take "
+            "cognizance. The Magistrate, after considering the application, "
+            "the officer's response and hearing the officer, may direct the "
+            "police to register and investigate. This is the BNSS successor "
+            "to the well-known Section 156(3) CrPC power. The practical "
+            "sequence is: (1) written complaint to the station, keep a "
+            "copy and get an acknowledgement; (2) if refused, written "
+            "complaint by post to the SP under s.173(4); (3) if still no "
+            "action, an application to the Magistrate under s.175(3), "
+            "usually drafted with a lawyer or with help from the District "
+            "Legal Services Authority."
+        ),
+        "verified_note": (
+            "BNSS 175 text pulled live via get_statute_section. s.175(3) is "
+            "the BNSS re-enactment of CrPC 156(3) (concordance). Added "
+            "2026-09-08 alongside the s.173 entry."
+        ),
+    },
 }
 
 
