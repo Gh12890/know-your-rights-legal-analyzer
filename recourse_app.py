@@ -10,6 +10,9 @@ Thin UI over the free-text engine:
                                      ungrounded-statement guards
   recourse_upload.check_arrest_document -> deterministic compliance check on an
                                      uploaded arrest memo / FIR / remand order
+  arrest_safeguard_checklist.evaluate  -> the same check, from a fixed set of
+                                     plain yes/no questions, for families with
+                                     no document (no LLM in this path at all)
 
 The model never states a verdict on the person's case. It only explains what
 the retrieved sections and judgments say, working from a fixed library -- never
@@ -18,11 +21,17 @@ does not support before anyone sees it.
 """
 
 import html as _html
+import logging
 
 import streamlit as st
 
 from chat_assistant import answer_question
 from recourse_upload import extract_text, check_arrest_document
+
+try:
+    import arrest_safeguard_checklist as _asc
+except Exception:  # never let an optional feature break the page
+    _asc = None
 
 st.set_page_config(page_title="Recourse — know your rights when it matters most",
                    page_icon="⚖️", layout="centered")
@@ -363,7 +372,7 @@ if "text" not in st.session_state:
 def _reset_answer():
     """Drop the previous answer + draft + doc-check so a new question never
     shows a stale reply."""
-    for k in ("answer", "answer_msg", "doc", "doc_check", "doc_check_sig"):
+    for k in ("answer", "answer_msg", "doc", "doc_check", "doc_check_sig", "_sg_result"):
         st.session_state.pop(k, None)
 
 
@@ -735,11 +744,92 @@ def _render_concord(old_code):
         unsafe_allow_html=True)
 
 
+_ARREST_WORDS = (
+    "arrest", "arrested", "custody", "lock-up", "lock up", "lockup",
+    "detain", "detained", "remand", "police station", "picked up",
+    "taken away", "took him", "took her", "took me", "in jail",
+    "fir", "chargesheet", "charge sheet",
+)
+
+
+def _answer_is_arrest_flavoured(result, question_text):
+    """Only offer the arrest-safeguard checklist when the person's own
+    words describe an arrest / FIR / custody situation -- not under 'what
+    is Section 318' (whose answer mentions bail/arrest for every offence)
+    or a cheque / freeze answer.
+
+    Gate on the QUESTION, not the answer: the answer discusses arrest
+    procedure for any cognizable offence, so it is a poor signal; the
+    question is where the person says what actually happened."""
+    if not result or result.get("state") not in ("single_match", "conflicting_matches"):
+        return False
+    if result.get("redirect_domain") in ("cheque_bounce", "freeze"):
+        return False
+    if result.get("situation_detected"):
+        return True
+    return any(w in (question_text or "").lower() for w in _ARREST_WORDS)
+
+
+def render_arrest_checklist():
+    """A fixed yes/no self-assessment against the arrest safeguards, for
+    families with no document. Pure deterministic mapping -- no AI in this
+    path. Rendered inside an expander so it never blocks the answer."""
+    if _asc is None:
+        return
+    with st.expander("No papers? Check the arrest safeguards yourself — a few plain questions"):
+        st.markdown(
+            "Answer what you know. Each answer maps straight to a finding — "
+            "**fixed rules, no AI** — with the section and the judgment behind it. "
+            "Leave anything you're unsure of on *Not sure*; it will tell you what to ask for.")
+
+        with st.form("safeguard_checklist", border=False):
+            picks = {}
+            for sg in _asc.SAFEGUARDS:
+                labels = [lbl for _code, lbl in sg["options"]]
+                codes = [code for code, _lbl in sg["options"]]
+                choice = st.radio(sg["question"], labels, index=None,
+                                  key=f"sg_{sg['id']}")
+                if choice is not None:
+                    picks[sg["id"]] = codes[labels.index(choice)]
+            submitted = st.form_submit_button("Show the findings  →", type="primary")
+
+        if submitted:
+            st.session_state["_sg_result"] = _asc.evaluate(picks)
+
+        res = st.session_state.get("_sg_result")
+        if not res or not res.get("rows"):
+            if submitted:
+                st.markdown('<p class="r-foot">Answer at least one question above, '
+                            'then press <b>Show the findings</b>.</p>',
+                            unsafe_allow_html=True)
+            return
+
+        s = res["summary"]
+        cls = "r-summ hasdefect" if s["violated"] or s["to_confirm"] else "r-summ"
+        st.markdown(f'<div class="{cls}">{esc(s["meter"])} &nbsp; {esc(s["headline"])}</div>',
+                    unsafe_allow_html=True)
+
+        for r in res["rows"]:
+            st.markdown(
+                f'<div class="r-checkrow">'
+                f'<div class="r-chead">{esc(r["question"])}</div>'
+                f'<span class="r-verdict {r["bucket"]}">{esc(r["label"])}</span>'
+                f'<div class="r-cexp">{esc(r["finding"])}<br>'
+                f'<span class="r-src">{esc(r["section"])} &nbsp;·&nbsp; {esc(r["case"])}</span>'
+                f'</div></div>', unsafe_allow_html=True)
+
+        st.markdown(
+            '<p class="r-foot">This is a check of the procedure against your own '
+            'answers — it is not a ruling on the case. Take it, and any papers you '
+            'do have, to a lawyer or your nearest District Legal Services Authority.</p>',
+            unsafe_allow_html=True)
+
+
 # --------------------------------------------------------------------------
 # run
 # --------------------------------------------------------------------------
 if (go or st.session_state.pop("_autorun", False)) and msg.strip():
-    for _k in ("doc_check", "doc_check_sig"):
+    for _k in ("doc_check", "doc_check_sig", "_sg_result"):
         st.session_state.pop(_k, None)          # never carry stale artefacts over
     with st.spinner("Reading the law and the judgments on this…"):
         # recourse_app is chat-only: it has no document-upload handoff, so
@@ -763,8 +853,17 @@ if answer:
 
     situation = render_answer(answer)
 
-    # ---- optional: check the actual papers (an arrest has happened) ----
-    if situation:
+    # ---- check whether the safeguards were ACTUALLY followed ----
+    # Two routes, both deterministic (no AI): upload the paper, or answer
+    # a fixed checklist. Offered for any arrest / FIR / custody answer,
+    # not only ones that open with "Right now".
+    _arrest_flavoured = False
+    try:
+        _arrest_flavoured = _answer_is_arrest_flavoured(answer, msg)
+    except Exception:
+        _arrest_flavoured = bool(situation)
+
+    if situation or _arrest_flavoured:
         st.markdown('<div class="r-label">Have the papers?</div>', unsafe_allow_html=True)
         st.markdown(
             "The answer above is what the law **requires**. Upload the **arrest "
@@ -784,5 +883,11 @@ if answer:
                 st.session_state["doc_check_sig"] = sig
             if st.session_state.get("doc_check"):
                 render_doc_check(st.session_state["doc_check"])
+
+        # ---- the no-document route ----
+        try:
+            render_arrest_checklist()
+        except Exception:
+            logging.getLogger("recourse_app").exception("arrest checklist render failed")
 
 _footer()
