@@ -154,6 +154,31 @@ def build_scenario_answer(message: str, *, route: dict = None) -> dict:
     scenario = get_scenario(target_id)
 
     if scenario is None:
+        _NOTES = {
+            "FALSE_FIR_AGAINST_ME":
+                "This looks like an FIR that has been filed AGAINST you over what "
+                "is really a civil or business dispute. Getting an FIR quashed is a "
+                "petition to the High Court (Section 528 BNSS) and Recourse does not "
+                "draft that yet -- take the FIR and the facts to a lawyer. If you "
+                "are also facing arrest, describe that part and Recourse can help "
+                "with the arrest safeguards.",
+            "ITACT_66A":
+                "Section 66A of the IT Act was struck down by the Supreme Court in "
+                "2015 (Shreya Singhal) and cannot lawfully be used. If you have been "
+                "booked under it, tell a lawyer this immediately -- Recourse does "
+                "not yet build the full answer for it.",
+            "LOC_DETENTION":
+                "Being stopped at an airport or border, or a Look-Out Circular, is "
+                "something Recourse does not build a full answer for yet. The "
+                "24-hour production rule and the right to be told the grounds still "
+                "apply if you are detained -- and a lawyer can move to have an LOC "
+                "withdrawn.",
+            "FIR_COPY_REFUSED":
+                "If an FIR has been registered against you and the police won't "
+                "give you a copy, you are entitled to one (the Supreme Court has "
+                "held this firmly). Recourse doesn't build the full answer for it "
+                "yet -- ask in writing, and raise it with the Magistrate.",
+        }
         return {
             "status": "out_of_scope",
             "message": message,
@@ -161,11 +186,11 @@ def build_scenario_answer(message: str, *, route: dict = None) -> dict:
             "target_id": target_id,
             "confidence": route.get("confidence", 0.0),
             "via": route.get("via", ""),
-            "honest_note": (
+            "honest_note": _NOTES.get(routed_id, (
                 "This doesn't look like something Recourse can help with yet. "
                 "Recourse covers arrest, FIR, police procedure and bail for the "
                 "person a case is happening to -- not this."
-            ),
+            )),
         }
 
     # The haystack every trigger is matched against: the raw message plus the

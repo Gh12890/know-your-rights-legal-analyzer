@@ -80,7 +80,10 @@ _RESOLVE_TARGET = {
     "CUSTODIAL_VIOLENCE": "ARREST_GENERAL",
     "NO_LAWYER_ACCESS": "ARREST_GENERAL",
     "ANTICIPATORY_BAIL": "SUMMONS_PRE_ARREST",
-    "FALSE_FIR_AGAINST_ME": "FIR_NOT_REGISTERED",  # placeholder until hero-3 decision
+    # FALSE_FIR_AGAINST_ME must NOT resolve to FIR_NOT_REGISTERED -- that answer
+    # tells someone who wants an FIR *quashed* how to *file* one (backwards).
+    # No quashing scenario is built yet, so route it to the honest refusal.
+    "FALSE_FIR_AGAINST_ME": "OUT_OF_SCOPE",
     "ITACT_66A": "OUT_OF_SCOPE",             # handled by chat_assistant's own override
     "LOC_DETENTION": "OUT_OF_SCOPE",         # handled by statute_doctrine_map override
     "FIR_COPY_REFUSED": "OUT_OF_SCOPE",      # whitelist doctrine; spec pending
@@ -116,9 +119,10 @@ _KEYWORD_ROUTES = [
     ]),
     ("FIR_NOT_REGISTERED", [
         ("won't register",), ("wont register",), ("not registering",),
-        ("refuse", "fir"), ("refusing", "fir"), ("register", "my complaint"),
-        ("not lodge",), ("won't lodge",), ("no fir",), ("register", "complaint"),
-        ("police", "not", "complaint"), ("zero fir",),
+        ("refuse", "fir"), ("refusing", "fir"), ("refused", "fir"),
+        ("not lodge",), ("won't lodge",), ("refusing", "complaint"),
+        ("won't", "complaint"), ("refuse", "register"), ("no fir", "registered"),
+        ("zero fir",), ("won't take", "complaint"),
     ]),
     ("SUMMONS_PRE_ARREST", [
         ("notice to appear",), ("notice", "41a"), ("section 35", "notice"),
@@ -210,7 +214,7 @@ Choose exactly one scenario_id from this fixed list:
 - DEFAULT_BAIL: someone is in custody, the investigation is dragging, and the chargesheet / final report has not been filed within the time limit (60 or 90 days).
 - ARREST_WOMAN: a WOMAN or girl has been arrested (the arrested person is female - the sender's sister / wife / daughter / mother, or "she" / "her"). Only choose this when the arrested person is clearly a woman.
 - ARREST_GENERAL: a person has been arrested (and it is NOT specifically a woman, and NOT specifically a default-bail chargesheet-delay question) - the message is about an arrest that has already happened and any of: grounds of arrest not given, arrested directly without a notice, family not informed, no lawyer, beaten in custody, not produced in 24 hours. This is the default for "the police arrested me / my brother / my son / my father".
-- FIR_NOT_REGISTERED: the person is a victim / complainant and the police are refusing or failing to register their FIR for a cognizable offence.
+- FIR_NOT_REGISTERED: the person is a victim / complainant AND has gone to the police AND the police have REFUSED or FAILED to register the FIR. Do NOT choose this just because a crime happened to the person - only when a refusal to register is actually described or clearly implied.
 - SUMMONS_PRE_ARREST: the person has NOT been arrested yet - they have (or expect) a notice to appear, or fear an imminent arrest, for an offence punishable with up to 7 years.
 - CHEQUE_BOUNCE_NOTICE: a cheque has bounced and the question is about the demand notice / complaint timeline.
 - GROUNDS_NOT_GIVEN: someone was arrested and was not told the grounds / reasons for the arrest. (Use ARREST_GENERAL unless grounds-of-arrest is the ONLY issue.)
@@ -222,7 +226,7 @@ Choose exactly one scenario_id from this fixed list:
 - ITACT_66A: someone has been booked under Section 66A of the IT Act.
 - FALSE_FIR_AGAINST_ME: an FIR has been filed against the person over what is really a civil / business / family dispute, and they want it quashed.
 - ANTICIPATORY_BAIL: the person specifically wants pre-arrest (anticipatory) bail.
-- OUT_OF_SCOPE: none of the above fits, OR the message is not about Indian arrest / FIR / police / bail at all, OR there is not enough to tell.
+- OUT_OF_SCOPE: none of the above fits, OR the message is not about Indian arrest / FIR / police / bail at all, OR there is not enough to tell. ALSO choose OUT_OF_SCOPE for: "is X a crime / will I be convicted" questions with no arrest or police action; how to file a complaint when the police have not refused anything; a pure civil / property / family dispute with no arrest and no FIR; a request to get an FIR quashed (use FALSE_FIR_AGAINST_ME for that).
 
 Also extract:
 - role: "accused" | "family" (a relative writing about the arrested person) | "complainant" (the victim) | "" if unclear

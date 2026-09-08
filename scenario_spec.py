@@ -684,18 +684,7 @@ _SCENARIOS = [
             "applying for anticipatory bail now.",
             "Take a lawyer with you to any visit to the police station.",
         ],
-        negations=[
-            Negation(
-                line=(
-                    "Because this offence is punishable with more than 7 years, the "
-                    "written-notice route does not apply - the focus shifts to "
-                    "anticipatory bail and to the arrest procedure if it happens."
-                ),
-                absent_triggers=[("up to 7",), ("less than 7",), ("minor",),
-                                 ("small",), ("petty",)],
-                review=True,
-            ),
-        ],
+        negations=[],
         paper_type="anticipatory_bail_note",
         red_flags=[
             "If the offence is non-bailable and you have real reason to expect "
