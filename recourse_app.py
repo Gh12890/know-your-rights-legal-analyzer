@@ -476,36 +476,69 @@ def _clean_excerpt(text: str) -> str:
     return cleaned.strip()
 
 
+_CASE_GENERIC_PARTY = (
+    "state of", "state ", "union of india", "union of", "govt", "government",
+    "central bureau of investigation", "cbi", "directorate of", "intelligence officer",
+    "commissioner of", "n.c.t", "nct", "u.p.", "govt. of", "republic of",
+)
+
+
+def _case_is_named(m, reply_lc):
+    """True if the answer prose actually refers to this case by name.
+    Checks the distinctive party -- usually the first ('M. Ravindran',
+    'D.K. Basu'), but the SECOND when the first is a generic 'State of X'
+    / 'Union of India' ('State of Haryana v Bhajan Lal' -> 'Bhajan
+    Lal')."""
+    cn = (m.get("case_name") or "").lower()
+    if not cn:
+        return False
+    parts = [p.strip() for p in cn.split(" v ") if p.strip()]
+    for p in parts:
+        if any(p.startswith(g) for g in _CASE_GENERIC_PARTY):
+            continue
+        # trim a trailing "(2026)" / ", directorate of revenue intelligence"
+        core = p.split("(")[0].split(",")[0].strip()
+        if len(core) >= 4 and core in reply_lc:
+            return True
+    return False
+
+
 def _sources_worth_showing(matches, reply_text, cap=16):
-    """The 'Read the source' list: every case the answer actually NAMES
-    comes first (showing its excerpt is a grounding requirement -- the
-    prompt forbids naming a case with no excerpt), then the hand-anchored
-    curated sources, then the rest by score. Deduped by (source, label).
+    """The 'Read the source' JUDGMENT list.
+
+    If the answer NAMES any case, show ONLY those -- every case it names
+    (grounding: the prompt forbids naming a case with no excerpt) and
+    nothing else. The keyword doctrine anchors deliberately over-fire
+    (every "arrested" pulls Prabir/Arnesh/Satender); when the model then
+    builds the answer around just the 1-3 on point, "Read the source"
+    must mirror that choice, not dump the five unused anchors next to it
+    -- confirmed 2026-09-08 live test (a default-bail answer showed
+    Prabir, Arnesh, Satender, Md. Ibrahim and Sri Manjunath, none of
+    which the answer used).
+
+    Only when the answer names NO case at all (rare) fall back to the
+    curated anchors, then the rest by score.
 
     CALLER PASSES JUDGMENT MATCHES ONLY -- curated statute-override
-    entries (case_name=None) were previously eating cap slots here and
-    pushing a genuinely answer-named judgment (e.g. D.K. Basu, Vihaan
-    Kumar) off the end of the list, so it was named in the prose but
-    absent from 'Read the source'. Confirmed 2026-09-08 live test."""
+    entries (case_name=None) used to eat cap slots here."""
     reply_lc = (reply_text or "").lower()
 
     def _label(m):
         return str(m.get("section_number") or m.get("paragraph_number") or "")
 
-    def _priority(m):
-        # lower sorts first: a case the answer names, then curated
-        # overrides, then the rest in their existing (score) order
-        cn = (m.get("case_name") or "").lower()
-        named = (m.get("section_number") and f"section {m['section_number']}" in reply_lc) \
-            or (cn and cn.split(" v ")[0].strip() in reply_lc)
-        if named:
-            return 0
-        if str(m.get("source") or "").startswith("curated"):
-            return 1
-        return 2
+    pool = matches or []
+    named = [m for m in pool if _case_is_named(m, reply_lc)]
+    if named:
+        pool = named
+    else:
+        # nothing named -> curated anchors first, then score order
+        pool = sorted(
+            pool,
+            key=lambda m: 0 if str(m.get("source") or "").startswith("curated") else 1,
+        )
 
     picked, seen = [], set()
-    for m in sorted(matches or [], key=_priority):
+    for m in pool:
         key = (m.get("case_name") or "BNS/BNSS", _label(m))
         if key in seen:
             continue
