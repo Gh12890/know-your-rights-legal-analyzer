@@ -857,15 +857,21 @@ def _answer_draft_context(answer):
     return civil, secs[:4]
 
 
-def render_petition_draft(question_text, *, checklist_result=None, doc_check_result=None):
-    """The 'Turn this into a draft' step: a High Court criminal petition
-    assembled deterministically from the findings, shown in an editable
-    box with a Download PDF. No AI in this path. Wrapped by the caller in
-    try/except; import guarded."""
+def render_petition_draft(question_text, *, checklist_result=None, doc_check_result=None,
+                          chat_answer=None):
+    """The 'Turn this into a draft' step: a High Court petition assembled
+    deterministically from the findings (or, for cheque / freeze, from
+    the answer's own authorities), shown in an editable box with a
+    Download PDF. No AI in this path. Wrapped by the caller in try/except;
+    import guarded."""
     if _pd is None:
         return
     answer = st.session_state.get("answer") or {}
     civil, secs = _answer_draft_context(answer)
+    _blurb = ("This assembles a **draft High Court petition** from the points above — "
+              "**fixed rules, no AI**. Every `[ ___ ]` is for you or your lawyer to fill; "
+              "every case passage is marked **NOT INDEPENDENTLY VERIFIED** until it is "
+              "checked in the judgment. It is a starting point, not a filed document.")
 
     if checklist_result is not None:
         sig = f"cl:{abs(hash(question_text)) % 10**8}:{civil}:{'.'.join(secs)}"
@@ -875,15 +881,17 @@ def render_petition_draft(question_text, *, checklist_result=None, doc_check_res
         sig = f"dc:{abs(hash(question_text)) % 10**8}:{civil}:{'.'.join(secs)}"
         seed = lambda: _pd.from_doc_check(
             question_text, doc_check_result, civil_dispute=civil, offence_sections=secs)
+    elif chat_answer is not None and chat_answer.get("redirect_domain") == "cheque_bounce":
+        sig = f"ch:{abs(hash(question_text)) % 10**8}"
+        seed = lambda: _pd.from_cheque_answer(question_text, chat_answer)
+    elif chat_answer is not None and chat_answer.get("redirect_domain") == "freeze":
+        sig = f"fz:{abs(hash(question_text)) % 10**8}"
+        seed = lambda: _pd.from_freeze_answer(question_text, chat_answer)
     else:
         return
 
-    with st.expander("Turn this into a draft — a criminal petition you can edit and take to a lawyer"):
-        st.markdown(
-            "This assembles a **draft High Court criminal petition** from the findings "
-            "above — **fixed rules, no AI**. Every `[ ___ ]` is for you or your lawyer to "
-            "fill; every case passage is marked **NOT INDEPENDENTLY VERIFIED** until it is "
-            "checked in the judgment. It is a starting point, not a filed document.")
+    with st.expander("Turn this into a draft — a petition you can edit and take to a lawyer"):
+        st.markdown(_blurb)
 
         text_key = f"_petition_{sig}"
         if text_key not in st.session_state:
@@ -939,6 +947,14 @@ if answer:
                     unsafe_allow_html=True)
 
     situation = render_answer(answer)
+
+    # ---- cheque-bounce / bank-freeze: offer the petition draft too ----
+    if answer.get("state") == "single_match" and \
+       answer.get("redirect_domain") in ("cheque_bounce", "freeze"):
+        try:
+            render_petition_draft(msg, chat_answer=answer)
+        except Exception:
+            logging.getLogger("recourse_app").exception("petition (chat) render failed")
 
     # ---- check whether the safeguards were ACTUALLY followed ----
     # Two routes, both deterministic (no AI): upload the paper, or answer

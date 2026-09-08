@@ -108,12 +108,71 @@ check("FOR THAT the arrested person was not produced before a Magistrate" in td,
       "doc-check adapter -> 24-hour ground")
 check("could not be confirmed" in td, "doc-check 'Cannot Determine' -> to-confirm paragraph")
 
+# ---- cheque / freeze petitions from a chat-answer-shaped dict ----
+_cheque_answer = {
+    "state": "single_match", "redirect_domain": "cheque_bounce",
+    "matches": [
+        {"case_name": "Rangappa v Sri Mohan", "citation": "(2010) 11 SCC 441",
+         "context_note": "Rangappa v Sri Mohan: the Section 139 presumption INCLUDES the "
+                         "debt and is rebuttable on a preponderance of probabilities."},
+        {"case_name": "Prakash Chimanlal Sheth v Jagruti Keyur Rajpopat",
+         "citation": "2025 INSC 897",
+         "context_note": "Prakash Chimanlal Sheth: jurisdiction lies where the payee's bank "
+                         "branch is."},
+    ],
+}
+ct = pd.from_cheque_answer("he filled in the amount on my blank cheque and it bounced", _cheque_answer)
+_ctn = " ".join(ct.split())  # whitespace-normalised, for phrases that cross a wrap boundary
+check("Section 138 of the Negotiable Instruments Act" in _ctn, "cheque petition names s.138 NI Act")
+check("Section 528 of the Bharatiya Nagarik Suraksha Sanhita" in _ctn, "cheque petition invokes s.528 BNSS")
+check("MOST RESPECTFULLY SHOWETH" in ct and "PRAYER" in ct and "AFFIDAVIT" in ct and "INDEX" in ct,
+      "cheque petition has the full packet")
+check("FOR THAT there was no legally enforceable debt" in ct, "cheque petition has the no-debt ground")
+check("As held in Rangappa v Sri Mohan ((2010) 11 SCC 441)" in ct, "cheque petition cites Rangappa")
+check("INCLUDES" not in ct, "emphasis-caps in the doctrine note are de-emphasised")
+check("NOT INDEPENDENTLY VERIFIED" in ct, "cheque petition keeps the verified-flag discipline")
+check("[ ___ ]" in ct, "cheque petition leaves unknowns as placeholders")
+check("bail application before the Court of Session" not in ct,
+      "cheque petition does NOT carry the arrest-specific header note")
+
+_freeze_answer = {
+    "state": "single_match", "redirect_domain": "freeze",
+    "matches": [
+        {"case_name": "State of Maharashtra v Tapas D. Neogy", "citation": "(1999) 7 SCC 685",
+         "context_note": "Tapas D. Neogy: a bank account is property and police CAN direct "
+                         "a freeze, subject to two preconditions."},
+        {"case_name": "Neelkanth Pharma Logistics Pvt. Ltd. v Union of India",
+         "citation": "2025 SCC OnLine Del 1055",
+         "context_note": "Neelkanth Pharma: a blanket freeze when only a specific sum is "
+                         "traceable is disproportionate; lien the identifiable amount."},
+    ],
+}
+ft = pd.from_freeze_answer("my whole account was frozen over a payment from one customer", _freeze_answer)
+_ftn = " ".join(ft.split())
+check("Section 107 of the Bharatiya Nagarik Suraksha Sanhita" in _ftn,
+      "freeze petition invokes BNSS s.107")
+check("FOR THAT the account was frozen without any order of the jurisdictional Magistrate" in _ftn,
+      "freeze petition has the no-Magistrate-order ground")
+check("FOR THAT the freeze extends to the whole account" in _ftn,
+      "freeze petition has the disproportionate-freeze ground")
+check("As held in State of Maharashtra v Tapas D. Neogy" in _ftn, "freeze petition cites Tapas Neogy")
+check("withdraw the freeze" in _ftn, "freeze petition prayer asks to lift the freeze")
+
+# empty matches -> still a valid petition, no authorities block
+_bare = {"state": "single_match", "redirect_domain": "cheque_bounce", "matches": []}
+bt = pd.from_cheque_answer("cheque bounced", _bare)
+check("FOR THAT there was no legally enforceable debt" in bt,
+      "cheque petition with no authorities still has its contentions")
+check("As held in" not in bt, "no authorities -> no 'legal position' block")
+
+
 # ---- PDF ----
 try:
     import os, tempfile
-    p = pd.to_pdf(txt, output_path=os.path.join(tempfile.gettempdir(), "_test_petition.pdf"))
-    check(os.path.exists(p) and os.path.getsize(p) > 1500, "to_pdf writes a non-trivial PDF file")
-    os.remove(p)
+    for name, body in (("_test_petition", txt), ("_test_cheque", ct), ("_test_freeze", ft)):
+        p = pd.to_pdf(body, output_path=os.path.join(tempfile.gettempdir(), name + ".pdf"))
+        check(os.path.exists(p) and os.path.getsize(p) > 1500, f"to_pdf writes a non-trivial PDF ({name})")
+        os.remove(p)
 except ImportError:
     print("[SKIP] PDF test — reportlab not importable")
 

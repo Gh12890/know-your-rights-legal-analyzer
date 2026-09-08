@@ -28,17 +28,24 @@ _NOT_VERIFIED = (
     "lawyer before this ground is used. »"
 )
 
-_HEADER = (
-    "RECOURSE -- DRAFT CRIMINAL PETITION\n"
-    "\n"
-    "A starting point only. Complete every [ ___ ]. Check every ground against the\n"
-    "record. Read every passage marked NOT INDEPENDENTLY VERIFIED in the judgment\n"
-    "itself, with a lawyer, before keeping it. This is not a filed document and is\n"
-    "not legal advice.\n"
-    "\n"
+def _header(note=""):
+    base = (
+        "RECOURSE -- DRAFT PETITION\n"
+        "\n"
+        "A starting point only. Complete every [ ___ ]. Check every ground against the\n"
+        "record. Read every passage marked NOT INDEPENDENTLY VERIFIED in the judgment\n"
+        "itself, with a lawyer, before keeping it. This is not a filed document and is\n"
+        "not legal advice.\n"
+    )
+    if note:
+        base += "\n" + note.rstrip() + "\n"
+    return base
+
+
+_HEADER = _header(
     "Drafted in High Court form. Your advocate may instead move the same grounds as a\n"
     "bail application before the Court of Session, or as a representation at the next\n"
-    "remand hearing -- the substance carries over.\n"
+    "remand hearing -- the substance carries over."
 )
 
 _CLOSING_AVERMENTS = [
@@ -561,3 +568,395 @@ def to_pdf(draft_text, output_path="recourse_petition_draft.pdf"):
     from draft_layer import generate_draft_pdf
     return generate_draft_pdf(_pdf_ascii(draft_text or ""), "Criminal Petition (draft)",
                               output_path=output_path)
+
+
+# ===========================================================================
+# CHEQUE-BOUNCE / BANK-FREEZE petitions
+#
+# The person here is the Petitioner (not a detenu, so no next-friend note).
+# There is no safeguard checklist for these -- the grounds come straight
+# from the chat answer's curated authorities (each carries a case_name +
+# context_note, which is a plain statement of the doctrine).
+# ===========================================================================
+
+_CIVIL_SPEC = {
+    "cheque_bounce": {
+        "title": "DRAFT PETITION -- SECTION 138 CHEQUE COMPLAINT",
+        "header_note": ("This is drafted as a High Court petition to quash the complaint. "
+                        "Quashing a Section 138 case at the summons stage is granted "
+                        "sparingly -- your advocate may instead file these points as the "
+                        "defence in the trial court, or seek exemption from personal "
+                        "appearance. The substance carries over."),
+        "contentions": [
+            "there was no legally enforceable debt or liability for the amount for which "
+            "the cheque was presented [ set out what, if anything, was owed, what was "
+            "repaid and when, and how the figure on the cheque was arrived at ];",
+            "the statutory presumption under Section 139 of the Negotiable Instruments Act "
+            "is rebuttable and the Petitioner is in a position to rebut it on a "
+            "preponderance of probabilities from the complainant's own case and the "
+            "surrounding circumstances;",
+            "[ if applicable ] the Court in which the complaint is filed lacks territorial "
+            "jurisdiction, the payee's bank branch being situated at [ ___ ];",
+            "the Petitioner is ready and willing to have the matter compounded / settled "
+            "in accordance with law.",
+        ],
+        "enabling": ("Article 226 of the Constitution of India read with Section 528 of the "
+                     "Bharatiya Nagarik Suraksha Sanhita, 2023"),
+        "relief": ("for quashing of the complaint case described below, instituted under "
+                   "Section 138 of the Negotiable Instruments Act, 1881, or in the "
+                   "alternative for appropriate directions to secure a fair trial"),
+        "matter2": ("Complaint Case No. [ ___ ] of 20[ __ ], pending before the Court of "
+                    "[ ___ ], instituted under Section 138 of the Negotiable Instruments "
+                    "Act, 1881, in respect of cheque No. [ ___ ] dated [ ___ ] for "
+                    "Rs. [ ___ ] drawn on [ ___ ] Bank, and the summons issued to the "
+                    "Petitioner therein dated [ ___ ]"),
+        "matter3": ("the institution and continuation of the said complaint although there "
+                    "was no legally enforceable debt or liability for the sum claimed, the "
+                    "statutory presumption being rebuttable, and questions of territorial "
+                    "jurisdiction and of the Petitioner's readiness to compound"),
+        "respondents": [
+            "1.  The State of [ ___ ], through the [ Public Prosecutor ], [ address ].",
+            "2.  [ Name of the complainant ], son/daughter/spouse of [ ___ ], resident of "
+            "[ address ] -- the complainant in the said case.",
+        ],
+        "para1": ("The Petitioner is [ identity and occupation ], resident of [ address ]. "
+                  "The Petitioner has been summoned as the accused in the complaint case "
+                  "described below and is directly aggrieved by it."),
+        "para2_extra": "",
+        "bg_hint": ("[ continue: the origin of the cheque -- whether it was given blank or as "
+                    "security and for what sum; what was actually owed and what was repaid, "
+                    "with dates; how and when the amount was filled in; the demand notice and "
+                    "any reply; where the Petitioner's and the complainant's bank branches "
+                    "are; and the Petitioner's willingness to settle. ]"),
+        "annexures": [
+            "A copy of the complaint / summons is annexed and marked ANNEXURE-I. A copy of "
+            "the cheque and the return memo is annexed and marked ANNEXURE-II. A copy of "
+            "the demand notice [ and any reply ] is annexed and marked ANNEXURE-III. [ Add "
+            "proof of repayment and bank records as further annexures. ]",
+        ],
+        "prayer_grant": ("quash the said complaint case and all proceedings arising from "
+                         "it; or in the alternative pass such directions as secure a fair "
+                         "trial and the Petitioner's exemption from personal appearance for "
+                         "routine dates"),
+        "interim": [
+            "stay all further proceedings in the said complaint case;",
+            "dispense with the personal appearance of the Petitioner pending disposal;",
+        ],
+        "index_rows": [
+            "    3     | ANNEXURE-I   : Copy of the complaint / summons        |  __ - __",
+            "    4     | ANNEXURE-II  : Copy of the cheque and return memo     |  __ - __",
+            "    5     | ANNEXURE-III : Copy of the demand notice [ & reply ]  |  __ - __",
+            "    6     | [ further annexures -- repayment proof, bank records ]|  __ - __",
+        ],
+    },
+    "freeze": {
+        "title": "DRAFT PETITION -- BANK ACCOUNT FREEZE",
+        "header_note": ("This is drafted as a High Court writ petition. The same relief is "
+                        "often sought by an application before the jurisdictional "
+                        "Magistrate under Section 107 of the BNSS -- your advocate will "
+                        "advise which forum fits your facts. The substance carries over."),
+        "contentions": [
+            "the account was frozen without any order of the jurisdictional Magistrate "
+            "under Section 107 of the Bharatiya Nagarik Suraksha Sanhita, a communication "
+            "from the police or a bank to that effect not being such an order;",
+            "the freeze extends to the whole account when only a specific sum of "
+            "Rs. [ ___ ] is said to be in dispute, which is disproportionate and "
+            "arbitrary; a lien on that identifiable sum is the appropriate measure and "
+            "the balance ought to be released;",
+            "the Petitioner is neither an accused nor a suspect in the matter under "
+            "investigation and has received [ the credit in question ] in the ordinary "
+            "course [ set out the transaction ];",
+            "no reasons for the freeze have been recorded or communicated to the "
+            "Petitioner, and the freeze impinges on the Petitioner's right to carry on "
+            "trade and to livelihood.",
+        ],
+        "enabling": "Article 226 of the Constitution of India",
+        "relief": ("for a direction to the Respondents to withdraw the freeze on the bank "
+                   "account described below, or to confine any restriction to the specific "
+                   "disputed amount and release the balance"),
+        "matter2": ("the freezing / debit-freeze of Bank Account No. [ ___ ] maintained by "
+                    "the Petitioner with [ ___ ] Bank, [ ___ ] Branch, effected on or about "
+                    "[ ___ ] pursuant to a communication dated [ ___ ] from [ ___ ]"),
+        "matter3": ("the freezing of the entire account without an order of the "
+                    "jurisdictional Magistrate under Section 107 of the Bharatiya Nagarik "
+                    "Suraksha Sanhita, and disproportionately to the sum said to be in "
+                    "dispute, the Petitioner being neither an accused nor a suspect in the "
+                    "matter under investigation"),
+        "respondents": [
+            "1.  The State of [ ___ ], through the [ Public Prosecutor / Secretary, Home "
+            "Department ], [ address ].",
+            "2.  The Superintendent of Police / the Officer-in-Charge, [ Cyber Crime ] "
+            "Police Station, [ ___ ], [ address ].",
+            "3.  [ Name ] Bank, through its Branch Manager, [ branch and address ].",
+            "4.  [ The Indian Cyber Crime Coordination Centre / nodal officer, if the "
+            "freeze originated from the cybercrime portal. ]",
+        ],
+        "para1": ("The Petitioner is [ identity and occupation ], resident of [ address ], "
+                  "and maintains the bank account described below in the ordinary course of "
+                  "[ his / its ] affairs. The Petitioner is directly aggrieved by the "
+                  "freezing of that account."),
+        "para2_extra": "",
+        "bg_hint": ("[ continue: when and how the Petitioner learnt of the freeze; what the "
+                    "bank stated as the reason; the specific sum said to be tainted and how "
+                    "it entered the account; the total balance locked; whether any FIR or "
+                    "notice has been served on the Petitioner; and the hardship caused. ]"),
+        "annexures": [
+            "A copy of the bank's intimation of the freeze [ if any ] is annexed and marked "
+            "ANNEXURE-I. A copy of the account statement showing the balance and the "
+            "disputed credit is annexed and marked ANNEXURE-II. [ Add any communication "
+            "from the investigating agency and the Petitioner's representations as further "
+            "annexures. ]",
+        ],
+        "prayer_grant": ("direct the Respondents to forthwith withdraw the freeze on the "
+                         "said account; or in the alternative to confine the restriction to "
+                         "the identified disputed amount of Rs. [ ___ ] and release the "
+                         "balance to the Petitioner"),
+        "interim": [
+            "direct that the Petitioner be permitted to operate the said account save to "
+            "the extent of the disputed sum of Rs. [ ___ ], pending disposal;",
+        ],
+        "index_rows": [
+            "    3     | ANNEXURE-I   : Bank's intimation of the freeze       |  __ - __",
+            "    4     | ANNEXURE-II  : Account statement (balance + credit)  |  __ - __",
+            "    5     | [ further annexures -- agency communications, reps ] |  __ - __",
+        ],
+    },
+}
+
+
+_KEEP_CAPS = {
+    "BNSS", "BNS", "CRPC", "CR.P.C", "FIR", "SCC", "INSC", "NI", "IPC", "AIR",
+    "DEL", "PC", "UT", "UTS", "LEA", "LEAS", "NCRP", "I4C", "SC", "HC", "RBI",
+    "OTP", "UPI", "SOP", "QR", "MOU", "PAN", "NALSA", "CJI", "NCT",
+}
+
+
+def _deemphasise(text):
+    """The doctrine notes use ALL-CAPS for emphasis ('the presumption
+    INCLUDES the debt'); that reads oddly in a petition. Lower-case any
+    all-caps word that isn't a real abbreviation."""
+    def repl(m):
+        w = m.group(0)
+        return w if w in _KEEP_CAPS else w.lower()
+    return re.sub(r"\b[A-Z][A-Z]{2,}\b", repl, text)
+
+
+def _grounds_from_answer(answer):
+    """Each curated authority in the chat answer -> one entry. The
+    context_note is a plain statement of the doctrine; the leading
+    "CaseName: " is stripped and the case is cited explicitly instead."""
+    out, seen = [], set()
+    for m in (answer or {}).get("matches", []) or []:
+        cn = (m.get("case_name") or "").strip()
+        note = (m.get("context_note") or "").strip()
+        if not cn or not note or cn in seen:
+            continue
+        seen.add(cn)
+        body = _deemphasise(re.sub(r"^[^:]{1,80}:\s*", "", note))
+        cite = (m.get("citation") or "").strip()
+        out.append({
+            "case": f"{cn} ({cite})" if cite else cn,
+            "body": body,
+        })
+    return out
+
+
+def _civil_petition(domain, question_text, answer):
+    spec = _CIVIL_SPEC[domain]
+    grounds = _grounds_from_answer(answer)
+    out = []
+    add = out.append
+
+    add(_header(spec.get("header_note", "")))
+    add("")
+    add("DISTRICT: [ district ]")
+    add("")
+    add("IN THE HIGH COURT OF [ ___ ] AT [ ___ ]")
+    add("[ Constitutional Writ / Extraordinary Criminal Jurisdiction -- retain the")
+    add("  description your High Court's rules use ]")
+    add("")
+    add("CRIMINAL / WRIT PETITION NO. ________ OF 20____")
+    add("")
+    add("Category: [ for the filing advocate ]      Code: [ for the filing advocate ]")
+    add("")
+    add("")
+    add("To,")
+    add("The Hon'ble the Chief Justice and Hon'ble Judges of the")
+    add("High Court of [ ___ ] at [ ___ ].")
+    add("")
+    add("")
+    add("IN THE MATTER OF:")
+    add("")
+    for chunk in _wrap(f"A petition under {spec['enabling']}, {spec['relief']}."):
+        add(chunk)
+    add("")
+    add("                              -AND-")
+    add("")
+    add("IN THE MATTER OF:")
+    add("")
+    for chunk in _wrap(spec["matter2"] + "."):
+        add(chunk)
+    add("")
+    add("                              -AND-")
+    add("")
+    add("IN THE MATTER OF:")
+    add("")
+    for chunk in _wrap(spec["matter3"] + "."):
+        add(chunk)
+    add("")
+    add("                              -AND-")
+    add("")
+    add("IN THE MATTER OF:")
+    add("")
+    add("[ full name ], aged about [ __ ] years, [ son / wife / etc. ] of [ ___ ],")
+    add("resident of [ full address ],")
+    add("        ... Petitioner")
+    add("")
+    add("                            -Versus-")
+    add("")
+    for r in spec["respondents"]:
+        for chunk in _wrap(r, width=84):
+            add(chunk if chunk.startswith(("1.", "2.", "3.", "4.", "5.")) else "    " + chunk)
+    add("        ... Respondents")
+    add("")
+    add("")
+    add("The humble petition of the Petitioner above-named")
+    add("       MOST RESPECTFULLY SHOWETH:")
+    add("")
+
+    para = 0
+
+    def numbered(lines):
+        nonlocal para
+        para += 1
+        if isinstance(lines, str):
+            lines = _wrap(lines)
+        add(f"{para}.  {lines[0]}")
+        for extra in lines[1:]:
+            add(f"    {extra}")
+        add("")
+
+    numbered(spec["para1"])
+    numbered(f"This petition challenges the said proceedings and seeks the relief set out "
+             f"in the prayer below, together with interim protection pending disposal.")
+
+    numbered([
+        "[ BACKGROUND -- one numbered paragraph for each step, in sequence, each with its "
+        "date. Begin from the account given below and complete every specific: ]",
+        "",
+        _seed_from_question(question_text),
+        "",
+        spec["bg_hint"],
+    ])
+    fact_para = para
+
+    for a in spec["annexures"]:
+        numbered(a)
+
+    add("GROUNDS")
+    add("")
+    add("    The Petitioner submits, without prejudice and in the alternative, as follows:")
+    add("")
+    first_ground = para + 1
+
+    for contention in spec.get("contentions", []):
+        para += 1
+        for j, chunk in enumerate(_wrap("FOR THAT " + contention)):
+            add((f"{para}.  " if j == 0 else "    ") + chunk)
+        add("")
+
+    if grounds:
+        para += 1
+        add(f"{para}.  FOR THAT the legal position set out below supports the Petitioner "
+            "and is relied on:")
+        for g in grounds:
+            add("")
+            add(f"    As held in {g['case']}:")
+            for chunk in _wrap(g["body"], width=82):
+                add(f"        {chunk}")
+            add("        [ the Petitioner's submission on the facts of this case: ___ ]")
+        add("")
+        add(f"    {_NOT_VERIFIED}")
+        add("")
+
+    for av in _CLOSING_AVERMENTS:
+        para += 1
+        av2 = av.replace("the continued custody causes", "the impugned action causes") \
+                .replace("the arrested person and", "the Petitioner and") \
+                .replace("the arrested person will continue to suffer detention contrary "
+                         "to law", "the Petitioner will continue to suffer the impugned "
+                         "action contrary to law")
+        for j, chunk in enumerate(_wrap(av2)):
+            add((f"{para}.  " if j == 0 else "    ") + chunk)
+        add("")
+    last_ground = para
+
+    add("PRAYER")
+    add("")
+    add("In the premises aforesaid, the Petitioner respectfully prays that this Hon'ble")
+    add("Court may graciously be pleased to:")
+    add("")
+    add(" i)   admit this petition;")
+    add("")
+    add(" ii)  call for the records of the proceedings described above and issue notice to")
+    add("      the Respondents to show cause why the relief prayed for should not be granted;")
+    add("")
+    for k, chunk in enumerate(_wrap("upon hearing the parties, " + spec["prayer_grant"] + ";")):
+        add((" iii) " if k == 0 else "      ") + chunk)
+    add("")
+    add(" iv)  pass such further or other order(s) as this Hon'ble Court may deem fit and")
+    add("      proper in the circumstances of the case.")
+    add("")
+    add("                                -AND-")
+    add("")
+    add("INTERIM PRAYER")
+    add("")
+    add("Pending the hearing and final disposal of this petition, the Petitioner prays")
+    add("that this Hon'ble Court may graciously be pleased to:")
+    add("")
+    n = 0
+    for item in spec["interim"]:
+        n += 1
+        for k, chunk in enumerate(_wrap(item)):
+            add((f" {_roman_lower(n)})".ljust(6) if k == 0 else "      ") + chunk)
+    n += 1
+    add(f" {_roman_lower(n)})".ljust(6) + "pass such further or other interim order(s) as this")
+    add("      Hon'ble Court may deem fit and proper.")
+    add("")
+    add("And for this act of kindness, the Petitioner shall ever pray.")
+    add("")
+    add("")
+    add("Place: [ ___ ]                          _______________________________")
+    add("Date:  [ ___ ]                          Signature of the Petitioner")
+    add("")
+    add("                                       Through:")
+    add("                                       _______________________________")
+    add("                                       [ Advocate's name ]")
+    add("                                       Counsel for the Petitioner")
+    add("")
+    add("")
+    add(_AFFIDAVIT_TEMPLATE.format(
+        fact_para=max(fact_para, 1),
+        first_ground=first_ground,
+        last_ground=max(last_ground, first_ground),
+    ))
+    add("")
+    idx = ["INDEX", "",
+           "  Sl. No. | Particulars                                          | Page Nos.",
+           "  --------|------------------------------------------------------|----------",
+           "    1     | Petition                                             |  __ - __",
+           "    2     | Affidavit in support                                 |  __"]
+    idx += spec["index_rows"]
+    idx += ["", "Filed by:  _______________________",
+            "           [ Advocate's name ]", "           Counsel for the Petitioner"]
+    add("\n".join(idx))
+
+    return "\n".join(out).rstrip() + "\n"
+
+
+def from_cheque_answer(question_text, answer):
+    return _civil_petition("cheque_bounce", question_text, answer)
+
+
+def from_freeze_answer(question_text, answer):
+    return _civil_petition("freeze", question_text, answer)
