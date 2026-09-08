@@ -1,7 +1,7 @@
 # Recourse — ILTN Vibeathon 2026 submission
 
 **Live:** https://recourse.co.in  ·  **Backup:** https://recourse.up.railway.app
-**Repo:** this repository  ·  **Tagline:** *When the police come, you have more rights than you think — and the paper to use them.*
+**Repo:** this repository  ·  **Tagline:** *An arrest. An FIR. A night in custody. You have more rights than you know — and the paper to use them.*
 
 ---
 

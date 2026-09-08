@@ -23,7 +23,7 @@ import streamlit as st
 from scenario_answer import build_scenario_answer, _case_library
 from scenario_draft import build_document, document_pdf
 
-st.set_page_config(page_title="Recourse — know your rights when the police come",
+st.set_page_config(page_title="Recourse — know your rights when it matters most",
                    page_icon="⚖️", layout="centered")
 
 
@@ -122,7 +122,7 @@ h4{ font-size:1.06rem !important; font-weight:600 !important;
 .r-rule{ border:0; border-top:1px solid var(--rule); margin:1.1rem 0; }
 .r-rule-seal{ border:0; border-top:2px solid var(--seal); width:44px; margin:.9rem 0 1.1rem; }
 .r-tag{
-  font-family:"Newsreader",serif; font-style:italic; font-size:1.22rem;
+  font-family:"Newsreader",serif; font-style:italic; font-size:1.34rem; line-height:1.42;
   color:var(--ink-soft); margin:.2rem 0 1.1rem; text-wrap:balance;
 }
 .r-lead{ font-size:1.09rem; color:var(--ink-soft); margin-bottom:.4rem; }
@@ -171,13 +171,21 @@ div[data-testid="column"] div.stButton > button p{ font-size:.92rem; color:var(-
 .stTextArea textarea:focus{ border-color:var(--seal) !important;
   box-shadow:0 0 0 3px var(--seal-tint) !important; }
 
-/* ---------- primary button ---------- */
+/* ---------- primary button (the one clear action) ---------- */
 div.stButton > button[kind="primary"]{
-  background:var(--seal); border:1px solid var(--seal); color:#fff;
-  font-family:"IBM Plex Sans",sans-serif; font-weight:600; font-size:.95rem;
-  border-radius:9px; padding:.55rem 1.5rem; letter-spacing:.01em;
+  background:var(--seal) !important; border:1px solid var(--seal-deep) !important;
+  color:#fff !important;
+  font-family:"IBM Plex Sans",sans-serif !important; font-weight:600 !important;
+  font-size:1rem !important; border-radius:9px !important;
+  padding:.7rem 1.6rem !important; letter-spacing:.015em;
+  width:100%; margin-top:.9rem;
+  box-shadow:0 8px 20px -12px rgba(15,84,77,.55);
 }
-div.stButton > button[kind="primary"]:hover{ background:var(--seal-deep); border-color:var(--seal-deep); }
+div.stButton > button[kind="primary"]:hover{
+  background:var(--seal-deep) !important; border-color:var(--seal-deep) !important;
+}
+div.stButton > button[kind="primary"] p{ color:#fff !important; font-size:1rem !important;
+  font-weight:600 !important; }
 div.stButton > button[kind="secondary"]{
   background:transparent; border:1px solid var(--seal); color:var(--seal);
   font-family:"IBM Plex Sans",sans-serif; font-weight:500; border-radius:8px;
@@ -294,8 +302,8 @@ st.html("""
 <div class="r-eyebrow">Access to justice &nbsp;·&nbsp; India</div>
 <div class="r-wordmark">Recourse</div>
 <hr class="r-rule-seal">
-<div class="r-tag">When the police come, you have more rights than you think
-&mdash; and the paper to use them.</div>
+<div class="r-tag">An arrest. An FIR. A night in custody. You have more rights
+than you know &mdash; and the paper to use them.</div>
 <div class="r-lead">Tell Recourse what is happening, in your own words. It works out
 what stage you are at, what the police can and cannot do, your rights <b>right
 now</b>, what to do in the next 24 hours &mdash; and drafts a document you can
@@ -337,7 +345,7 @@ msg = st.text_area("Describe your situation", key="text", height=120,
                    label_visibility="collapsed",
                    placeholder="e.g. My brother was arrested four days ago and still hasn't been produced in court…")
 
-go = st.button("Check my situation", type="primary")
+go = st.button("Check my situation  →", type="primary", use_container_width=True)
 
 
 # --------------------------------------------------------------------------

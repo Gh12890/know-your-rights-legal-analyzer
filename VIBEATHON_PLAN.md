@@ -16,7 +16,7 @@ Vaadhan and the field build for the **advocate**. We build for **the person the 
 **The reframe:** access to justice is not "answer a legal question." It is: *tell me what stage I'm at, what the other side can and cannot do to me right now, what my rights are at this specific moment, what my family should do in the next 24 hours — and hand me the paper to do it.* The tool answers the **situation = role × stage × factors**, not the words.
 
 **Name:** **Recourse** (recommended). Alts: Grounds, Habeas, The Brief.
-**Tagline:** *When the police come, you have more rights than you think — and the paper to use them.*
+**Tagline:** *An arrest. An FIR. A night in custody. You have more rights than you know — and the paper to use them.*
 
 **Positioning paragraph (draft):**
 > Over three-quarters of India's prison population are undertrials — people not convicted of anything. When the police come, most people (and their families) don't know that the arrest must come with written grounds, that a woman can't be arrested after sunset without a magistrate's sanction, or that a missed chargesheet deadline means bail as of right. Recourse takes a plain-language description of what's happening and tells you: what stage you're at, what the police can and cannot do, your rights right now, what to do in the next 24 hours — and generates the document to do it. Every section and every judgment it shows is checked four ways. It says "I don't know" before it invents anything.
