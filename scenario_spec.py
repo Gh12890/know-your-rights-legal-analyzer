@@ -245,16 +245,18 @@ _SCENARIOS = [
                     "Judicial Magistrate of the first class."
                 ),
                 section="43", act="BNSS",
-                case="",
-                para_hint="",
+                case="Deepa v S. Vijayalakshmi",
+                para_hint="held s.43(5) BNSS not mandatory",
                 triggers=[("night",), ("sunset",), ("sunrise",), ("last night",),
                           ("evening",), ("9 pm",), ("10 pm",), ("11 pm",),
                           ("midnight",), ("am",), ("late",)],
-                note="Verbatim-verified in statute_doctrine_map.py (bnss_43_5). "
-                     "NUANCE the answer must carry: the Madras High Court (Deepa v "
-                     "S. Vijayalakshmi) held this DIRECTORY, not mandatory - a "
-                     "breach does not automatically void the arrest, but the "
-                     "officer must still justify the deviation.",
+                note="Statute text verbatim-verified in statute_doctrine_map.py (bnss_43_5). "
+                     "Deepa v S. Vijayalakshmi (Madras HC DB, 2025) is now in the corpus "
+                     "and is squarely on Section 43(5) BNSS: it holds the provision "
+                     "DIRECTORY, not mandatory - a breach does not automatically void the "
+                     "arrest, but the officer must still be able to justify the deviation, "
+                     "and the victim/complainant cannot be made to suffer for the officer's "
+                     "neglect of the safeguard.",
             ),
             Right(
                 plain_text=(
@@ -345,6 +347,7 @@ _SCENARIOS = [
             "Prabir Purkayastha v State (NCT of Delhi)",
             "Pankaj Bansal v Union of India",
             "D.K. Basu v State of West Bengal",
+            "Deepa v S. Vijayalakshmi",
         ],
     ),
 
@@ -374,12 +377,13 @@ _SCENARIOS = [
                 ),
                 section="173", act="BNSS",
                 case="Lalita Kumari v Government of Uttar Pradesh",
-                para_hint="",
+                para_hint="para 111(i)",
                 triggers=ALWAYS,
-                in_corpus=False, review=True,
-                note="STEP 3 TOP-UP: Lalita Kumari is NOT in the corpus. Must be "
-                     "seeded (curated verbatim excerpt + embed) or this hero falls "
-                     "back to FALSE_FIR_AGAINST_ME per the plan.",
+                in_corpus=True, review=True,
+                note="Seeded to corpus in batch 4 (Step 3). The Constitution Bench "
+                     "holding (para 111(i)): registration is mandatory where the "
+                     "information discloses a cognizable offence, and no preliminary "
+                     "inquiry is permissible in that situation.",
             ),
             Right(
                 plain_text=(
@@ -389,13 +393,18 @@ _SCENARIOS = [
                     "away on jurisdiction grounds."
                 ),
                 section="173", act="BNSS",
-                case="",
-                para_hint="",
+                case="Lalita Kumari v Government of Uttar Pradesh",
+                para_hint="para 111(iv) - police cannot avoid the duty to register",
                 triggers=[("different area",), ("another area",), ("not our",),
                           ("wrong police station",), ("jurisdiction",),
                           ("other station",), ("different city",), ("outside",)],
-                in_corpus=False, review=True,
-                note="STEP 3 TOP-UP: a zero-FIR authority is needed here.",
+                in_corpus=True, review=True,
+                note="The 'zero FIR' term is an MHA advisory; the legal backing is "
+                     "the mandatory-registration duty (Lalita Kumari para 111(i)/(iv)) "
+                     "plus the settled position that territorial jurisdiction goes to "
+                     "investigation and trial, not to registration. Teammate: confirm "
+                     "the framing; consider adding a territorial-jurisdiction authority "
+                     "(e.g. Satvinder Kaur) post-submission.",
             ),
             Right(
                 plain_text=(

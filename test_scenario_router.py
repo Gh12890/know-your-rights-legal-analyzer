@@ -59,8 +59,12 @@ for s in SCENARIOS.values():
 _missing = [c for c in all_case_names() if c not in _corpus and c not in _allowed_absent]
 check(not _missing, f"every catalogue case is in the corpus or flagged in_corpus=False "
                     f"(unexpected missing: {_missing})")
-check("Lalita Kumari v Government of Uttar Pradesh" in _allowed_absent,
-      "Lalita Kumari is flagged as a known Step-3 top-up (in_corpus=False)")
+check("Lalita Kumari v Government of Uttar Pradesh" in _corpus,
+      "Lalita Kumari is now seeded in the corpus (Step 3 batch 4)")
+check("Deepa v S. Vijayalakshmi" in _corpus,
+      "Deepa v S. Vijayalakshmi is now seeded in the corpus (Step 3 batch 4)")
+check(not _allowed_absent,
+      f"no catalogue case is still flagged in_corpus=False (remaining: {sorted(_allowed_absent)})")
 
 # every scenario has at least one ALWAYS right (so an answer is never empty)
 for sid, s in SCENARIOS.items():
