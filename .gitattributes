@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.json -text
+embeddings/* -text
+Procfile text eol=lf
+*.toml text eol=lf
+.python-version text eol=lf
+runtime.txt text eol=lf

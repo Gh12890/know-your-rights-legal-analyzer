@@ -36,12 +36,83 @@ teammate vets); the case pins are real corpus cases; the statute text is the
 project's own verified chunks. No LLM call happens here.
 """
 
+import glob
+import json
 import logging
+import os
 
 from scenario_router import route_situation, resolve_target
 from scenario_spec import get_scenario, ALWAYS
+from scenario_verification import verification_badge
 
 logger = logging.getLogger("scenario_answer")
+
+_CHUNKS_DIR = os.path.join(os.path.dirname(__file__), "chunks")
+_STATUTE_CHUNK_PREFIXES = ("bharatiya_", "information_technology_")
+_case_library_cache = None
+
+
+def _case_library() -> dict:
+    """case_name -> {'chunk_method': str, 'source_url': str, 'citation': str,
+    'chunks': [{'para': str, 'text': str}, ...]} read straight from the
+    curated chunks/*.json files (which carry chunk_method; the embeddings
+    file drops it). Cached for the process."""
+    global _case_library_cache
+    if _case_library_cache is not None:
+        return _case_library_cache
+    lib = {}
+    for path in glob.glob(os.path.join(_CHUNKS_DIR, "*_chunks.json")):
+        base = os.path.basename(path)
+        if base.startswith(_STATUTE_CHUNK_PREFIXES):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                rows = json.load(fh)
+        except Exception:
+            continue
+        for r in rows or []:
+            name = r.get("case_name")
+            if not name:
+                continue
+            entry = lib.setdefault(name, {
+                "chunk_method": r.get("chunk_method"),
+                "source_url": r.get("source_url") or "",
+                "citation": r.get("citation") or "",
+                "chunks": [],
+            })
+            entry["chunks"].append({
+                "para": str(r.get("paragraph_number") or ""),
+                "text": (r.get("text") or "").strip(),
+            })
+    _case_library_cache = lib
+    return lib
+
+
+def _case_excerpt(case_name: str, para_hint: str = "") -> dict:
+    """The most relevant stored excerpt for a case: the chunk whose
+    paragraph label matches para_hint if possible, else the first.
+    Returns {'text','para','source_url','citation','chunk_method'} or {}."""
+    entry = _case_library().get(case_name)
+    if not entry or not entry["chunks"]:
+        return {}
+    chosen = entry["chunks"][0]
+    if para_hint:
+        hint = para_hint.lower()
+        for c in entry["chunks"]:
+            p = c["para"].lower()
+            if p and (p in hint or hint in p
+                      or any(tok and tok in p for tok in hint.replace("(", " ").replace(")", " ").split())):
+                chosen = c
+                break
+    import re as _re
+    tidy = _re.sub(r"\n{2,}", "\n", (chosen["text"] or "").strip())
+    return {
+        "text": tidy,
+        "para": chosen["para"],
+        "source_url": entry["source_url"],
+        "citation": entry["citation"],
+        "chunk_method": entry["chunk_method"],
+    }
 
 
 def _match_group(group, haystack: str) -> bool:
@@ -120,6 +191,16 @@ def build_scenario_answer(message: str, *, route: dict = None) -> dict:
                 suppressed = True
             else:
                 seen_cases.add(case)
+        excerpt = {}
+        badge = {}
+        if case and not suppressed:
+            excerpt = _case_excerpt(case, r.para_hint)
+            badge = verification_badge(
+                case,
+                chunk_method=excerpt.get("chunk_method") or "curated_excerpt",
+                in_library=bool(excerpt) or r.in_corpus,
+                hand_mapped=True,
+            )
         rights_out.append({
             "plain_text": r.plain_text,
             "section": r.section,
@@ -131,6 +212,8 @@ def build_scenario_answer(message: str, *, route: dict = None) -> dict:
             "case_suppressed": suppressed,
             "case_ref": case if suppressed else "",   # named, so the UI can say "see X above"
             "para_hint": "" if suppressed else r.para_hint,
+            "case_excerpt": excerpt,
+            "badge": badge,
             "in_corpus": r.in_corpus,
             "needs_review": r.review,
             "note": r.note,
@@ -206,6 +289,10 @@ def render_text(answer: dict, *, show_statute: bool = False) -> str:
             tag.append(f"(see {r['case_ref']} above)")
         if tag:
             L.append(f"       - {'  |  '.join(tag)}")
+        if r.get("badge"):
+            b = r["badge"]
+            marks = " ".join(("[x]" if c["ok"] else "[ ]") + c["label"] for c in b["checks"])
+            L.append(f"       - verification: {marks}")
         if r["in_corpus"] is False:
             L.append("       - [!] case not yet in corpus - Step 3 top-up")
         if show_statute and r["statute_text"]:

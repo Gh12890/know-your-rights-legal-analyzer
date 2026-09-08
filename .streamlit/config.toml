@@ -1,0 +1,22 @@
+# Recourse -- Streamlit theme + server config for the public deploy.
+
+[theme]
+base = "light"
+primaryColor = "#1f6f78"          # teal accent -- buttons, focus, links
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#faf8f3"   # warm paper -- cards, sidebars, code
+textColor = "#17242b"
+font = "serif"
+
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = true
+# Railway/Render inject $PORT; the start command passes it explicitly.
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showErrorDetails = false
+toolbarMode = "minimal"

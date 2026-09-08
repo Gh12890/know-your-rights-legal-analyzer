@@ -170,6 +170,54 @@ for k, a in answers.items():
     check(len(pinned) == len(set(pinned)), f"hero {k}: no case pinned twice ({pinned})")
 
 
+# ---------------------------------------------------------------------------
+# Step 4: verification badge + document
+# ---------------------------------------------------------------------------
+from scenario_verification import verification_badge
+from scenario_draft import build_document, document_pdf
+
+b = verification_badge("Lalita Kumari v Government of Uttar Pradesh",
+                       chunk_method="curated_excerpt")
+check(b["all_ok"] and len(b["checks"]) == 4,
+      f"badge: Lalita Kumari 4/4 ({b['summary']})")
+check(all(k in {c["key"] for c in b["checks"]}
+          for k in ("exists", "good_law", "verbatim", "on_point")),
+      "badge: all four check keys present")
+b2 = verification_badge("Some Unknown Case v Nobody", chunk_method="fixed_size_fallback")
+check(not b2["checks"][1]["ok"] and not b2["checks"][2]["ok"],
+      "badge: an unknown case fails good-law and verbatim, honestly")
+
+# every cited right in every hero answer carries a badge
+for k, a in answers.items():
+    for r in a["rights"]:
+        if r["case"]:
+            check(bool(r.get("badge")), f"{k}: cited right has a badge ({r['case'][:30]})")
+
+# document for each hero
+import tempfile as _tf
+for k, a in answers.items():
+    doc = build_document(a, HERO_ROUTES[["bail", "woman", "fir"].index(k)][0])
+    check(doc["available"] and len(doc["text"]) > 400, f"{k}: document builds ({doc['target']})")
+    check("not legal advice" in doc["text"].lower(), f"{k}: document carries the disclaimer")
+    p = _tf.mkstemp(suffix=".pdf")[1]
+    try:
+        document_pdf(doc, p)
+        import os as _os
+        check(_os.path.getsize(p) > 1500, f"{k}: PDF renders")
+    except Exception as e:  # noqa
+        check(False, f"{k}: PDF render raised {e!r}")
+
+# the woman document names the night fact it lifted from the message
+wdoc = build_document(answers["woman"], "my sister was arrested last night around 9 pm, nobody told us why")
+check("9:00 pm" in wdoc["text"] or "sunset" in wdoc["text"].lower(),
+      "woman document: lifts the arrest-time / night fact from the message")
+
+# out-of-scope -> no document
+oos = build_scenario_answer("how do I get my father's will declared invalid")
+check(build_document(oos, "x")["available"] is False,
+      "out-of-scope: no document offered")
+
+
 print()
 if FAILURES:
     print(f"RESULT: {len(FAILURES)} FAILURE(S)")

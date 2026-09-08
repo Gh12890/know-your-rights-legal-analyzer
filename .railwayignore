@@ -1,0 +1,11 @@
+raw_pdfs/
+Sample_*.pdf
+*.pdf
+eval_out/
+eval_related_out/
+citation_currency_review/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests_scratch/
+venv/
