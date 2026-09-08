@@ -115,7 +115,7 @@ Architecturally this is **one new layer** (`scenario_router.py` + `SCENARIO_SPEC
 - **`RECOURSE_DEPLOY.md`** — Railway steps + wallet caps + the **custom-domain steps to remove "railway" from the URL** (register `recourse.law`/`.in`, add CNAME on Day 4). Only `ANTHROPIC_API_KEY` + `VOYAGE_API_KEY` needed (no IK key — recourse_app does no live fetch).
 
 **DEPLOYED & LIVE 2026-09-08** — via **Railway CLI** (`railway up`), not the GitHub integration (that kept failing "repo not found"). Python 3.13, all deps clean, status Online, verified end-to-end in a browser.
-**LIVE URL: https://know-your-rights-legal-analyzer-production.up.railway.app**
+**LIVE URL: https://recourse.up.railway.app**
 Redeploy after any code change: `railway up --ci` from the repo root.
 
 **USER TO DO (remaining):** (1) **Anthropic hard spend cap — today** (console.anthropic.com); (2) register `recourse.law` / `recourse.in`; (3) Railway service → Settings → Networking → **Custom Domain** → add it + CNAME at registrar (Day 4 — this is what removes "railway" from the URL); (4) **rotate both API keys** — they were pasted into the setup chat; (5) optional: UptimeRobot 5-min ping on `/_stcore/health` + a Streamlit Community Cloud backup URL.
