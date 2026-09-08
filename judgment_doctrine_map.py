@@ -48,6 +48,43 @@ _MAX_ANCHORED_PARAGRAPHS = 8
 _MAX_PARAGRAPHS_PER_ENTRY = 2
 
 
+# "An arrest has actually happened" -- the SAME list the statute post-arrest
+# anchors use (statute_doctrine_map._ARREST_HAPPENED), kept in sync by hand
+# because the two maps must not drift (a real recurring bug: the statute
+# BNSS 47/35/58 blocks fired for "picked up by the police" but the judgment
+# Prabir/Arnesh/Satender anchors did not, so the model named Prabir from
+# memory with no excerpt on the page).
+_ARREST_HAPPENED = [
+    ("arrested",), ("was arrested",), ("been arrested",), ("got arrested",),
+    ("arrested me",), ("have arrested me",), ("arrested my",), ("arrested our",),
+    ("arrested him",), ("arrested her",), ("police arrested",),
+    ("picked up by the police",), ("picked up by police",), ("picked me up",),
+    ("picked him up",), ("picked her up",), ("picked up two days",),
+    ("took me in",), ("took him in",), ("took me away",), ("took him away",),
+    ("detained me",), ("detained him",), ("taken into custody",),
+    ("taken to custody",), ("in the lock-up",), ("in the lockup",),
+    ("in lock-up",), ("in lockup",), ("in police custody",), ("police custody",),
+    ("in judicial custody",), ("in custody",), ("still in custody",),
+    ("held in custody",), ("remanded",),
+    ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
+    ("lockup", "days"), ("detained", "days"),
+]
+
+# Pre-arrest: no arrest yet, but a notice to appear / summons / fear of an
+# imminent arrest. Arnesh Kumar and Satender Kumar Antil ("notice is the
+# rule, arrest the exception") apply here too -- so their anchors fire for
+# both. NOT used by the grounds-of-arrest / custodial / 24-hour anchors.
+_ARREST_FEARED_OR_NOTICE = [
+    ("notice to appear",), ("41a notice",), ("35(3) notice",),
+    ("summons",), ("summoned",), ("called to the station",),
+    ("calling me to the station",), ("keep calling me",), ("asked to come to the station",),
+    ("asked me to come to the police station",), ("told to appear",),
+    ("might arrest",), ("going to arrest",), ("about to arrest",),
+    ("threatening to arrest",), ("afraid", "arrest"), ("fear", "arrest"),
+    ("scared", "arrest"), ("anticipatory",), ("before", "arrest"),
+]
+
+
 # Order matters: for someone already in custody the arrest-safeguard
 # doctrines are the most urgent, so they come first and win the cap.
 JUDGMENT_DOCTRINE_MAP = {
@@ -56,14 +93,11 @@ JUDGMENT_DOCTRINE_MAP = {
         "case_key": "prabir_purkayastha",
         "paragraph_numbers": ["30", "49"],
         "opinion_author": None,
-        "trigger_groups": [
-            ("arrested",), ("was arrested",), ("been arrested",),
-            ("arrested me",), ("in the lock-up",), ("in lockup",),
-            ("in custody",), ("police custody",),
+        "trigger_groups": _ARREST_HAPPENED + [
             ("grounds", "arrest"), ("not told", "why"), ("nobody told", "why"),
             ("didn't tell", "why"), ("no reason", "arrest"),
             ("not shown", "documents"), ("haven't shown", "documents"),
-            ("not shown", "grounds"),
+            ("not shown", "grounds"), ("without", "notice"), ("no notice",),
         ],
         "context_note": (
             "In Prabir Purkayastha v State (NCT of Delhi) 2024 INSC 414 the "
@@ -97,17 +131,11 @@ JUDGMENT_DOCTRINE_MAP = {
         # is self-limiting ("for an offence punishable with up to seven
         # years"), so it does no harm on a genuinely serious-offence
         # answer.
-        "trigger_groups": [
-            ("arrested",), ("was arrested",), ("been arrested",),
-            ("arrested me",), ("have arrested me",), ("i am arrested",),
-            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
-            ("in lockup",), ("in police custody",), ("police custody",),
-            ("in custody",), ("still in custody",), ("held in custody",),
-            ("arrested", "days"), ("custody", "days"),
+        "trigger_groups": _ARREST_HAPPENED + _ARREST_FEARED_OR_NOTICE + [
             ("directly arrested",), ("arrested", "straight away"),
-            ("arrested", "without", "notice"), ("no notice", "arrest"),
-            ("arrest", "not necessary"), ("automatically", "arrest"),
-            ("came to my house", "arrested"), ("came to our house", "arrested"),
+            ("without", "notice"), ("no notice",), ("not necessary", "arrest"),
+            ("automatically", "arrest"), ("came to my house", "arrested"),
+            ("came to our house", "arrested"),
         ],
         "context_note": (
             "In Arnesh Kumar v State of Bihar (2014) 8 SCC 273 the Supreme "
@@ -137,18 +165,11 @@ JUDGMENT_DOCTRINE_MAP = {
         "case_key": "satender_kumar_antil_2026",
         "paragraph_numbers": ["31", "33"],
         "opinion_author": None,
-        "trigger_groups": [
-            ("arrested",), ("was arrested",), ("been arrested",),
-            ("arrested me",), ("have arrested me",),
-            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
-            ("in lockup",), ("in police custody",), ("police custody",),
-            ("in custody",), ("still in custody",),
-            ("arrested", "days"), ("custody", "days"),
-            ("arrested", "directly"), ("arrested", "without", "notice"),
-            ("no notice", "arrest"), ("arrest", "not necessary"),
-            ("35(3)",), ("41a",), ("41-a",),
+        "trigger_groups": _ARREST_HAPPENED + _ARREST_FEARED_OR_NOTICE + [
+            ("arrested", "directly"), ("without", "notice"), ("no notice",),
+            ("not necessary", "arrest"), ("35(3)",), ("41a",), ("41-a",),
             ("came to my house", "arrested"), ("straight to arrest",),
-            ("should have got a notice",),
+            ("should have got a notice",), ("without any notice",),
         ],
         "context_note": (
             "In Satender Kumar Antil v CBI, 2026 INSC 115 (order dated "
@@ -477,6 +498,16 @@ JUDGMENT_DOCTRINE_MAP = {
             ("only", "neighbour's statement"), ("only", "neighbor's statement"),
             ("based only on", "statement"), ("one-sided", "statement"),
             ("other party's", "version"), ("arrested", "wrong", "party"),
+            # a retaliatory / cross-complaint: we complained first, then the
+            # other side filed a case and the police acted on THAT
+            ("counter-complaint",), ("counter complaint",), ("counter-complained",),
+            ("counter complained",), ("counter-case",), ("counter case",),
+            ("cross-case",), ("cross case",), ("cross fir",), ("cross-fir",),
+            ("cross-complaint",), ("cross complaint",),
+            ("we filed a complaint", "he"), ("we filed first",),
+            ("after we complained",), ("when we objected",),
+            ("then he", "filed a case"), ("then he", "complained"),
+            ("retaliat",), ("in retaliation",),
             # a complaint that on its own facts cannot amount to the offence
             # charged -- Bhajan Lal category 1
             ("kidnap", "my wife"), ("kidnap", "my own wife"),
@@ -555,20 +586,40 @@ JUDGMENT_DOCTRINE_MAP = {
             ("fir", "property dispute"), ("fir", "land dispute"),
             ("arrested", "property dispute"), ("arrested", "land dispute"),
             ("civil", "property", "criminal"),
+            # power of attorney / sale deed / will forgery in a land dispute
+            # -- always paired with a forgery/criminal/arrest signal so a
+            # plain "how do I register a power of attorney" never fires this
+            ("power of attorney", "forged"), ("power of attorney", "fake"),
+            ("power of attorney", "signature"), ("power of attorney", "forgery"),
+            ("power of attorney", "arrested"), ("power of attorney", "fir"),
+            ("power of attorney", "complaint"), ("power of attorney", "not", "sign"),
+            ("gpa", "forged"), ("gpa", "signature"), ("gpa", "arrested"),
+            ("sale deed", "forged"), ("sale deed", "signature", "recognise"),
+            ("sale deed", "not", "signed"),
+            ("will", "forged"), ("forged", "will"),
+            ("forgery", "will"), ("forgery", "power of attorney"),
+            ("signature", "none of us recognise"), ("signature", "we don't recognise"),
+            ("signature", "not", "father"), ("date", "hospitalised"),
+            ("authorised him to sell",), ("authorized him to sell",),
+            ("impersonat", "owner"), ("falsely", "authorised"),
         ],
         "context_note": (
             "In Md. Ibrahim v State of Bihar (2009) 8 SCC 751 the Supreme "
             "Court set aside a criminal case arising from a land dispute, "
             "warning against the growing tendency to give a civil dispute "
             "the 'cloak of a criminal offence' to apply pressure. On "
-            "forgery, it held that a person who executes a sale deed "
-            "claiming that the property is his own -- even if that "
-            "ownership claim is wrong or disputed -- does not thereby make "
-            "a 'false document': forgery requires making a document "
-            "dishonestly purporting to be made by someone who did not make "
-            "it, or with a false date, etc. A genuine document containing a "
-            "claim later found to be untrue is not a forged document, and a "
-            "boundary/title dispute is for the civil court."
+            "forgery it drew a fundamental distinction: a person who "
+            "executes a document CLAIMING the property is his own -- even "
+            "if that claim is wrong or disputed -- does not thereby make a "
+            "'false document'; that is a civil title dispute. BUT a person "
+            "who executes a document 'by impersonating the owner or falsely "
+            "claiming to be authorised or empowered by the owner' DOES make "
+            "a false document -- so a power of attorney or sale deed that "
+            "carries a signature the owner did not make, or falsely says a "
+            "(here, deceased or hospitalised) owner authorised the sale, can "
+            "amount to forgery. The genuineness of the signature and the "
+            "authority are questions of fact for the investigation and the "
+            "court."
         ),
         "verified_note": (
             "Para slugs 'civil_dispute_criminal_cloak_caution' and "

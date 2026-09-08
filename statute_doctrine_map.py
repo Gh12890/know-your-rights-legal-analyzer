@@ -77,7 +77,9 @@ _ARREST_HAPPENED = [
     ("in the lockup",), ("in lock-up",), ("in lockup",), ("in the lock up",),
     ("in police custody",), ("police custody",), ("in judicial custody",),
     ("in custody",), ("still in custody",), ("held in custody",),
-    ("picked up", "police"), ("remanded",),
+    ("picked up", "police"), ("picked me up",), ("picked him up",),
+    ("picked her up",), ("took me in",), ("took him in",), ("took me away",),
+    ("took him away",), ("detained me",), ("detained him",), ("remanded",),
     ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
     ("lockup", "days"), ("detained", "days"),
 ]
@@ -444,13 +446,7 @@ STATUTE_DOCTRINE_MAP = {
         # about what happens AFTER first production, so fire it on ongoing/
         # prolonged custody or a chargesheet-delay signal, not every fresh
         # arrest.
-        "trigger_groups": [
-            ("been arrested",), ("was arrested",), ("arrested me",),
-            ("arrested my",), ("arrested our",), ("police arrested",),
-            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
-            ("in lockup",), ("in police custody",), ("police custody",),
-            ("in judicial custody",), ("in custody",), ("still in custody",),
-            ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
+        "trigger_groups": _ARREST_HAPPENED + [
             ("remand",), ("remanded",), ("still investigating",),
             ("no chargesheet",), ("no charge sheet",), ("not filed", "chargesheet"),
             ("haven't filed", "chargesheet"), ("hasn't filed", "chargesheet"),
