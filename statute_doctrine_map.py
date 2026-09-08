@@ -135,6 +135,14 @@ STATUTE_DOCTRINE_MAP = {
             ("arrested", "sunrise"),
             ("female", "arrest", "night"),
             ("woman", "night", "police"),
+            # a female relation + an arrest + a night/after-dark word
+            ("sister", "arrested", "night"), ("wife", "arrested", "night"),
+            ("daughter", "arrested", "night"), ("mother", "arrested", "night"),
+            ("sister", "arrest", "night"), ("wife", "arrest", "night"),
+            ("daughter", "arrest", "night"), ("mother", "arrest", "night"),
+            ("her", "arrested", "night"), ("she", "arrested", "night"),
+            ("woman", "arrested", "midnight"), ("her", "arrested", "midnight"),
+            ("woman", "arrested", "after dark"), ("she", "arrested", "after dark"),
         ],
         "context_note": (
             "BNSS Section 43(5) states: save in exceptional circumstances, "
@@ -279,6 +287,194 @@ STATUTE_DOCTRINE_MAP = {
             "same real test scenario; see loc-transit-remand-gap."
         ),
     },
+    # WHY (2026-09-08): a real multi-issue user query -- "I've been arrested
+    # for cheating and breach of trust ... I've been in the lock-up two days
+    # and nobody has shown me the [grounds]" -- was traced through the chat
+    # pipeline. classify_scope correctly identified it as being about
+    # "arrest procedure, detention beyond 24 hours, and right to see case
+    # documents", the offence anchors fired BNS 318 + 316 -- but NOTHING
+    # surfaced the core post-arrest safeguards (grounds of arrest, the
+    # arrest-necessity rule, 24-hour production, the remand/default-bail
+    # limits). The existing BNSS 58/187 entries are gated behind
+    # LOC/transit-remand/airport triggers only, and semantic retrieval does
+    # not reliably rank these procedure sections for a plain "I've been
+    # arrested and held for X days" question -- the same class of gap the
+    # 43(5) and 482 entries above exist for. These four entries wire the
+    # standard arrest safeguards deterministically for anyone who has
+    # ALREADY been arrested and is describing a custody or grounds
+    # grievance. get_statute_doctrine_override() dedupes by section, so
+    # these never double up with the LOC-specific 58/187 entries above.
+    "post_arrest_grounds_of_arrest_bnss_47": {
+        "act": "BNSS",
+        "section_number": "47",
+        "trigger_groups": [
+            ("been arrested",), ("was arrested",), ("been arrest",),
+            ("have arrested me",), ("arrested me",),
+            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
+            ("in lockup",), ("in the lock up",), ("in police custody",),
+            ("police custody",), ("in judicial custody",),
+            ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
+            ("lockup", "days"), ("detained", "days"), ("held", "police", "days"),
+            ("not told", "why", "arrested"), ("nobody", "why", "arrested"),
+            ("no reason", "arrest"), ("grounds", "arrest"),
+            ("haven't shown", "why"), ("not shown", "grounds"),
+            ("didn't tell", "why", "arrested"),
+        ],
+        "context_note": (
+            "BNSS Section 47 requires that a person arrested without a "
+            "warrant be told, immediately, the full grounds of the arrest -- "
+            "the actual reasons and the substance of the accusation, not "
+            "just a section number. The Supreme Court (Prabir Purkayastha v "
+            "State (NCT of Delhi), 2024; and Pankaj Bansal v Union of India, "
+            "2023, for PMLA) has held that these grounds must be furnished "
+            "IN WRITING, and that a failure to do so vitiates the arrest and "
+            "the remand that follows -- the person is entitled to be "
+            "released. The grounds must contain enough detail for the person "
+            "(and their lawyer) to actually respond and to apply for bail. "
+            "Being told only the offence label, or being shown nothing at "
+            "all, does not satisfy Section 47. The related right to be told "
+            "the arrest has happened and where the person is held (BNSS 48) "
+            "runs alongside this."
+        ),
+        "verified_note": (
+            "BNSS 47 text pulled live via get_statute_section (not hardcoded "
+            "here). The grounds-of-arrest-in-writing holding is from Prabir "
+            "Purkayastha v State (NCT of Delhi) 2024 INSC 414 and Pankaj "
+            "Bansal v Union of India (2023) -- both are in this project's "
+            "judgment corpus and concordance; the s.47 = old CrPC 50 "
+            "correspondence is in statute_concordance.json. Entry added "
+            "2026-09-08 after a real user query surfaced that no post-arrest "
+            "safeguard was being anchored for someone already in custody."
+        ),
+    },
+    "post_arrest_necessity_and_notice_bnss_35": {
+        "act": "BNSS",
+        "section_number": "35",
+        "trigger_groups": [
+            ("been arrested",), ("was arrested",), ("arrested me",),
+            ("have arrested me",),
+            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
+            ("in lockup",), ("in police custody",), ("police custody",),
+            ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
+            ("arrested", "cheating"), ("arrested", "breach of trust"),
+            ("arrested", "419"), ("arrested", "420"), ("arrested", "406"),
+            ("arrested", "318"), ("arrested", "316"),
+            ("directly arrested",), ("arrested", "without", "notice"),
+            ("no notice", "arrest"), ("arrested straight away",),
+        ],
+        "context_note": (
+            "BNSS Section 35 governs WHEN the police may arrest without a "
+            "warrant. For a cognizable offence punishable with up to seven "
+            "years (this covers cheating under BNS 318(4), criminal breach "
+            "of trust under BNS 316(2), and most property offences), the "
+            "officer may arrest only if satisfied that arrest is NECESSARY "
+            "for a specific reason -- to stop the person committing a "
+            "further offence, for proper investigation, to stop them "
+            "tampering with evidence or influencing witnesses, or to ensure "
+            "their attendance in court -- and the officer must RECORD those "
+            "reasons in writing. Where arrest is not necessary, Section "
+            "35(3) requires the police to instead serve a notice to appear "
+            "(the notice that codifies Arnesh Kumar v State of Bihar, 2014). "
+            "An arrest made without recording why it was necessary is open "
+            "to challenge before the Magistrate at the first production, and "
+            "the Magistrate is required to record satisfaction that the "
+            "Section 35 conditions were met before authorising any further "
+            "detention. Section 35(7) adds that for an offence punishable "
+            "with under seven years, a person who is infirm or above sixty "
+            "is not to be arrested without an officer's written permission."
+        ),
+        "verified_note": (
+            "BNSS 35 text pulled live via get_statute_section (not hardcoded "
+            "here). Section 35 is the BNSS re-enactment of CrPC 41/41A "
+            "(correspondence in statute_concordance.json); the "
+            "arrest-necessity / notice-to-appear doctrine is Arnesh Kumar v "
+            "State of Bihar (2014) 8 SCC 273, in this project's corpus. "
+            "Entry added 2026-09-08."
+        ),
+    },
+    "post_arrest_24h_production_bnss_58_general": {
+        "act": "BNSS",
+        "section_number": "58",
+        "trigger_groups": [
+            ("been arrested",), ("was arrested",), ("arrested me",),
+            ("have arrested me",),
+            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
+            ("in lockup",), ("in police custody",), ("police custody",),
+            ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
+            ("lockup", "days"), ("detained", "days"),
+            ("two days",), ("three days",), ("2 days",), ("3 days",),
+            ("four days",), ("not produced",), ("not been produced",),
+            ("haven't been produced",), ("not brought", "court"),
+            ("not brought", "magistrate"), ("24 hours", "magistrate"),
+            ("twenty-four hours", "magistrate"),
+        ],
+        "context_note": (
+            "BNSS Section 58 states that a person arrested without a warrant "
+            "must not be kept in police custody for more than twenty-four "
+            "hours (excluding the time needed for the journey to the "
+            "Magistrate's Court). Beyond twenty-four hours, continued "
+            "custody is lawful only under a Magistrate's remand order made "
+            "under BNSS Section 187. If someone has been in a lock-up for "
+            "two or three days, either they were produced before a "
+            "Magistrate and remanded (in which case there should be a remand "
+            "order they are entitled to see) or the twenty-four-hour limit "
+            "has been breached -- which is a serious illegality to raise "
+            "with the Magistrate and, if needed, by a habeas corpus "
+            "petition to the High Court. The clock runs from the arrest, not "
+            "from when the police choose to register it."
+        ),
+        "verified_note": (
+            "BNSS 58 text pulled live via get_statute_section. This is a "
+            "general-arrest counterpart to the LOC/transit-remand "
+            "bnss_58_transit_production_24_hours entry above; "
+            "get_statute_doctrine_override() dedupes by section so only one "
+            "s.58 block ever reaches an answer. s.58 = CrPC 57 "
+            "(concordance). Added 2026-09-08."
+        ),
+    },
+    "post_arrest_remand_default_bail_bnss_187_general": {
+        "act": "BNSS",
+        "section_number": "187",
+        "trigger_groups": [
+            ("been arrested",), ("was arrested",), ("arrested me",),
+            ("have arrested me",),
+            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
+            ("in lockup",), ("in police custody",), ("police custody",),
+            ("in judicial custody",),
+            ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
+            ("remand",), ("remanded",), ("still investigating",),
+            ("no chargesheet",), ("no charge sheet",), ("not filed", "chargesheet"),
+            ("haven't filed", "chargesheet"), ("hasn't filed", "chargesheet"),
+            ("days", "chargesheet"), ("days", "charge sheet"),
+            ("chargesheet", "deadline"), ("default bail",), ("statutory bail",),
+        ],
+        "context_note": (
+            "BNSS Section 187 is the remand provision. A Magistrate may "
+            "authorise detention beyond the first twenty-four hours, but "
+            "police custody can be sought only in the first fifteen days "
+            "(which may be spread across the early part of the period), and "
+            "the total custody during investigation cannot exceed sixty "
+            "days for most offences, or ninety days where the offence is "
+            "punishable with death, life imprisonment, or at least ten "
+            "years. If the investigation is not complete and no chargesheet "
+            "is filed within that limit, the person is entitled to be "
+            "released on bail as of right (\"default\" or \"statutory\" "
+            "bail) if they are prepared to furnish bail -- this does not "
+            "depend on the merits of the case. At every remand extension the "
+            "person must be physically produced before the Magistrate, and "
+            "can be represented by a lawyer to oppose further custody."
+        ),
+        "verified_note": (
+            "BNSS 187 text pulled live via get_statute_section. "
+            "General-arrest counterpart to bnss_187_transit_remand_"
+            "forwarding above; section-level dedupe in "
+            "get_statute_doctrine_override() keeps only one s.187 block. "
+            "The 60/90-day default-bail rule is s.187(3); default bail as an "
+            "indefeasible right is M. Ravindran v DRI (2021) and Bikramjit "
+            "Singh v State of Punjab (2020), both in this project's corpus. "
+            "Added 2026-09-08."
+        ),
+    },
 }
 
 
@@ -350,9 +546,24 @@ def get_statute_doctrine_override(question: str) -> list:
 
     matched_keys = match_statute_doctrine(question)
     results = []
+    seen_sections = set()
 
     for key in matched_keys:
         entry = STATUTE_DOCTRINE_MAP[key]
+
+        # Section-level dedupe: two entries can resolve the same section
+        # (e.g. the LOC-specific and the general post-arrest BNSS 58/187
+        # blocks). Keep the FIRST that matched -- file order puts the more
+        # specific LOC entries ahead of the general ones, so an
+        # LOC-plus-arrest query keeps the LOC framing and a plain arrest
+        # query gets the general one, and neither ever double-anchors.
+        sec_key = (entry["act"].upper(), str(entry["section_number"]))
+        if sec_key in seen_sections:
+            logger.info("statute_doctrine_map: %r resolves already-anchored "
+                        "section %s -- skipping the duplicate", key, sec_key)
+            continue
+        seen_sections.add(sec_key)
+
         statute_data = get_statute_section(entry["act"], entry["section_number"])
 
         if statute_data is None:

@@ -1080,6 +1080,14 @@ _OFFENCE_KEYWORD_ANCHORS = [
     (re.compile(r"\b(kidnap\w*|abduct\w*)\b", re.I), "BNS", "137"),
     (re.compile(r"\b(rape|raped|raping)\b", re.I), "BNS", "64"),
     (re.compile(r"\b(forg(ed|ery|ing)|fake\s+(document|signature|cheque))\b", re.I), "BNS", "336"),
+    # A plain-words forged-signature claim that never uses the word "forge":
+    # "using signatures he says I gave him, but I never signed anything",
+    # "that is not my signature", "he forged my signature". High-precision
+    # only -- a bare mention of a "signature" must not anchor forgery.
+    (re.compile(r"\b(never\s+signed|did\s?n['o]?t\s+sign|not\s+my\s+signature|"
+                r"forged\s+my\s+signature|signature\s+(was\s+)?forged|"
+                r"signatures?\s+(he|she|they)\s+(say|says|claim|claims)\s+i\s+gave|"
+                r"signature\s+i\s+never\s+(gave|made))\b", re.I), "BNS", "336"),
     (re.compile(r"\b(defam\w*)\b", re.I), "BNS", "356"),
     (re.compile(r"\b(criminal\s+intimidation|threaten\w*\s+to\s+(kill|hurt|harm))\b", re.I), "BNS", "351"),
     # CONFIRMED SERIOUS BUG (2026-09-04), found via eval_chat_answers.py's
