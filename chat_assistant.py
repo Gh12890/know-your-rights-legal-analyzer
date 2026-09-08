@@ -265,10 +265,10 @@ RESPONSE_GENERATION_PROMPT = """You are a warm, careful guide helping a layperso
 - Never give a compliance verdict about the person's own situation ("your arrest was illegal", "this was lawful"). Explain what the law requires and what would matter; whether it was followed needs facts you don't have.
 - When you name a section that has subsections in the material below, always include the exact subsection ("Section 318(4)", not "Section 318").
 - If you have already stated a condition clearly ("the punishment is X, or Y if Z"), do NOT then add a vaguer caveat implying the detail is incomplete. Only flag a gap when you are genuinely missing a specific fact you cannot state.
-- When citing a case, only describe what that case's own excerpt below literally says the court held, reasoned, or found -- never a generalization like "this case illustrates that courts scrutinise X" or "shows that Y" unless the excerpt itself explicitly says so. If the only excerpt given for a case is background facts (what a party alleged, not what the court decided), describe it as exactly that ("in one case, a person alleged similar facts..."), never as if it were the court's ruling on the point.
+- When a case is given below with an excerpt of what the court held or reasoned, NAME that case when you rely on it ("the Supreme Court in Bhajan Lal held...", "in Arnesh Kumar the Court directed..."), and describe ONLY what its own excerpt literally says -- never a generalization like "this case illustrates that courts scrutinise X" unless the excerpt itself says so. If the only excerpt given for a case is background facts (what a party alleged, not what the court decided), describe it as exactly that ("in one case, a person alleged similar facts..."), never as the court's ruling. Do not name a case that has no excerpt below.
 
 ## What to include, what to leave out
-- The material below is roughly in order of relevance. Pick the 2-4 provisions (plus any one case) that actually answer the question and build the answer around those.
+- The material below is roughly in order of relevance. Pick the 2-4 provisions (plus the 1-3 cases most on point) that actually answer the question and build the answer around those.
 - Cite AT MOST 4 distinct section numbers. If a retrieved section only tangentially relates, OMIT IT ENTIRELY -- do not describe it and do not explain why it doesn't apply.
 - Address the section(s) defining the OFFENCE the person asks about before general arrest-procedure sections -- the offence is usually the most direct answer.
 - If a provision or case below carries a note about its legal currency, fold it in as ONE short plain clause ("...though the exact scope of this is under review by a larger bench"). Never write a separate paragraph about verification status or "treat this with caution".
@@ -856,10 +856,15 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
         )
         response = client.messages.create(
             model=model,
-            # Headroom only -- the prompt targets 300-400 words. 1500 was
-            # truncating long answers mid-sentence and silently dropping
-            # the closing "what you can do next" line (2026-09-01 eval).
-            max_tokens=2000,
+            # The prompt targets 300-400 words, but claude-sonnet-5 spends
+            # ~600-1200 tokens on an internal thinking block BEFORE any
+            # answer text. At 2000 a large retrieved-text prompt (many
+            # anchored judgments) sometimes exhausted the budget inside the
+            # thinking block and returned NO text block at all -- which
+            # _extract_text_from_response raised on and the caller turned
+            # into a silent None (blank answer). 4000 leaves room for the
+            # thinking pass plus the full answer. (CONFIRMED 2026-09-08.)
+            max_tokens=4000,
             messages=[{"role": "user", "content": prompt}],
         )
         response_text = _extract_text_from_response(response).strip()
@@ -893,7 +898,7 @@ def generate_grounded_response(question, retrieved_text, is_conflict=False, mode
                 )
             retry_response = client.messages.create(
                 model=model,
-                max_tokens=2000,
+                max_tokens=4000,  # same thinking-block headroom as the first call
                 messages=[{"role": "user", "content": retry_prompt}],
             )
             retry_text = _extract_text_from_response(retry_response).strip()

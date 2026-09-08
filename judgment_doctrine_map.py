@@ -333,6 +333,62 @@ JUDGMENT_DOCTRINE_MAP = {
             "west_bengal_chunks.json (11-chunk file). Added 2026-09-08."
         ),
     },
+    "bhajan_lal_seven_categories_for_quashing_an_fir": {
+        # The standalone State of Haryana v Bhajan Lal judgment is NOT a
+        # separate file in this corpus; its seven categories are captured
+        # verbatim (with the "AIR 1992 SC 604" marker in the text) inside
+        # the Usha Chakraborty chunk, which is where this anchor points.
+        "case_key": "usha_chakraborty",
+        "paragraph_numbers": ["bhajan_lal_categories_fir_quashing"],
+        "opinion_author": None,
+        # the chunk lives in the Usha Chakraborty file but its content is
+        # the Bhajan Lal test verbatim -- show it under the real source.
+        "display_case_name": "State of Haryana v Bhajan Lal",
+        "display_citation": "1992 Supp (1) SCC 335 (AIR 1992 SC 604) — as set out in Usha Chakraborty v State of West Bengal",
+        "trigger_groups": [
+            ("false fir",), ("false case",), ("false complaint",),
+            ("fake fir",), ("fabricated", "fir"), ("fabricated", "case"),
+            ("quash",), ("quashing",), ("get the fir quashed",),
+            ("528 bnss",), ("482 crpc",), ("482 cr.p.c",),
+            ("malicious", "prosecution"), ("maliciously", "fir"),
+            ("false", "fir", "against me"), ("false", "case", "against me"),
+            ("wreak", "vengeance"), ("personal grudge",), ("ulterior motive",),
+            ("settle", "score"), ("harass", "false"), ("frame me",), ("framed me",),
+            ("civil dispute", "criminal case"), ("civil matter", "criminal case"),
+            ("no offence", "made out"), ("does not", "disclose", "offence"),
+        ],
+        "context_note": (
+            "The High Court's power to quash an FIR or a criminal "
+            "proceeding (Section 528 of the BNSS, formerly Section 482 CrPC) "
+            "is governed by the seven categories laid down by the Supreme "
+            "Court in State of Haryana v Bhajan Lal, 1992 Supp (1) SCC 335 "
+            "(AIR 1992 SC 604). In summary, a proceeding may be quashed "
+            "where: (1) the allegations, taken at face value, do not make "
+            "out any offence; (2)/(3)/(4) the allegations or the material "
+            "collected do not disclose a cognizable offence, or disclose "
+            "only a non-cognizable one for which no order of a Magistrate "
+            "was obtained; (5) the allegations are so absurd and inherently "
+            "improbable that no prudent person could find sufficient ground "
+            "to proceed; (6) there is an express legal bar to the "
+            "proceeding, or a specific, efficacious alternative remedy; or "
+            "(7) the proceeding is manifestly attended with mala fides or "
+            "is maliciously instituted with an ulterior motive to wreak "
+            "vengeance out of a private grudge. The Court also cautioned "
+            "that this power is to be exercised sparingly and not to stifle "
+            "a legitimate prosecution."
+        ),
+        "verified_note": (
+            "The seven categories are quoted verbatim in the chunk slug "
+            "'bhajan_lal_categories_fir_quashing' (x1) of "
+            "chunks/usha_chakraborty_v_state_of_west_bengal_chunks.json -- "
+            "the chunk text itself carries the 'AIR 1992 SC 604' source "
+            "marker. Bhajan Lal has no standalone chunk file in this corpus; "
+            "get_judgment_doctrine_override attributes the paragraph to "
+            "Usha Chakraborty (the containing judgment) with its citation, "
+            "and this context_note names Bhajan Lal as the source of the "
+            "test. Added 2026-09-08 on user request."
+        ),
+    },
     "property_dispute_dressed_as_forgery_or_cheating": {
         "case_key": "md_ibrahim",
         "paragraph_numbers": [
@@ -648,8 +704,8 @@ def get_judgment_doctrine_override(question: str) -> list:
                 continue
             seen.add(sig)
             results.append({
-                "case_name": p.get("case_name"),
-                "citation": p.get("citation"),
+                "case_name": entry.get("display_case_name") or p.get("case_name"),
+                "citation": entry.get("display_citation") or p.get("citation"),
                 "paragraph_number": p.get("paragraph_number"),
                 "opinion_author": p.get("opinion_author"),
                 "text": p.get("text"),

@@ -531,9 +531,13 @@ def render_answer(result: dict):
                     cite = f' &nbsp;·&nbsp; <span class="r-src">{esc(m["citation"])}</span>' if m.get("citation") else ""
                     st.markdown(f'**{esc(m["case_name"])}**{cite}', unsafe_allow_html=True)
                     _render_currency_caveat(m)
-                    para = str(m.get("paragraph_number") or "")
-                    if para and not para.startswith("fallback"):
-                        st.markdown(f'<span class="r-src">paragraph {esc(para.split("_")[0])}</span>',
+                    # show "paragraph N" only when the chunk id really is a
+                    # paragraph number; the corpus also uses descriptive
+                    # slugs ("civil_dispute_criminal_cloak_caution") and
+                    # blind "fallback_N" chunks -- neither reads as a para.
+                    para_head = str(m.get("paragraph_number") or "").split("_")[0]
+                    if para_head.isdigit():
+                        st.markdown(f'<span class="r-src">paragraph {esc(para_head)}</span>',
                                     unsafe_allow_html=True)
                     st.markdown(f'<div class="r-mono">{esc((m.get("text") or "").strip()[:1100])}</div>',
                                 unsafe_allow_html=True)
