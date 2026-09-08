@@ -185,6 +185,37 @@ _KEYWORD_ROUTES = [
 ]
 
 
+# A message only routes to ARREST_WOMAN if it actually says the arrested
+# person is female. Haiku sometimes picks ARREST_WOMAN for a plain "the
+# police arrested me" with no female signal at all -- an answer headed
+# "A woman has been arrested" for a man is the single worst-looking failure
+# this tool can produce, so we gate it deterministically, whatever the model
+# or the keyword router said.
+_FEMALE_INDICATORS = re.compile(
+    r"\b(she|her|hers|herself|woman|women|female|lady|ladies|girl|daughter|"
+    r"wife|sister|mother|mom|mum|maa|aunt|niece|granddaughter|widow|"
+    r"smt|srimati|mrs|ms|miss|bhabhi|nari|mahila|beti|behen|patni|maa)\b",
+    re.I,
+)
+
+
+def _has_female_indicator(message: str) -> bool:
+    return bool(_FEMALE_INDICATORS.search(message or ""))
+
+
+def _apply_woman_gate(result: dict, message: str) -> dict:
+    """If a route landed on ARREST_WOMAN but nothing in the message says the
+    arrested person is female, send it to ARREST_GENERAL instead."""
+    if result.get("scenario_id") == "ARREST_WOMAN" and not _has_female_indicator(message):
+        logger.warning("route_situation: ARREST_WOMAN with no female indicator; "
+                       "downgrading to ARREST_GENERAL (msg=%r)", (message or "")[:160])
+        result = dict(result)
+        result["scenario_id"] = "ARREST_GENERAL"
+        result["via"] = (result.get("via", "") + "+woman_gate").lstrip("+")
+        result["confidence"] = min(result.get("confidence", 0.6), 0.7)
+    return result
+
+
 def _keyword_route(message: str) -> dict:
     low = (message or "").lower()
     for scenario_id, groups in _KEYWORD_ROUTES:
@@ -263,6 +294,10 @@ def route_situation(message: str) -> dict:
     Never raises. On any failure it returns the deterministic keyword
     route (which itself returns OUT_OF_SCOPE if nothing matches).
     """
+    return _apply_woman_gate(_route_situation_inner(message), message)
+
+
+def _route_situation_inner(message: str) -> dict:
     if not message or not message.strip():
         return {"scenario_id": "OUT_OF_SCOPE", "role": "", "stage": "",
                 "offence_hint": "", "factors": [], "confidence": 0.0, "via": "empty"}
