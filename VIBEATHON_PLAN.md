@@ -103,20 +103,18 @@ Architecturally this is **one new layer** (`scenario_router.py` + `SCENARIO_SPEC
 
 ---
 
-## STEP 4 — Product surface + deploy · *9 Sep*
-**Exit: a public URL that loads cold and runs all 3 heroes end to end, document download included.**
+## STEP 4 — Product surface · *9 Sep* ✅ CODE DONE (commit f50f679) — deploy is a manual step for the user
+**Exit: a public URL that loads cold and runs all 3 heroes end to end, document download included.** — code side met; the Railway click-through + custom domain is on the user (see `RECOURSE_DEPLOY.md`).
 
-- **Strip the UI to ONE flow:** one input box → one result page (stage explainer · rights checklist · cases with badge · next-24h · the document). Hide the 4 entry modes.
-- **Deploy to Railway** (bought). Start command:
-  `streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true`
-  Env vars: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, `INDIANKANOON_API_KEY` (real env vars — no `st.secrets` juggling).
-- **Fix the 38 MB embedding cold-start:** wrap the load in `@st.cache_resource`, call once at the top of `app.py` so it loads while the container boots. Add an external pinger (UptimeRobot / cron-job.org) every 5 min.
-- **Verification badge** on every citation: `✓ exists · ✓ still good law · ✓ quoted verbatim · ✓ on point` — that exact phrasing.
-- `draft_layer` wired to all 3 heroes → real, readable downloadable documents.
-- `OUT-OF-SCOPE` renders the honest refusal, not an error.
-- **Protect the wallet:** hard spend caps on Railway + Anthropic + Voyage keys; trivial per-session/IP rate limit; junk input bails before the LLM calls.
-- **Backup:** also deploy to Streamlit Community Cloud as a secondary URL (free, 10 min).
-- **Custom domain** (`recourse.law` or subdomain): Settings → Networking, CNAME. Day 4, not demo day.
+- **One flow:** built as a NEW app `recourse_app.py` (old `app.py` untouched in the repo). One text area + 3 example chips → one result page: stage explainer · trigger-gated rights (each with statute text, the 4-way badge, "how this citation was checked", "in the court's words" excerpt + source link) · negations · police can/cannot · next-24h · red flags · the draft document + PDF download · a "how Recourse works / model never states the conclusion" panel. Serif identity via `.streamlit/config.toml`.
+- **Verification badge** — `scenario_verification.py`. `✓ exists · ✓ still good law · ✓ quoted verbatim · ✓ on point`. Honest: only shows GREEN on "still good law" from a curated entry; amber "check currency" otherwise, never a false green.
+- **Document** — `scenario_draft.py`, deterministic, no LLM, one template per `paper_type`; lifts days-in-custody / arrest-time / offence from the message, each hedged. Branded PDF.
+- **Cold-start** — `@st.cache_resource` `_warm()` at the top of `recourse_app.py` loads the 38 MB embeddings at boot.
+- `OUT_OF_SCOPE` → honest refusal card, no document. Verified.
+- **Deploy config committed:** `railway.json` + `Procfile` (start cmd), `.python-version`/`runtime.txt` (3.13), `requirements.txt` re-frozen UTF-8 (was UTF-16 + missing bs4/lxml), `.slugignore`/`.railwayignore`, `.gitattributes` (LF for deploy files).
+- **`RECOURSE_DEPLOY.md`** — Railway steps + wallet caps + the **custom-domain steps to remove "railway" from the URL** (register `recourse.law`/`.in`, add CNAME on Day 4). Only `ANTHROPIC_API_KEY` + `VOYAGE_API_KEY` needed (no IK key — recourse_app does no live fetch).
+
+**USER TO DO for Step 4:** (1) register a domain (recourse.law / recourse.in); (2) Railway → deploy from repo branch `submission`, add the 2 env keys, set health check; (3) set Anthropic spend cap; (4) add custom domain + CNAME (Day 4); (5) optional UptimeRobot ping + Streamlit Cloud backup URL.
 
 ---
 
