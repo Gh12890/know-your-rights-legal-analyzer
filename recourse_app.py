@@ -476,24 +476,33 @@ def _clean_excerpt(text: str) -> str:
     return cleaned.strip()
 
 
-def _sources_worth_showing(matches, reply_text, cap=12):
-    """The 'Read the source' list: hand-anchored curated sources and every
-    match the answer actually references come first, then fill up to `cap`
-    from the top of the score-ordered list. Deduped by (source, label)."""
+def _sources_worth_showing(matches, reply_text, cap=16):
+    """The 'Read the source' list: every case the answer actually NAMES
+    comes first (showing its excerpt is a grounding requirement -- the
+    prompt forbids naming a case with no excerpt), then the hand-anchored
+    curated sources, then the rest by score. Deduped by (source, label).
+
+    CALLER PASSES JUDGMENT MATCHES ONLY -- curated statute-override
+    entries (case_name=None) were previously eating cap slots here and
+    pushing a genuinely answer-named judgment (e.g. D.K. Basu, Vihaan
+    Kumar) off the end of the list, so it was named in the prose but
+    absent from 'Read the source'. Confirmed 2026-09-08 live test."""
     reply_lc = (reply_text or "").lower()
 
     def _label(m):
         return str(m.get("section_number") or m.get("paragraph_number") or "")
 
     def _priority(m):
-        # lower sorts first: curated overrides, then anything the answer
-        # names, then the rest in their existing (score) order
-        if str(m.get("source") or "").startswith("curated"):
-            return 0
+        # lower sorts first: a case the answer names, then curated
+        # overrides, then the rest in their existing (score) order
         cn = (m.get("case_name") or "").lower()
         named = (m.get("section_number") and f"section {m['section_number']}" in reply_lc) \
             or (cn and cn.split(" v ")[0].strip() in reply_lc)
-        return 1 if named else 2
+        if named:
+            return 0
+        if str(m.get("source") or "").startswith("curated"):
+            return 1
+        return 2
 
     picked, seen = [], set()
     for m in sorted(matches or [], key=_priority):
@@ -567,9 +576,10 @@ def render_answer(result: dict):
             seen_s.add(k)
             statutes.append(m)
 
-        # judgments: the anchored + answer-named ones, capped for length
-        judgments = [m for m in _sources_worth_showing(all_matches, reply)
-                     if m.get("case_name")]
+        # judgments: the anchored + answer-named ones, capped for length.
+        # Pass judgment matches ONLY -- see _sources_worth_showing docstring.
+        judgments = _sources_worth_showing(
+            [m for m in all_matches if m.get("case_name")], reply)
 
         # group judgment paragraphs under ONE heading per case
         by_case, order = {}, []

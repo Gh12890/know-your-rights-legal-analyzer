@@ -226,7 +226,20 @@ def get_itact_status_override(question: str) -> list:
 # general note when one does, so a specific match is never diluted by a
 # vaguer one sitting alongside it.
 # ---------------------------------------------------------------------------
-_CYBER_AGENCY_PATTERN = re.compile(r"\bcyber\s*(crime|cell|police|wing)\b", re.I)
+# "cyber crime/cell/police/wing" OR an explicit mention that the case is
+# under the IT Act -- the latter is just as strong a signal that this is
+# a cyber matter (confirmed 2026-09-08 live test: "booked him under the
+# IT Act" with no "cyber cell" wording kept the orientation note from
+# firing). "Section 66A" alone is handled by its own dedicated override,
+# so the number here is only the non-66A family / a bare "IT Act".
+_CYBER_AGENCY_PATTERN = re.compile(
+    r"\b(cyber\s*(crime|cell|police|wing)"
+    r"|information\s+technology\s+act"
+    r"|(booked|charged|case|fir|complaint|arrested)\s+(\w+\s+){0,4}under\s+(the\s+)?it\s+act"
+    r"|under\s+(the\s+)?it\s+act"
+    r"|it\s+act\s+(case|charge|section|offence|offense|fir))\b",
+    re.I,
+)
 _ONLINE_CONTENT_PATTERN = re.compile(
     r"\b(post|posted|posting|tweet|tweeted|twitter|facebook|instagram|whatsapp|"
     r"social\s*media|video|photo|picture|message|messaged|comment|commented|"

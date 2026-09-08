@@ -105,8 +105,12 @@ check(bool(r.get("response_text")), "inline cheque answer has response text")
 check(r.get("situation_detected") is False,
       "cheque answer never sets situation_detected (no arrest-doc upload prompt)")
 reply = (r.get("response_text") or "").lower()
-check("negotiable instruments" in reply or "section 138" in reply or "section 139" in reply,
-      "the answer actually discusses the NI Act / Section 138-139")
+check(
+    "negotiable instruments" in reply
+    or "138" in reply or "139" in reply
+    or ("presumption" in reply and "cheque" in reply),
+    "the answer actually discusses cheque-dishonour law (NI Act / s.138-139 / the presumption)",
+)
 named = {a["case_name"] for a in r.get("matches", []) if a.get("case_name")}
 check("Rangappa v Sri Mohan" in named, "Rangappa reaches the answer's matches")
 

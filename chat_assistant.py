@@ -1068,8 +1068,23 @@ _OFFENCE_KEYWORD_ANCHORS = [
     # later, narrower match then correctly falls inside an
     # already-claimed span and gets suppressed as intended.
     (re.compile(r"\b(hack(ed|ing)?|unauthoriz(ed|ation)\s+access|broke\s+into\s+my\s+(computer|account|system))\b", re.I), "ITACT", "66"),
-    (re.compile(r"\b(identity\s+theft|stole\s+my\s+password|misus(ed|ing)\s+my\s+(password|signature))\b", re.I), "ITACT", "66C"),
-    (re.compile(r"\b(fake\s+profile|impersonat\w*|otp\s+fraud|pretend(ed|ing)\s+to\s+be\s+me\s+online)\b", re.I), "ITACT", "66D"),
+    # 66C / 66D also have to catch the ACCUSED-SIDE framing: the person
+    # writing is the family of someone booked for making a fake account
+    # "in her name" / "using his photos" / "using his number", not the
+    # victim saying "someone stole MY password". Confirmed real gap
+    # (2026-09-08 live test): "a fake Instagram account in her name ...
+    # booked him under the IT Act" anchored NEITHER 66C nor 66D, so the
+    # answer never named the IT Act offence at all. Kept narrow -- every
+    # added alternative needs an online-identity signal (fake <platform>
+    # account, an account/profile "in someone's name", using someone's
+    # photo/identity), never a bare "fake" or "account".
+    (re.compile(r"\b(identity\s+theft|stole\s+my\s+password|misus(ed|ing)\s+my\s+(password|signature)"
+                r"|(used|using|misus(ed|ing))\s+(her|his|their|my|someone'?s?|the\s+(victim|complainant|woman|man)'?s?)\s+"
+                r"(photo|photos|picture|pictures|name|identity|phone\s+number|number|aadhaar|pan\s+card))\b", re.I), "ITACT", "66C"),
+    (re.compile(r"\b(fake\s+(profile|account|page|id|handle)|fake\s+\w+\s+(profile|account|page|id|handle)"
+                r"|impersonat\w*|personat\w*|catfish\w*|posing\s+as|otp\s+fraud"
+                r"|pretend(ed|ing)\s+to\s+be\s+(me|him|her|someone)"
+                r"|(account|profile|page|id)\s+(in|under|using)\s+(her|his|their|my|someone'?s?|the\s+(victim|complainant|woman|man)'?s?)\s+name)\b", re.I), "ITACT", "66D"),
     (re.compile(r"\b(morphed?\s+(image|photo|picture)|private\s+(photo|image|picture|video)\s+(shared|circulated|leaked|posted)\s+without\s+(my\s+)?consent)\b", re.I), "ITACT", "66E"),
     (re.compile(r"\b(attempt(ed|ing)?\s+to\s+murder|tried\s+to\s+kill)\b", re.I), "BNS", "109"),
     (re.compile(r"\b(murder(ed|ing)?|killed\s+(him|her|someone|a\s+(man|woman|person)))\b", re.I), "BNS", "103"),

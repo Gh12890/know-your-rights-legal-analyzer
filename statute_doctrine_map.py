@@ -148,27 +148,29 @@ STATUTE_DOCTRINE_MAP = {
         "act": "BNSS",
         "section_number": "43",
         "trigger_groups": [
-            ("woman", "arrest", "night"),
-            ("women", "arrest", "night"),
-            ("woman", "arrested", "night"),
-            ("women", "arrested", "night"),
+            # sunset/sunrise is the statute's own language -- unambiguous
             ("arrest", "sunset"),
             ("arrest", "sunrise"),
             ("arrested", "sunset"),
             ("arrested", "sunrise"),
-            ("female", "arrest", "night"),
-            ("woman", "night", "police"),
-            # a female relation ARRESTED (as a tight phrase, not scattered
-            # words -- "she"/"her"/"night" all appear in plenty of male-
-            # arrest stories where "she" is a witness and "night" is when
-            # HE was taken)
+            # a woman ARRESTED at night, as tight phrases only. Scattered
+            # ("woman","arrest","night") was REMOVED (confirmed 2026-09-08
+            # live test): it fired for a MAN arrested at night in a case
+            # where a "woman" was the COMPLAINANT -- BNSS 43(5) then wrongly
+            # appeared, implying the arrested person was female. "she"/
+            # "her"/"night" likewise appear in plenty of male-arrest
+            # stories where "she" is a witness/victim.
             ("my sister was arrested", "night"), ("my wife was arrested", "night"),
             ("my daughter was arrested", "night"), ("my mother was arrested", "night"),
             ("sister was arrested at night",), ("wife was arrested at night",),
             ("daughter was arrested at night",), ("she was arrested at night",),
+            ("woman", "arrested at night"), ("women", "arrested at night"),
+            ("woman", "be arrested", "night"), ("woman", "arrested", "after sunset"),
+            ("a woman was arrested", "night"), ("women were arrested", "night"),
             ("she was arrested", "midnight"), ("she was arrested", "after dark"),
             ("arrested my sister", "night"), ("arrested my wife", "night"),
             ("arrested my daughter", "night"), ("arrested her", "night"),
+            ("arrested her", "midnight"), ("picked her up", "night"),
         ],
         "context_note": (
             "BNSS Section 43(5) states: save in exceptional circumstances, "
