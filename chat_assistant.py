@@ -1094,7 +1094,15 @@ _OFFENCE_KEYWORD_ANCHORS = [
                 r"signatures?\s+(he|she|they)\s+(say|says|claim|claims)\s+i\s+gave|"
                 r"signature\s+i\s+never\s+(gave|made))\b", re.I), "BNS", "336"),
     (re.compile(r"\b(defam\w*)\b", re.I), "BNS", "356"),
-    (re.compile(r"\b(criminal\s+intimidation|threaten\w*\s+to\s+(kill|hurt|harm))\b", re.I), "BNS", "351"),
+    (re.compile(r"\b(criminal\s+intimidation|threaten\w*\s+to\s+(kill|hurt|harm|burn|"
+                r"destroy|set\s+fire|torch))\b", re.I), "BNS", "351"),
+    # Mischief -- deliberately damaging someone's property. Plain-words
+    # only: "broke/smashed/destroyed/damaged our fence/wall/crop/pump".
+    (re.compile(r"\b(broke\s+(down\s+)?(our|the|my)\s+(fence|wall|gate|pump|"
+                r"crop|standing\s+crop)|smashed|destroyed\s+(our|the|my)\s+"
+                r"(fence|wall|crop|property)|damaged\s+(our|my)\s+(crop|fence|"
+                r"property|field)|set\s+fire\s+to|burnt?\s+(our|the|my)\s+"
+                r"(crop|standing\s+crop|field|house))\b", re.I), "BNS", "324"),
     # CONFIRMED SERIOUS BUG (2026-09-04), found via eval_chat_answers.py's
     # dowry-wife-complaint case: "my wife has filed a dowry case against me
     # and police are asking me to come" -- a LIVING wife's harassment/

@@ -62,6 +62,26 @@ logger = logging.getLogger("statute_doctrine_map")
 # passed straight to retrieval.py's get_statute_section) plus a
 # curated context_note giving the legal nuance a bare statute-text
 # lookup wouldn't include on its own.
+
+# "An arrest has actually happened" -- shared by every post-arrest
+# safeguard entry so they all fire whether the person writes "I was
+# arrested" or "the police arrested my father / brother / son". Keeping
+# this in one place stopped the entries drifting apart (a real gap: the
+# BNSS 47/35/58/187 blocks were "me"-only and missed "arrested my
+# father").
+_ARREST_HAPPENED = [
+    ("been arrested",), ("was arrested",), ("been arrest",), ("got arrested",),
+    ("arrested me",), ("have arrested me",), ("arrested my",), ("arrested our",),
+    ("arrested him",), ("arrested her",), ("police arrested",),
+    ("taken into custody",), ("taken to custody",), ("in the lock-up",),
+    ("in the lockup",), ("in lock-up",), ("in lockup",), ("in the lock up",),
+    ("in police custody",), ("police custody",), ("in judicial custody",),
+    ("in custody",), ("still in custody",), ("held in custody",),
+    ("picked up", "police"), ("remanded",),
+    ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
+    ("lockup", "days"), ("detained", "days"),
+]
+
 STATUTE_DOCTRINE_MAP = {
     "bnss_482_anticipatory_bail": {
         # WHY (2026-09-02): "i think the police are going to arrest me
@@ -77,23 +97,24 @@ STATUTE_DOCTRINE_MAP = {
         # same as the 43(5) entry below.
         "act": "BNSS",
         "section_number": "482",
+        # Phrase-based, not scatter words: ("going","arrest") used to fire
+        # on "onGOING dispute ... ARRESTed my father" -- a case where the
+        # person is ALREADY arrested and anticipatory bail is the wrong
+        # remedy. get_statute_doctrine_override also suppresses this entry
+        # when the message says an arrest has already happened.
         "trigger_groups": [
-            ("going", "arrest"),
-            ("about", "arrested"),
-            ("arrest", "soon"),
-            ("anticipatory",),
-            ("apprehend", "arrest"),
-            ("apprehending", "arrest"),
-            ("afraid", "arrest"),
-            ("scared", "arrest"),
-            ("worried", "arrest"),
-            ("fear", "arrest"),
-            ("fear", "arrested"),
-            ("avoid", "arrest"),
-            ("prevent", "arrest"),
-            ("before", "arrest", "bail"),
-            ("bail", "before", "arrested"),
+            ("going to be arrested",), ("going to arrest me",),
+            ("about to be arrested",), ("about to arrest me",),
+            ("arrest me soon",), ("may be arrested",), ("might be arrested",),
+            ("anticipatory bail",), ("anticipatory",), ("pre-arrest bail",),
+            ("apprehend", "arrest"), ("apprehending", "arrest"),
+            ("afraid", "arrest"), ("scared", "be arrested"),
+            ("worried", "be arrested"), ("fear", "being arrested"),
+            ("fear of arrest",), ("avoid arrest",), ("prevent my arrest",),
+            ("before", "arrest", "bail"), ("bail", "before", "being arrested"),
+            ("police are looking for me",), ("threatening to arrest me",),
         ],
+        "suppress_if_already_arrested": True,
         "context_note": (
             "BNSS Section 482 is anticipatory bail. When a person has "
             "reason to believe they may be arrested on an accusation of a "
@@ -310,14 +331,7 @@ STATUTE_DOCTRINE_MAP = {
     "post_arrest_grounds_of_arrest_bnss_47": {
         "act": "BNSS",
         "section_number": "47",
-        "trigger_groups": [
-            ("been arrested",), ("was arrested",), ("been arrest",),
-            ("have arrested me",), ("arrested me",),
-            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
-            ("in lockup",), ("in the lock up",), ("in police custody",),
-            ("police custody",), ("in judicial custody",),
-            ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
-            ("lockup", "days"), ("detained", "days"), ("held", "police", "days"),
+        "trigger_groups": _ARREST_HAPPENED + [
             ("not told", "why", "arrested"), ("nobody", "why", "arrested"),
             ("no reason", "arrest"), ("grounds", "arrest"),
             ("haven't shown", "why"), ("not shown", "grounds"),
@@ -353,17 +367,11 @@ STATUTE_DOCTRINE_MAP = {
     "post_arrest_necessity_and_notice_bnss_35": {
         "act": "BNSS",
         "section_number": "35",
-        "trigger_groups": [
-            ("been arrested",), ("was arrested",), ("arrested me",),
-            ("have arrested me",),
-            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
-            ("in lockup",), ("in police custody",), ("police custody",),
-            ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
-            ("arrested", "cheating"), ("arrested", "breach of trust"),
-            ("arrested", "419"), ("arrested", "420"), ("arrested", "406"),
-            ("arrested", "318"), ("arrested", "316"),
+        "trigger_groups": _ARREST_HAPPENED + [
             ("directly arrested",), ("arrested", "without", "notice"),
             ("no notice", "arrest"), ("arrested straight away",),
+            ("based only on", "statement"), ("only", "his statement"),
+            ("only", "their statement"), ("one-sided",),
         ],
         "context_note": (
             "BNSS Section 35 governs WHEN the police may arrest without a "
@@ -398,13 +406,7 @@ STATUTE_DOCTRINE_MAP = {
     "post_arrest_24h_production_bnss_58_general": {
         "act": "BNSS",
         "section_number": "58",
-        "trigger_groups": [
-            ("been arrested",), ("was arrested",), ("arrested me",),
-            ("have arrested me",),
-            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
-            ("in lockup",), ("in police custody",), ("police custody",),
-            ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
-            ("lockup", "days"), ("detained", "days"),
+        "trigger_groups": _ARREST_HAPPENED + [
             ("two days",), ("three days",), ("2 days",), ("3 days",),
             ("four days",), ("not produced",), ("not been produced",),
             ("haven't been produced",), ("not brought", "court"),
@@ -438,12 +440,16 @@ STATUTE_DOCTRINE_MAP = {
     "post_arrest_remand_default_bail_bnss_187_general": {
         "act": "BNSS",
         "section_number": "187",
+        # narrower than the other three: s.187 (remand + default bail) is
+        # about what happens AFTER first production, so fire it on ongoing/
+        # prolonged custody or a chargesheet-delay signal, not every fresh
+        # arrest.
         "trigger_groups": [
             ("been arrested",), ("was arrested",), ("arrested me",),
-            ("have arrested me",),
+            ("arrested my",), ("arrested our",), ("police arrested",),
             ("in the lock-up",), ("in the lockup",), ("in lock-up",),
             ("in lockup",), ("in police custody",), ("police custody",),
-            ("in judicial custody",),
+            ("in judicial custody",), ("in custody",), ("still in custody",),
             ("arrested", "days"), ("custody", "days"), ("lock-up", "days"),
             ("remand",), ("remanded",), ("still investigating",),
             ("no chargesheet",), ("no charge sheet",), ("not filed", "chargesheet"),
@@ -637,13 +643,26 @@ def get_statute_doctrine_override(question: str) -> list:
         silent failure).
     """
     from retrieval import get_statute_section
+    import re as _re
 
     matched_keys = match_statute_doctrine(question)
     results = []
     seen_sections = set()
 
+    _already_arrested = bool(_re.search(
+        r"\b(been arrested|was arrested|got arrested|arrested (me|him|her|my|our)|"
+        r"in (police |judicial )?custody|in the lock-?up|taken into custody|"
+        r"picked (him|me|us) up|is in jail|remanded)\b",
+        question or "", _re.I,
+    ))
+
     for key in matched_keys:
         entry = STATUTE_DOCTRINE_MAP[key]
+
+        if entry.get("suppress_if_already_arrested") and _already_arrested:
+            logger.info("statute_doctrine_map: %r suppressed -- the person is "
+                        "already arrested, not facing an imminent arrest", key)
+            continue
 
         # Section-level dedupe: two entries can resolve the same section
         # (e.g. the LOC-specific and the general post-arrest BNSS 58/187

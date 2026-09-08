@@ -187,6 +187,15 @@ JUDGMENT_DOCTRINE_MAP = {
             ("tortur", "custody"), ("handcuff",), ("kept awake",),
             ("arrested", "medical"), ("arrested", "doctor"),
             ("arrested", "injured"), ("arrest memo",), ("no memo",),
+            # family not told about the arrest / where he is held
+            ("not told", "which police station"), ("which police station", "taken"),
+            ("don't know", "which police station"), ("dont know", "which station"),
+            ("not told", "where he"), ("not told", "where they took"),
+            ("not informed", "arrest"), ("nobody told us", "arrest"),
+            ("nobody informed us",), ("no one told us", "where"),
+            ("don't know where", "held"), ("dont know where", "held"),
+            ("where he is being held",), ("where he has been taken",),
+            ("family", "not informed"), ("without", "us being told"),
         ],
         "context_note": (
             "The D.K. Basu v State of West Bengal (1997) 1 SCC 416 "
@@ -457,6 +466,17 @@ JUDGMENT_DOCTRINE_MAP = {
             ("settle", "score"), ("harass", "false"), ("frame me",), ("framed me",),
             ("civil dispute", "criminal case"), ("civil matter", "criminal case"),
             ("no offence", "made out"), ("does not", "disclose", "offence"),
+            # a boundary / land / water / property dispute turned into a
+            # criminal case, esp. where the police acted on one side's story
+            ("boundary dispute", "arrested"), ("boundary dispute", "fir"),
+            ("boundary dispute", "police"), ("boundary dispute", "complaint"),
+            ("land dispute", "arrested"), ("land dispute", "fir"),
+            ("property dispute", "arrested"), ("property dispute", "fir"),
+            ("water", "dispute", "arrested"), ("irrigation", "arrested"),
+            ("dispute", "arrested", "neighbour"), ("dispute", "arrested", "neighbor"),
+            ("only", "neighbour's statement"), ("only", "neighbor's statement"),
+            ("based only on", "statement"), ("one-sided", "statement"),
+            ("other party's", "version"), ("arrested", "wrong", "party"),
             # a complaint that on its own facts cannot amount to the offence
             # charged -- Bhajan Lal category 1
             ("kidnap", "my wife"), ("kidnap", "my own wife"),
@@ -490,15 +510,20 @@ JUDGMENT_DOCTRINE_MAP = {
             "that this power is to be exercised sparingly and not to stifle "
             "a legitimate prosecution.\n\n"
             "Category 1 is the one most often engaged where the complaint, "
-            "on its own facts, cannot amount to the offence charged -- for "
-            "example a 'kidnapping' complaint by a woman's family when the "
-            "woman is an ADULT: 'kidnapping from lawful guardianship' under "
-            "BNS Section 137 applies only to a child or a person of unsound "
-            "mind, and a major's parents are not her 'lawful guardian', so "
-            "an adult woman who leaves of her own accord (still more so one "
-            "who has married the person and says so to the police) is not "
-            "kidnapped in law. Courts have repeatedly protected the right "
-            "of two consenting adults to marry a partner of their choice."
+            "on its own facts, cannot amount to the offence charged, and "
+            "category 7 where a private dispute is being pursued as a crime "
+            "to pressure the other side. Examples: a 'kidnapping' complaint "
+            "by a woman's family when she is an ADULT (kidnapping from "
+            "lawful guardianship under BNS Section 137 covers only a child "
+            "or a person of unsound mind, and a major's parents are not her "
+            "'lawful guardian'); and a boundary / land / irrigation-channel "
+            "dispute where one side gets the other arrested on its own "
+            "one-sided version -- the criminal machinery is not the forum "
+            "for deciding who owns or may use the land or water (BNSS "
+            "Sections 164/166 before an Executive Magistrate is), and the "
+            "police should not take sides in what is essentially a civil "
+            "dispute. Courts have repeatedly cautioned against giving a "
+            "civil dispute 'the cloak of a criminal offence'."
         ),
         "verified_note": (
             "The seven categories are quoted verbatim in the chunk slug "
@@ -550,6 +575,46 @@ JUDGMENT_DOCTRINE_MAP = {
             "'forgery_false_document_ownership_claim' read verbatim in "
             "chunks/md_ibrahim_v_state_of_bihar_chunks.json. Citation "
             "(2009) 8 SCC 751. Added 2026-09-08."
+        ),
+    },
+    "criminal_machinery_is_not_for_a_civil_land_or_water_dispute": {
+        "case_key": "md_ibrahim",
+        "paragraph_numbers": ["civil_dispute_criminal_cloak_caution"],
+        "opinion_author": None,
+        "trigger_groups": [
+            ("boundary dispute",), ("land dispute",),
+            ("irrigation", "channel"), ("irrigation", "dispute"),
+            ("shared", "channel"), ("water", "channel"),
+            ("dispute", "neighbour", "farm"), ("dispute", "neighbor", "farm"),
+            ("dispute", "fence"), ("broke", "our fence"), ("broke down", "fence"),
+            ("dispute", "field"), ("dispute", "agricultural"),
+            ("possession", "dispute", "arrested"),
+            ("civil dispute", "arrested"), ("civil matter", "police"),
+            ("right of way", "dispute"), ("easement", "dispute"),
+        ],
+        "context_note": (
+            "In Md. Ibrahim v State of Bihar (2009) 8 SCC 751 the Supreme "
+            "Court warned against 'the growing tendency of complainants "
+            "attempting to give the cloak of a criminal offence to matters "
+            "which are essentially and purely civil in nature', usually to "
+            "apply pressure on the other side. Where the real dispute is "
+            "about the ownership, boundary, possession, or right to use a "
+            "piece of land or a water/irrigation channel, that is for the "
+            "civil court, or -- where there is a threat to the peace -- for "
+            "an Executive Magistrate under BNSS Sections 164 (land/water "
+            "possession) and 166 (right of user of land or water). The "
+            "police should not take one party's side and treat a civil "
+            "dispute as a crime; and an arrest made on only the other "
+            "party's version, without independent material, is open to "
+            "challenge."
+        ),
+        "verified_note": (
+            "Slug 'civil_dispute_criminal_cloak_caution' read verbatim in "
+            "chunks/md_ibrahim_v_state_of_bihar_chunks.json (x1). Citation "
+            "(2009) 8 SCC 751. Separate from the forgery-specific Md. "
+            "Ibrahim entry above so a boundary/water dispute with no "
+            "forgery claim does not also pull the forged-document "
+            "paragraph. Added 2026-09-08."
         ),
     },
     # ---- theft: dishonest intention is the ingredient -----------------
