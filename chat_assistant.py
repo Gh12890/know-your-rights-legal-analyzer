@@ -1526,7 +1526,80 @@ def format_retrieved_text_for_prompt(matches):
     joined += _old_code_refs_note(joined)
     return joined
 
-def answer_question(question):
+
+def _answer_cheque_bounce_inline(question):
+    """Produce a full grounded answer for a Section 138 NI Act cheque-
+    bounce question, using the shared corpus's cheque case law (admitted
+    via find_relevant_sections(domain="cheque_bounce")) plus the curated
+    anchors in cheque_bounce_doctrine_map.
+
+    Returns an answer_question-shaped dict on success, or None to let the
+    caller fall back to the normal covered_elsewhere_in_tool redirect
+    (e.g. retrieval down AND no anchor fired -- nothing honest to say).
+
+    situation_detected is forced False: the recourse_app upload path feeds
+    documents to the arrest analyzer, which has nothing to do with a
+    cheque notice, so no upload prompt should follow a cheque answer.
+    """
+    from semantic_retrieval import find_relevant_sections
+    from cheque_bounce_doctrine_map import get_cheque_bounce_override
+
+    overrides = get_cheque_bounce_override(question)
+    result = find_relevant_sections(question, domain="cheque_bounce")
+    state = result.get("state")
+
+    if state in ("single_match", "conflicting_matches"):
+        all_matches = result.get("matches", []) + result.get("judgment_matches", []) + overrides
+    elif state == "no_match" and overrides:
+        all_matches = list(overrides)
+    elif state == "unavailable" and overrides:
+        all_matches = list(overrides)
+    else:
+        # no_match with nothing anchored, or retrieval down with nothing
+        # anchored -- don't invent an answer; let the redirect stand.
+        return None
+
+    retrieved_text = format_retrieved_text_for_prompt(all_matches)
+    response_text = generate_grounded_response(question, retrieved_text, matches=all_matches)
+    if not response_text:
+        return None
+
+    # The shared RESPONSE_GENERATION_PROMPT's closing-line examples are
+    # arrest/FIR-flavoured ("upload the FIR or arrest memo here"). There
+    # is no document-upload step for a cheque matter in this app, so swap
+    # a trailing "upload ... here" line for a cheque-appropriate one.
+    response_text = _retarget_cheque_closing_line(response_text)
+
+    return {
+        "state": "single_match",
+        "matches": all_matches,
+        "response_text": response_text,
+        "situation_detected": False,
+        "redirect_domain": "cheque_bounce",
+    }
+
+
+_CHEQUE_CLOSING_LINE = (
+    "What you can do next: take the summons, the demand notice and the cheque copy "
+    "to a lawyer or your nearest District Legal Services Authority, who can help you "
+    "file your reply and decide whether to contest or to settle."
+)
+
+
+def _retarget_cheque_closing_line(text):
+    lines = (text or "").rstrip().split("\n")
+    for i in range(len(lines) - 1, -1, -1):
+        stripped = lines[i].strip()
+        if not stripped:
+            continue
+        low = stripped.lower()
+        if "upload" in low and ("here" in low or "full check" in low):
+            lines[i] = _CHEQUE_CLOSING_LINE
+        break
+    return "\n".join(lines)
+
+
+def answer_question(question, inline_domains=frozenset()):
     """Main entry point for the chat interface. Returns a dict describing
     the outcome, always including a 'state' field so the UI layer can
     render each case distinctly and honestly, per this project's
@@ -1592,6 +1665,19 @@ def answer_question(question):
         return {"state": "unrelated"}
 
     if category == "covered_elsewhere_in_tool":
+        # A caller that has NO document-upload handoff of its own (the
+        # chat-only recourse_app) can ask this function to answer a
+        # cheque-bounce question inline instead of dead-ending it: the
+        # shared corpus now holds the Section 138 case law (Rangappa,
+        # Bir Singh, Prakash Chimanlal Sheth, Damodar S. Prabhu, Kaveri
+        # Plastics), and cheque_bounce_doctrine_map anchors the load-
+        # bearing paragraphs. Freeze stays a redirect (no corpus for it).
+        # Callers that DO have the handoff (app.py) pass nothing and get
+        # the unchanged redirect -- arrest classification is untouched.
+        if redirect_domain == "cheque_bounce" and "cheque_bounce" in inline_domains:
+            inline = _answer_cheque_bounce_inline(question)
+            if inline is not None:
+                return inline
         return {"state": "covered_elsewhere_in_tool", "reasoning": reasoning, "redirect_domain": redirect_domain}
 
     if category == "adjacent_uncovered":

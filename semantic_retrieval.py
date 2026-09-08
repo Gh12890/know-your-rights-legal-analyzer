@@ -543,7 +543,16 @@ OUT_OF_CHAT_DOMAIN_CASE_NAMES = frozenset({
 # REPLACE find_relevant_sections() with this version:
 # ---------------------------------------------------------------------
 
-def find_relevant_sections(query):
+CHEQUE_BOUNCE_CASE_NAMES = frozenset({
+    "Rangappa v Sri Mohan",
+    "Bir Singh v Mukesh Kumar",
+    "Damodar S. Prabhu v Sayed Babalal H",
+    "Kaveri Plastics v Mahdoom Bawa Bahrudeen Noorul",
+    "Prakash Chimanlal Sheth v Jagruti Keyur Rajpopat",
+})
+
+
+def find_relevant_sections(query, domain=None):
     """Higher-level function for BOTH statute and judgment lookup: returns
     a dict describing what was found, in one of four honest states --
     'no_match' (nothing cleared its applicable threshold), 'single_match'
@@ -589,9 +598,19 @@ def find_relevant_sections(query):
             return {"state": "unavailable"}
         results = []
 
+    # The freeze/cheque cases are excluded from every chat/Lane-B judgment
+    # match by default (OUT_OF_CHAT_DOMAIN_CASE_NAMES) so they never leak
+    # into an arrest answer as vocabulary-overlap noise. domain=="cheque_
+    # bounce" is the ONE caller that has already established the question
+    # IS a Section 138 matter -- for it, and only it, the five cheque cases
+    # become admissible (the freeze cases + Tapas Neogy stay excluded).
+    _excluded_cases = OUT_OF_CHAT_DOMAIN_CASE_NAMES
+    if domain == "cheque_bounce":
+        _excluded_cases = OUT_OF_CHAT_DOMAIN_CASE_NAMES - CHEQUE_BOUNCE_CASE_NAMES
+
     statute_matches = [r for r in results if r["type"] == "statute" and r["score"] >= STATUTE_SIMILARITY_THRESHOLD]
     judgment_matches = [r for r in results if r["type"] == "judgment" and r["score"] >= JUDGMENT_SIMILARITY_THRESHOLD
-                         and r.get("case_name") not in OUT_OF_CHAT_DOMAIN_CASE_NAMES]
+                         and r.get("case_name") not in _excluded_cases]
 
     # Keep only the strongest blocks per type before anything downstream
     # (enrichment, conflict detection, prompt assembly) sees them -- see
@@ -621,7 +640,7 @@ def find_relevant_sections(query):
         if lx.get("type") != "judgment":
             continue
         cn = (lx.get("case_name") or "")
-        if not cn or cn.lower() in _seen_cases or cn in OUT_OF_CHAT_DOMAIN_CASE_NAMES:
+        if not cn or cn.lower() in _seen_cases or cn in _excluded_cases:
             continue
         if _top_lex and lx.get("score", 0.0) < _BACKFILL_MIN_LEXICAL_FRAC * _top_lex:
             continue

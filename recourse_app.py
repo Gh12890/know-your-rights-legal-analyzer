@@ -673,7 +673,11 @@ if (go or st.session_state.pop("_autorun", False)) and msg.strip():
     for _k in ("doc_check", "doc_check_sig"):
         st.session_state.pop(_k, None)          # never carry stale artefacts over
     with st.spinner("Reading the law and the judgments on this…"):
-        st.session_state.answer = answer_question(msg)
+        # recourse_app is chat-only: it has no document-upload handoff, so
+        # a cheque-bounce question is answered inline from the shared
+        # Section 138 corpus rather than dead-ended with a "covered
+        # elsewhere" redirect that points nowhere here.
+        st.session_state.answer = answer_question(msg, inline_domains={"cheque_bounce"})
     st.session_state.answer_msg = msg
 
 answer = st.session_state.get("answer")
