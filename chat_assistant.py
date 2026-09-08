@@ -1548,19 +1548,19 @@ def _answer_cheque_bounce_inline(question):
     result = find_relevant_sections(question, domain="cheque_bounce")
     state = result.get("state")
 
-    if state in ("single_match", "conflicting_matches"):
-        all_matches = result.get("matches", []) + result.get("judgment_matches", []) + overrides
-    elif state == "no_match" and overrides:
-        all_matches = list(overrides)
-    elif state == "unavailable" and overrides:
-        all_matches = list(overrides)
-    else:
+    sem_judgments = result.get("judgment_matches", []) if state in ("single_match", "conflicting_matches") else []
+    sem_statutes = result.get("matches", []) if state in ("single_match", "conflicting_matches") else []
+
+    if not (overrides or sem_judgments):
         # no_match with nothing anchored, or retrieval down with nothing
         # anchored -- don't invent an answer; let the redirect stand.
         return None
 
-    retrieved_text = format_retrieved_text_for_prompt(all_matches)
-    response_text = generate_grounded_response(question, retrieved_text, matches=all_matches)
+    # The PROMPT gets everything: the curated anchor paragraphs PLUS the
+    # semantic hits (extra factual context helps the model reason).
+    prompt_matches = sem_statutes + sem_judgments + overrides
+    retrieved_text = format_retrieved_text_for_prompt(prompt_matches)
+    response_text = generate_grounded_response(question, retrieved_text, matches=prompt_matches)
     if not response_text:
         return None
 
@@ -1570,9 +1570,19 @@ def _answer_cheque_bounce_inline(question):
     # a trailing "upload ... here" line for a cheque-appropriate one.
     response_text = _retarget_cheque_closing_line(response_text)
 
+    # The DISPLAY ("Read the source") shows only the curated, verified,
+    # on-point anchor paragraphs -- never the semantic hits, which for a
+    # cheque story pull in the OTHER case's background facts (Rangappa's
+    # own Rs. 45,000 hand-loan, Bir Singh's Cheque No. 034212, ...) and
+    # just confuse the reader. A statute the answer actually cites is
+    # still worth showing.
+    display_matches = list(overrides) + [
+        m for m in sem_statutes if m.get("section_number") and not m.get("case_name")
+    ]
+
     return {
         "state": "single_match",
-        "matches": all_matches,
+        "matches": display_matches,
         "response_text": response_text,
         "situation_detected": False,
         "redirect_domain": "cheque_bounce",

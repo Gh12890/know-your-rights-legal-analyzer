@@ -450,6 +450,32 @@ def _footer():
 # --------------------------------------------------------------------------
 # render the grounded answer + its sources
 # --------------------------------------------------------------------------
+import re as _re
+
+_PAGE_CRUFT = _re.compile(
+    r"^\s*(?:\x0c\s*)?(?:page\s+\d+\s+of\s+\d+|\d{1,4}|\d+\s*\|\s*p\s*a\s*g\s*e)\s*$",
+    _re.I,
+)
+
+
+def _clean_excerpt(text: str) -> str:
+    """Strip the OCR/print cruft that rides along in the judgment chunk
+    text -- form-feeds, bare page numbers, 'Page 8 of 25' footers, and
+    long runs of blank lines -- so the 'Read the source' excerpt reads
+    like prose, not a scanned PDF. Display-only; the stored chunk text is
+    untouched."""
+    if not text:
+        return ""
+    out = []
+    for line in text.replace("\x0c", "\n").split("\n"):
+        if _PAGE_CRUFT.match(line):
+            continue
+        out.append(line.rstrip())
+    cleaned = "\n".join(out)
+    cleaned = _re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
 def _sources_worth_showing(matches, reply_text, cap=12):
     """The 'Read the source' list: hand-anchored curated sources and every
     match the answer actually references come first, then fill up to `cap`
@@ -558,7 +584,7 @@ def render_answer(result: dict):
             with st.expander("Read the source — the sections and judgments this rests on"):
                 for m in statutes:
                     st.markdown(f'**{esc(m["act"])} Section {esc(m["section_number"])}**')
-                    st.markdown(f'<div class="r-mono">{esc((m.get("text") or "").strip()[:900])}</div>',
+                    st.markdown(f'<div class="r-mono">{esc(_clean_excerpt(m.get("text") or "")[:900])}</div>',
                                 unsafe_allow_html=True)
                 if judgments:
                     st.markdown('<div class="r-label" style="margin-top:1rem">Judgments</div>',
@@ -574,7 +600,7 @@ def render_answer(result: dict):
                         if para_head.isdigit():
                             st.markdown(f'<span class="r-src">paragraph {esc(para_head)}</span>',
                                         unsafe_allow_html=True)
-                        st.markdown(f'<div class="r-mono">{esc((m.get("text") or "").strip()[:1100])}</div>',
+                        st.markdown(f'<div class="r-mono">{esc(_clean_excerpt(m.get("text") or "")[:1100])}</div>',
                                     unsafe_allow_html=True)
         return bool(result.get("situation_detected"))
 
