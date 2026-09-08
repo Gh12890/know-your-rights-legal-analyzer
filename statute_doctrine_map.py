@@ -135,14 +135,17 @@ STATUTE_DOCTRINE_MAP = {
             ("arrested", "sunrise"),
             ("female", "arrest", "night"),
             ("woman", "night", "police"),
-            # a female relation + an arrest + a night/after-dark word
-            ("sister", "arrested", "night"), ("wife", "arrested", "night"),
-            ("daughter", "arrested", "night"), ("mother", "arrested", "night"),
-            ("sister", "arrest", "night"), ("wife", "arrest", "night"),
-            ("daughter", "arrest", "night"), ("mother", "arrest", "night"),
-            ("her", "arrested", "night"), ("she", "arrested", "night"),
-            ("woman", "arrested", "midnight"), ("her", "arrested", "midnight"),
-            ("woman", "arrested", "after dark"), ("she", "arrested", "after dark"),
+            # a female relation ARRESTED (as a tight phrase, not scattered
+            # words -- "she"/"her"/"night" all appear in plenty of male-
+            # arrest stories where "she" is a witness and "night" is when
+            # HE was taken)
+            ("my sister was arrested", "night"), ("my wife was arrested", "night"),
+            ("my daughter was arrested", "night"), ("my mother was arrested", "night"),
+            ("sister was arrested at night",), ("wife was arrested at night",),
+            ("daughter was arrested at night",), ("she was arrested at night",),
+            ("she was arrested", "midnight"), ("she was arrested", "after dark"),
+            ("arrested my sister", "night"), ("arrested my wife", "night"),
+            ("arrested my daughter", "night"), ("arrested her", "night"),
         ],
         "context_note": (
             "BNSS Section 43(5) states: save in exceptional circumstances, "

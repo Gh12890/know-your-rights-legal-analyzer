@@ -91,33 +91,38 @@ JUDGMENT_DOCTRINE_MAP = {
         "case_key": "arnesh_kumar",
         "paragraph_numbers": ["fallback_8", "fallback_10"],
         "opinion_author": None,
+        # Arnesh Kumar is the safeguard for EVERY arrest for an offence up
+        # to 7 years -- fire it whenever an arrest has actually happened,
+        # not only for a hard-coded list of offence words. The context_note
+        # is self-limiting ("for an offence punishable with up to seven
+        # years"), so it does no harm on a genuinely serious-offence
+        # answer.
         "trigger_groups": [
-            ("arrested", "cheating"), ("arrested", "breach of trust"),
-            ("arrested", "318"), ("arrested", "316"),
-            ("arrested", "420"), ("arrested", "406"),
-            ("arrested", "theft"), ("arrested", "stole"),
-            ("arrested", "stealing"), ("arrested", "hurt"),
-            ("arrested", "assault"), ("arrested", "forgery"),
-            ("arrested", "minor"), ("arrested", "small"),
-            ("arrested", "directly"), ("arrested", "straight away"),
+            ("arrested",), ("was arrested",), ("been arrested",),
+            ("arrested me",), ("have arrested me",), ("i am arrested",),
+            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
+            ("in lockup",), ("in police custody",), ("police custody",),
+            ("in custody",), ("still in custody",), ("held in custody",),
+            ("arrested", "days"), ("custody", "days"),
+            ("directly arrested",), ("arrested", "straight away"),
             ("arrested", "without", "notice"), ("no notice", "arrest"),
             ("arrest", "not necessary"), ("automatically", "arrest"),
             ("came to my house", "arrested"), ("came to our house", "arrested"),
-            ("in the lock-up", "cheating"), ("in lockup", "cheating"),
         ],
         "context_note": (
             "In Arnesh Kumar v State of Bihar (2014) 8 SCC 273 the Supreme "
             "Court held that for an offence punishable with up to seven "
-            "years the police may not arrest automatically: they must first "
-            "be satisfied, on the parameters in Section 41 CrPC (now "
-            "Section 35 BNSS), that arrest is NECESSARY -- to prevent a "
-            "further offence, for proper investigation, to prevent tampering "
-            "with evidence or intimidation of witnesses, or to secure the "
+            "years (this covers most property offences, cheating, criminal "
+            "breach of trust, kidnapping under BNS 137(2), and hurt) the "
+            "police may not arrest automatically: they must first be "
+            "satisfied, on the parameters in Section 41 CrPC (now Section 35 "
+            "BNSS), that arrest is NECESSARY -- to prevent a further "
+            "offence, for proper investigation, to prevent tampering with "
+            "evidence or intimidation of witnesses, or to secure the "
             "person's attendance -- and must record those reasons in "
-            "writing. The Magistrate authorising detention must independently "
-            "record satisfaction that the arrest was necessary before "
-            "allowing further custody. Cheating and criminal breach of "
-            "trust in their common forms fall within this band."
+            "writing. The Magistrate authorising detention must "
+            "independently record satisfaction that the arrest was "
+            "necessary before allowing further custody."
         ),
         "verified_note": (
             "fallback_8 (necessity conditions) and fallback_10 (Magistrate's "
@@ -133,12 +138,15 @@ JUDGMENT_DOCTRINE_MAP = {
         "paragraph_numbers": ["31", "33"],
         "opinion_author": None,
         "trigger_groups": [
-            ("arrested", "cheating"), ("arrested", "breach of trust"),
-            ("arrested", "theft"), ("arrested", "stole"), ("arrested", "hurt"),
-            ("arrested", "assault"), ("arrested", "forgery"), ("arrested", "318"),
-            ("arrested", "316"), ("arrested", "directly"),
-            ("arrested", "without", "notice"), ("no notice", "arrest"),
-            ("arrest", "not necessary"), ("35(3)",), ("41a",), ("41-a",),
+            ("arrested",), ("was arrested",), ("been arrested",),
+            ("arrested me",), ("have arrested me",),
+            ("in the lock-up",), ("in the lockup",), ("in lock-up",),
+            ("in lockup",), ("in police custody",), ("police custody",),
+            ("in custody",), ("still in custody",),
+            ("arrested", "days"), ("custody", "days"),
+            ("arrested", "directly"), ("arrested", "without", "notice"),
+            ("no notice", "arrest"), ("arrest", "not necessary"),
+            ("35(3)",), ("41a",), ("41-a",),
             ("came to my house", "arrested"), ("straight to arrest",),
             ("should have got a notice",),
         ],
@@ -197,6 +205,43 @@ JUDGMENT_DOCTRINE_MAP = {
             "one-to-one to check_dk_basu_memo (see "
             "retrieval.JUDGMENT_CITATION_MAP 'dk_basu_safeguards'). "
             "Added 2026-09-08."
+        ),
+    },
+    "consequence_of_arresting_without_the_notice_or_recorded_reasons": {
+        "case_key": "rakhi_mitra",
+        "paragraph_numbers": ["18", "21"],
+        "opinion_author": None,
+        "trigger_groups": [
+            ("arrested", "before"), ("arrested", "without", "notice"),
+            ("no notice", "arrest"), ("didn't give", "notice"),
+            ("straight away", "arrested"), ("same night", "arrested"),
+            ("same day", "arrested"), ("directly arrested",),
+            ("didn't record", "reasons"), ("no reasons", "recorded"),
+            ("arrested", "before", "show"), ("arrested", "couldn't", "show"),
+            ("arrest", "not necessary"), ("should have", "notice"),
+        ],
+        "context_note": (
+            "In Rakhi Mitra v State of West Bengal, 2025:CHC-AS:1826 the "
+            "Calcutta High Court held that where the police arrest a person "
+            "for an offence punishable with up to seven years WITHOUT first "
+            "serving a Section 35(3) BNSS (formerly Section 41-A CrPC) "
+            "notice and without recording why the arrest was necessary, the "
+            "arrest violates the mandate of Arnesh Kumar and Satender Kumar "
+            "Antil. The consequences it identified: the officer is liable "
+            "to departmental action and to be proceeded against for "
+            "contempt of court; and, on the facts before it, the Court "
+            "quashed the criminal proceedings against the petitioners for "
+            "that non-compliance. A person arrested this way can put the "
+            "non-service of notice and the absence of recorded reasons "
+            "before the Magistrate at the first production."
+        ),
+        "verified_note": (
+            "Para 18 (the Arnesh Kumar consequences holding) and para 21 "
+            "(non-compliance found on the case diary) read verbatim in "
+            "chunks/rakhi_mitra_and_anr_v_state_of_west_bengal_chunks.json; "
+            "both x1 (paras 8/27/29 in this file are duplicated because it "
+            "quotes Arnesh Kumar / Satender Kumar Antil inline -- not "
+            "used). Citation 2025:CHC-AS:1826. Added 2026-09-08."
         ),
     },
     # ---- civil / commercial dispute given a criminal colour --------------
@@ -356,6 +401,18 @@ JUDGMENT_DOCTRINE_MAP = {
             ("settle", "score"), ("harass", "false"), ("frame me",), ("framed me",),
             ("civil dispute", "criminal case"), ("civil matter", "criminal case"),
             ("no offence", "made out"), ("does not", "disclose", "offence"),
+            # a complaint that on its own facts cannot amount to the offence
+            # charged -- Bhajan Lal category 1
+            ("kidnap", "my wife"), ("kidnap", "my own wife"),
+            ("kidnapping", "wife"), ("kidnapping", "adult"),
+            ("kidnap", "adult"), ("kidnapped", "adult"),
+            ("married", "against", "wishes"), ("marriage", "against", "family"),
+            ("she is an adult", "police"), ("she is a major",),
+            ("came with me", "on her own"), ("came with me", "willingly"),
+            ("left with me", "voluntarily"), ("her own free will",),
+            ("she", "told the police", "voluntarily"),
+            ("consenting adult",), ("she consented", "police"),
+            ("her family", "complaint", "kidnap"),
         ],
         "context_note": (
             "The High Court's power to quash an FIR or a criminal "
@@ -375,7 +432,17 @@ JUDGMENT_DOCTRINE_MAP = {
             "is maliciously instituted with an ulterior motive to wreak "
             "vengeance out of a private grudge. The Court also cautioned "
             "that this power is to be exercised sparingly and not to stifle "
-            "a legitimate prosecution."
+            "a legitimate prosecution.\n\n"
+            "Category 1 is the one most often engaged where the complaint, "
+            "on its own facts, cannot amount to the offence charged -- for "
+            "example a 'kidnapping' complaint by a woman's family when the "
+            "woman is an ADULT: 'kidnapping from lawful guardianship' under "
+            "BNS Section 137 applies only to a child or a person of unsound "
+            "mind, and a major's parents are not her 'lawful guardian', so "
+            "an adult woman who leaves of her own accord (still more so one "
+            "who has married the person and says so to the police) is not "
+            "kidnapped in law. Courts have repeatedly protected the right "
+            "of two consenting adults to marry a partner of their choice."
         ),
         "verified_note": (
             "The seven categories are quoted verbatim in the chunk slug "

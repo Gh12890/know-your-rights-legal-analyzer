@@ -515,10 +515,46 @@ def render_answer(result: dict):
             st.markdown("Here is what the law says on this:\n\n> "
                         + esc((m0.get("text") or "").strip()[:800]))
 
-        shown = _sources_worth_showing(result.get("matches"), reply)
-        statutes = [m for m in shown if m.get("section_number") and not m.get("case_name")]
-        judgments = [m for m in shown if m.get("case_name")]
-        if shown:
+        reply_lc = (reply or "").lower()
+        all_matches = result.get("matches") or []
+
+        def _statute_referenced(m):
+            # keep a statute only if it's a hand-anchored override or the
+            # answer actually cites it -- drops semantic-search noise like
+            # BNS 84 turning up next to an unrelated arrest question.
+            if str(m.get("source") or "").startswith("curated"):
+                return True
+            sn = str(m.get("section_number") or "")
+            return bool(sn) and (f"section {sn}".lower() in reply_lc
+                                 or f"section {sn.split('(')[0]}".lower() in reply_lc)
+
+        # statutes: every relevant one, no fill-cap (there are rarely > 6)
+        statutes, seen_s = [], set()
+        for m in all_matches:
+            if not m.get("section_number") or m.get("case_name"):
+                continue
+            if not _statute_referenced(m):
+                continue
+            k = (m.get("act"), m.get("section_number"))
+            if k in seen_s:
+                continue
+            seen_s.add(k)
+            statutes.append(m)
+
+        # judgments: the anchored + answer-named ones, capped for length
+        judgments = [m for m in _sources_worth_showing(all_matches, reply)
+                     if m.get("case_name")]
+
+        # group judgment paragraphs under ONE heading per case
+        by_case, order = {}, []
+        for m in judgments:
+            k = (m.get("case_name"), m.get("citation"))
+            if k not in by_case:
+                by_case[k] = []
+                order.append(k)
+            by_case[k].append(m)
+
+        if statutes or judgments:
             with st.expander("Read the source — the sections and judgments this rests on"):
                 for m in statutes:
                     st.markdown(f'**{esc(m["act"])} Section {esc(m["section_number"])}**')
@@ -527,20 +563,19 @@ def render_answer(result: dict):
                 if judgments:
                     st.markdown('<div class="r-label" style="margin-top:1rem">Judgments</div>',
                                 unsafe_allow_html=True)
-                for m in judgments:
-                    cite = f' &nbsp;·&nbsp; <span class="r-src">{esc(m["citation"])}</span>' if m.get("citation") else ""
-                    st.markdown(f'**{esc(m["case_name"])}**{cite}', unsafe_allow_html=True)
-                    _render_currency_caveat(m)
-                    # show "paragraph N" only when the chunk id really is a
-                    # paragraph number; the corpus also uses descriptive
-                    # slugs ("civil_dispute_criminal_cloak_caution") and
-                    # blind "fallback_N" chunks -- neither reads as a para.
-                    para_head = str(m.get("paragraph_number") or "").split("_")[0]
-                    if para_head.isdigit():
-                        st.markdown(f'<span class="r-src">paragraph {esc(para_head)}</span>',
+                for k in order:
+                    name, cite = k
+                    cite_html = (f' &nbsp;·&nbsp; <span class="r-src">{esc(cite)}</span>'
+                                 if cite else "")
+                    st.markdown(f'**{esc(name)}**{cite_html}', unsafe_allow_html=True)
+                    _render_currency_caveat(by_case[k][0])
+                    for m in by_case[k]:
+                        para_head = str(m.get("paragraph_number") or "").split("_")[0]
+                        if para_head.isdigit():
+                            st.markdown(f'<span class="r-src">paragraph {esc(para_head)}</span>',
+                                        unsafe_allow_html=True)
+                        st.markdown(f'<div class="r-mono">{esc((m.get("text") or "").strip()[:1100])}</div>',
                                     unsafe_allow_html=True)
-                    st.markdown(f'<div class="r-mono">{esc((m.get("text") or "").strip()[:1100])}</div>',
-                                unsafe_allow_html=True)
         return bool(result.get("situation_detected"))
 
     # ---- everything below is an honest non-answer ----
