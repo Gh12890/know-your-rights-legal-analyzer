@@ -262,6 +262,12 @@ Built with Python · Streamlit · the Anthropic API (extraction, scope, phrasing
 
 ---
 
+## About
+
+Built by **Tanbir Ahmed**, a former executive magistrate moving into legal technology — drawing on direct experience of criminal procedure and the administration of arrests, remands and detention to encode the safeguards that most often go unenforced in practice. The principle throughout: serve the person against institutional power, and never claim more certainty than the evidence supports.
+
+---
+
 ## Disclaimer
 
 **This is not legal advice.** Recourse reads what you tell it and checks it against publicly known procedural requirements for educational and informational purposes. Its findings — especially those marked *"May be Non-Compliant,"* which are inferences from what a document omits — are not legal conclusions. The section mappings and case-law references reflect careful research and should be independently verified before being relied upon. Anyone facing a real legal situation should consult a qualified advocate.
