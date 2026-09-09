@@ -64,21 +64,25 @@ st.set_page_config(page_title="Recourse — know your rights when it matters mos
 
 
 # ==========================================================================
-# DESIGN SYSTEM
+# DESIGN SYSTEM  --  "the steady hand"
 #
-# Concept: "the steady hand" — the visual language of a well-prepared legal
-# document meeting the warmth of someone who has your back. Not a SaaS
-# dashboard, not a government portal, not a law-firm brochure.
+# The visual language of a well-prepared legal document meeting the warmth
+# of someone who has your back. Not a SaaS dashboard, not a government
+# portal, not a law-firm brochure.
 #
-# Colour   ink #1b2b2e · paper #f7f3ea · surface #fffdf7 · rule #e4dccb
-#          seal (petrol/teal = "verified, safe") #146b63 · amber (caution,
-#          not alarm) #a15c1f
-# Type     Fraunces (display serif, the wordmark + heads) · Newsreader
-#          (reading serif, explanations) · IBM Plex Sans / Mono (interface,
-#          labels, the verification seal)
-# Layout   single reading column ~720px on warm ivory; a 3px seal strip at
-#          the very top like the band on official stationery; editorial
-#          rhythm with uppercase eyebrow labels and generous space.
+# Colour   ink #1b2b2e / ink-soft #41555a / muted #5e6f70 (>= AA on paper)
+#          paper #f6f2e8 · surface #fffdf8 · rule #e5dcc7
+#          seal (petrol/teal = "verified, safe") #136a61 / deep #0d534b
+#          amber (caution, not alarm) #95541c
+# Type     Spectral (display serif — wordmark + heads) · Newsreader
+#          (reading serif — the answer and explanations) · IBM Plex Sans
+#          (labels, chips, buttons) · IBM Plex Mono (statute excerpts)
+# Radius   --r-sm 8 (chips-in, expanders) / --r-md 11 (chips, inputs,
+#          buttons) / --r-lg 14 (the answer card)
+# Layout   single reading column ~720px on warm ivory; a 3px seal strip
+#          at the very top like the band on official stationery; uppercase
+#          eyebrow labels; the answer sits in one framed card, its section
+#          heads promoted from the engine's bold labels.
 # ==========================================================================
 st.html("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -169,7 +173,7 @@ h4{ font-size:1.04rem !important; font-weight:600 !important; margin:1.4rem 0 .3
   border-radius:var(--r-md) !important; padding:.9rem 1rem !important; color:var(--ink) !important;
   font-family:"IBM Plex Sans",sans-serif !important; font-size:.9rem !important;
   font-weight:500 !important; line-height:1.4 !important; box-shadow:none !important;
-  transition:border-color .14s ease, transform .14s ease, box-shadow .14s ease;
+  transition:transform .14s ease, box-shadow .14s ease;
 }
 [data-testid="stColumn"] div.stButton > button p,
 [data-testid="column"] div.stButton > button p{
