@@ -347,18 +347,19 @@ st.html("""
 <div class="r-eyebrow">Access to justice &nbsp;·&nbsp; India</div>
 <div class="r-wordmark">Recourse</div>
 <hr class="r-rule-seal">
-<div class="r-tag">An arrest. An FIR. A night in custody. You have more rights
-than you know &mdash; and the law to back them.</div>
-<div class="r-lead">Tell Recourse what is happening, in your own words. It works out
-what you can do <b>right now</b>, the exact sections of the law that apply, and
-what the real judgments say &mdash; then points you to the papers to check.</div>
+<div class="r-tag">The moment the police arrive, you have rights.
+Recourse puts them in your hands &mdash; fast.</div>
+<div class="r-lead">Tell Recourse what is happening, in plain words. In seconds:
+the move to make <b>right now</b>, the exact sections that apply, and the real
+judgments behind them &mdash; then a <b>draft court petition built from your own
+facts</b>, editable on the page and one click from a PDF.</div>
 <div class="r-who">For the person a case is happening to, and their family &mdash;
 not for law firms. Legal information, not legal advice.</div>
 
 <div class="r-pillars">
   <div class="r-pillar"><b>What to do right now</b><span>concrete first steps</span></div>
-  <div class="r-pillar"><b>In your own words</b><span>no legal language needed</span></div>
   <div class="r-pillar"><b>Traced to the source</b><span>every section and judgment shown</span></div>
+  <div class="r-pillar"><b>Yours to download</b><span>an editable draft petition, as a PDF</span></div>
 </div>
 """)
 
@@ -434,6 +435,12 @@ def _footer():
             "the CrPC still speaks — Recourse maps each old section to its BNS/BNSS "
             "successor from a curated concordance, and flags the rare provision that was "
             "repealed outright, so every citation you get is in today's numbering.\n"
+            "- **It hands you something you can act on.** Where an arrest, a cheque case "
+            "or a frozen account is involved, Recourse assembles a **draft court petition "
+            "from your own facts** — the grounds, the sections, the judgments, set out in "
+            "a court's own format. Edit it right there on the page, download it as a "
+            "**PDF**, and walk it into a lawyer's office or a courtroom. Fixed rules build "
+            "it; not a line of it is invented.\n"
             "- **It tells you what it genuinely cannot settle.** A judgment whose standing "
             "is unsettled — a larger bench pending, the High Courts split — or a matter "
             "that falls outside its reach: Recourse says so, rather than filling the gap "
