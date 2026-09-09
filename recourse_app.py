@@ -25,8 +25,20 @@ import logging
 
 import streamlit as st
 
-from chat_assistant import answer_question
-from recourse_upload import extract_text, check_arrest_document
+# chat_assistant pulls in the Anthropic SDK + the 38 MB embeddings + main
+# (~8-15s on a cold container). recourse_upload -> main is similarly heavy.
+# Import both LAZILY -- inside the run block / upload block -- so the
+# landing page renders in ~1s and only the first real question pays the
+# load cost (once per process). See _answer_question / _upload_fns below.
+def _answer_question(*a, **kw):
+    from chat_assistant import answer_question
+    return answer_question(*a, **kw)
+
+
+def _upload_fns():
+    from recourse_upload import extract_text, check_arrest_document
+    return extract_text, check_arrest_document
+
 
 try:
     import arrest_safeguard_checklist as _asc
@@ -42,20 +54,12 @@ st.set_page_config(page_title="Recourse — know your rights when it matters mos
                    page_icon="⚖️", layout="centered")
 
 
-# --------------------------------------------------------------------------
-# warm the corpus once, at boot, so the first real query isn't slow
-# --------------------------------------------------------------------------
-@st.cache_resource(show_spinner=False)
-def _warm():
-    try:
-        from semantic_retrieval import _load_corpus_embeddings
-        _load_corpus_embeddings()
-    except Exception:
-        pass
-    return True
-
-
-_warm()
+# The corpus embeddings (~38 MB) + the Anthropic SDK are loaded LAZILY on
+# the first real query (inside the "Reading the law…" spinner), NOT at
+# page render -- eager warm-up here made every landing-page hit as slow
+# as the first query. semantic_retrieval caches the load for the life of
+# the process, so only the very first question after a container start
+# pays it.
 
 
 # ==========================================================================
@@ -931,7 +935,7 @@ if (go or st.session_state.pop("_autorun", False)) and msg.strip():
         # cheque-bounce and bank-freeze questions are answered inline from
         # the shared corpus's own case law rather than dead-ended with a
         # "covered elsewhere" redirect that points nowhere here.
-        st.session_state.answer = answer_question(
+        st.session_state.answer = _answer_question(
             msg, inline_domains={"cheque_bounce", "freeze"})
     st.session_state.answer_msg = msg
 
@@ -975,6 +979,7 @@ if answer:
         up = st.file_uploader("Upload a document (PDF or text)", type=["pdf", "txt"],
                               label_visibility="collapsed", key="doc_upload")
         if up is not None:
+            extract_text, check_arrest_document = _upload_fns()
             sig = f"{up.name}:{up.size}"
             if st.session_state.get("doc_check_sig") != sig:
                 ext = extract_text(up)
