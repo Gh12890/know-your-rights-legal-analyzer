@@ -347,8 +347,7 @@ st.html("""
 <div class="r-eyebrow">Access to justice &nbsp;·&nbsp; India</div>
 <div class="r-wordmark">Recourse</div>
 <hr class="r-rule-seal">
-<div class="r-tag">The moment the police arrive, you have rights.
-Recourse puts them in your hands &mdash; fast.</div>
+<div class="r-tag">When it feels like there is none, there is still recourse.</div>
 <div class="r-lead">Tell Recourse what is happening, in plain words. In seconds:
 the move to make <b>right now</b>, the exact sections that apply, and the real
 judgments behind them &mdash; then a <b>draft court petition built from your own
