@@ -160,23 +160,27 @@ h4{ font-size:1.04rem !important; font-weight:600 !important; margin:1.4rem 0 .3
 .r-label{ font-family:"IBM Plex Sans",sans-serif; font-size:.71rem; font-weight:600;
   letter-spacing:.15em; text-transform:uppercase; color:var(--seal); margin:2.6rem 0 .7rem; }
 
-/* ---------- starter chips ---------- */
-[data-testid="stColumn"] .stButton > button,
-[data-testid="column"] .stButton > button{
-  width:100%; height:100%; justify-content:flex-start; text-align:left; white-space:normal;
-  background:var(--surface); border:1px solid var(--rule); border-radius:var(--r-md);
-  padding:.9rem 1rem; color:var(--ink);
-  font-family:"IBM Plex Sans",sans-serif; font-size:.9rem; font-weight:500; line-height:1.38;
+/* ---------- starter chips (must out-rank the generic secondary-button rule) ---------- */
+[data-testid="stColumn"] div.stButton > button,
+[data-testid="column"] div.stButton > button{
+  width:100% !important; height:100% !important; white-space:normal !important;
+  justify-content:flex-start !important; text-align:left !important;
+  background:var(--surface) !important; border:1px solid var(--rule) !important;
+  border-radius:var(--r-md) !important; padding:.9rem 1rem !important; color:var(--ink) !important;
+  font-family:"IBM Plex Sans",sans-serif !important; font-size:.9rem !important;
+  font-weight:500 !important; line-height:1.4 !important; box-shadow:none !important;
   transition:border-color .14s ease, transform .14s ease, box-shadow .14s ease;
 }
-[data-testid="stColumn"] .stButton > button p,
-[data-testid="column"] .stButton > button p{
-  text-align:left; width:100%; font-size:.9rem; font-weight:500; color:var(--ink); }
-[data-testid="stColumn"] .stButton > button:hover,
-[data-testid="column"] .stButton > button:hover{
-  border-color:var(--seal); transform:translateY(-2px); box-shadow:var(--lift-sm); }
-[data-testid="stColumn"] .stButton > button:focus-visible,
-[data-testid="column"] .stButton > button:focus-visible{
+[data-testid="stColumn"] div.stButton > button p,
+[data-testid="column"] div.stButton > button p{
+  text-align:left !important; width:100%;
+  font-family:"IBM Plex Sans",sans-serif !important; font-size:.9rem !important;
+  font-weight:500 !important; color:var(--ink) !important; }
+[data-testid="stColumn"] div.stButton > button:hover,
+[data-testid="column"] div.stButton > button:hover{
+  border-color:var(--seal) !important; transform:translateY(-2px); box-shadow:var(--lift-sm) !important; }
+[data-testid="stColumn"] div.stButton > button:focus-visible,
+[data-testid="column"] div.stButton > button:focus-visible{
   outline:2px solid var(--seal); outline-offset:2px; }
 
 /* ---------- text area ---------- */
