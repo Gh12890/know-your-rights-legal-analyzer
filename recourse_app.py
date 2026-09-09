@@ -377,13 +377,23 @@ not for law firms. Legal information, not legal advice.</div>
 # --------------------------------------------------------------------------
 # starters + input
 # --------------------------------------------------------------------------
+# Each starter is a real, layered situation chosen to show a distinct
+# strength: (1) the tool surfaces a PRECISE, little-known safeguard with
+# its governing case and its nuance; (2) it names a statutory RIGHT the
+# family has never heard of; (3) it reaches beyond arrest into another
+# whole domain. All three carry through to the deterministic checklist
+# and the downloadable petition.
 EXAMPLES = {
-    "Held 70 days, still no chargesheet":
-        "the police have kept my brother 70 days and still haven't filed any chargesheet",
     "My sister was arrested at night":
-        "my sister was arrested last night around 9 pm, nobody told us why, and she's a nursing mother",
-    "Police won't register my FIR":
-        "the police won't register my complaint about the goods stolen from my shop",
+        "my sister was arrested at night — at about 11 — with no woman police officer "
+        "there, and nobody has told us in writing what she is accused of",
+    "65 days in jail, no chargesheet":
+        "my son has been in judicial custody 65 days in a cheating case, no chargesheet "
+        "has been filed, and his bail was already refused once on the merits",
+    "The bank froze my account":
+        "my current account was frozen by my bank after a police email about a payment I "
+        "received from a customer who is under investigation; my whole balance is locked "
+        "and no FIR has been served on me",
 }
 
 if "text" not in st.session_state:
