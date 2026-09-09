@@ -223,6 +223,32 @@ div.stButton > button[kind="secondary"]{
   padding:.5rem 1rem; }
 div.stButton > button[kind="secondary"]:hover{ background:var(--seal-tint); }
 
+/* disabled (while an answer is loading) */
+button:disabled, button[disabled]{ cursor:not-allowed !important; }
+button[kind="primary"]:disabled, button[kind="primaryFormSubmit"]:disabled{
+  opacity:.6 !important; box-shadow:none !important; transform:none !important; }
+[data-testid="stColumn"] div.stButton > button:disabled{
+  opacity:.5 !important; transform:none !important; box-shadow:none !important; }
+.stTextArea textarea:disabled{ opacity:.65 !important; -webkit-text-fill-color:var(--ink-soft) !important; }
+
+/* "reading the law" state */
+.r-working{
+  display:flex; align-items:center; gap:.65rem;
+  font-family:"IBM Plex Sans",sans-serif; font-size:.92rem; color:var(--ink-soft);
+  padding:.95rem 1.1rem; border:1px solid var(--rule); border-radius:var(--r-md);
+  background:var(--surface); margin:.3rem 0; box-shadow:var(--lift-sm);
+}
+.r-working-dot{
+  width:.78rem; height:.78rem; border-radius:50%; flex:none;
+  border:2px solid var(--seal-line); border-top-color:var(--seal);
+  animation:r-spin .75s linear infinite;
+}
+@keyframes r-spin{ to{ transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce){ .r-working-dot{ animation:none; border-top-color:var(--seal-line); } }
+
+/* the 0-height scroll-nudge component -- keep it out of the layout */
+[data-testid="stElementContainer"]:has(iframe[height="0"]){ display:none !important; }
+
 /* ---------- the answer, framed ---------- */
 /* st.container(border=True) is a [data-testid="stVerticalBlock"] carrying
    Streamlit's own 1px border; a hidden marker span picks out ours. */
@@ -399,6 +425,10 @@ EXAMPLES = {
 if "text" not in st.session_state:
     st.session_state.text = ""
 
+# true on the rerun that is actually fetching an answer -- used to lock
+# the submit + starter buttons and show the "reading the law" state.
+_busy = bool(st.session_state.get("_busy"))
+
 
 def _reset_answer():
     """Drop the previous answer + draft + doc-check so a new question never
@@ -407,10 +437,25 @@ def _reset_answer():
         st.session_state.pop(k, None)
 
 
+def _scroll_into_view(selector):
+    """Nudge the page to the loading / answer region (Streamlit strips
+    <script> from st.html/markdown, so this goes through a 0-height
+    component iframe, hidden by CSS)."""
+    try:
+        import streamlit.components.v1 as _c
+        _c.html(
+            "<script>const d=window.parent.document;"
+            f"const t=d.querySelector({selector!r})||d.querySelector('[data-testid=\"stSpinner\"]');"
+            "if(t)t.scrollIntoView({behavior:'smooth',block:'center'});</script>",
+            height=0)
+    except Exception:
+        pass
+
+
 st.html('<div class="r-label">Start with a situation</div>')
 cols = st.columns(len(EXAMPLES))
 for c, (label, val) in zip(cols, EXAMPLES.items()):
-    if c.button(label, use_container_width=True, key=f"ex_{label[:10]}"):
+    if c.button(label, use_container_width=True, key=f"ex_{label[:10]}", disabled=_busy):
         st.session_state.text = val
         _reset_answer()
         st.session_state._autorun = True
@@ -422,10 +467,11 @@ st.html('<div class="r-label">&hellip; or describe your own</div>')
 # commits the text and the previous answer keeps showing.
 with st.form("situation_form", border=False, clear_on_submit=False):
     msg = st.text_area("Describe your situation", key="text", height=120,
-                       label_visibility="collapsed",
+                       label_visibility="collapsed", disabled=_busy,
                        placeholder="e.g. My brother was arrested four days ago and still hasn't been produced in court…") or ""
-    go = st.form_submit_button("Check my situation  →", type="primary",
-                               use_container_width=True)
+    go = st.form_submit_button(
+        "Reading…" if _busy else "Check my situation  →",
+        type="primary", use_container_width=True, disabled=_busy)
 
 
 # --------------------------------------------------------------------------
@@ -977,18 +1023,41 @@ def render_petition_draft(question_text, *, checklist_result=None, doc_check_res
 # --------------------------------------------------------------------------
 # run
 # --------------------------------------------------------------------------
-if (go or st.session_state.pop("_autorun", False)) and msg.strip():
+_new_q = msg.strip() if ((go or st.session_state.pop("_autorun", False)) and msg.strip()) else None
+
+# A new question is a TWO-pass operation: pass 1 records it and reruns
+# with the buttons locked; pass 2 renders the "reading the law" state,
+# fetches the answer, then reruns to show it. This keeps someone from
+# clicking the button again while a (possibly slow) request is in flight.
+if _new_q and not _busy:
     for _k in list(st.session_state.keys()):
-        if _k in ("doc_check", "doc_check_sig", "_sg_result") or _k.startswith("_petition_"):
+        if _k in ("doc_check", "doc_check_sig", "_sg_result", "answer") \
+           or _k.startswith("_petition_"):
             st.session_state.pop(_k, None)      # never carry stale artefacts over
-    with st.spinner("Reading the law and the judgments on this…"):
-        # recourse_app is chat-only: it has no document-upload handoff, so
-        # cheque-bounce and bank-freeze questions are answered inline from
-        # the shared corpus's own case law rather than dead-ended with a
-        # "covered elsewhere" redirect that points nowhere here.
+    st.session_state["_busy"] = True
+    st.session_state["_busy_msg"] = _new_q
+    st.rerun()
+
+if _busy:
+    _q = st.session_state.get("_busy_msg") or msg
+    st.html('<hr class="r-rule">'
+            '<div id="r-working" class="r-working"><span class="r-working-dot"></span>'
+            'Reading the law and the judgments on this&hellip;</div>')
+    _scroll_into_view("#r-working")
+    try:
+        # recourse_app is chat-only: cheque-bounce and bank-freeze
+        # questions are answered inline from the shared corpus rather than
+        # dead-ended with a "covered elsewhere" redirect that points
+        # nowhere here.
         st.session_state.answer = _answer_question(
-            msg, inline_domains={"cheque_bounce", "freeze"})
-    st.session_state.answer_msg = msg
+            _q, inline_domains={"cheque_bounce", "freeze"})
+    except Exception:
+        logging.getLogger("recourse_app").exception("answer_question failed")
+        st.session_state.answer = {"state": "retrieval_unavailable"}
+    st.session_state.answer_msg = _q
+    st.session_state["_busy"] = False
+    st.session_state.pop("_busy_msg", None)
+    st.rerun()
 
 answer = st.session_state.get("answer")
 if answer:
