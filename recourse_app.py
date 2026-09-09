@@ -216,28 +216,37 @@ div.stButton > button[kind="secondary"]{
 div.stButton > button[kind="secondary"]:hover{ background:var(--seal-tint); }
 
 /* ---------- the answer, framed ---------- */
-[data-testid="stForm"] [data-testid="stVerticalBlockBorderWrapper"]{
-  background:transparent; border:0; box-shadow:none; }
-[data-testid="stVerticalBlockBorderWrapper"]{
-  background:var(--surface); border:1px solid var(--rule); border-radius:var(--r-lg);
-  box-shadow:var(--lift); }
-[data-testid="stVerticalBlockBorderWrapper"] > div{ padding:1.35rem 1.55rem; }
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown p,
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown li{ color:var(--ink-soft); }
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown p{ margin:0 0 .8rem; }
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown strong{ color:var(--ink); font-weight:600; }
+/* st.container(border=True) is a [data-testid="stVerticalBlock"] carrying
+   Streamlit's own 1px border; a hidden marker span picks out ours. */
+.r-ansmark{ display:none; }
+[data-testid="stElementContainer"]:has(.r-ansmark){ display:none; }
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark){
+  background:var(--surface) !important; border:1px solid var(--rule) !important;
+  border-radius:var(--r-lg) !important; box-shadow:var(--lift) !important;
+  padding:1.35rem 1.55rem !important; gap:0 !important;
+}
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown p,
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown li{
+  color:var(--ink-soft); }
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown p{
+  margin:0 0 .8rem; }
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown strong{
+  color:var(--ink); font-weight:600; }
 /* a standalone bold label -> a real sub-head */
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown p:has(> strong:only-child){
-  font-family:"IBM Plex Sans",sans-serif; font-size:.72rem; font-weight:600;
-  letter-spacing:.13em; text-transform:uppercase; color:var(--seal); margin:1.55rem 0 .55rem; }
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown p:has(> strong:only-child) strong{
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown p:has(> strong:only-child){
+  font-family:"IBM Plex Sans",sans-serif !important; font-size:.72rem !important; font-weight:600 !important;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--seal) !important; margin:1.55rem 0 .5rem !important; }
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown p:has(> strong:only-child) strong{
+  color:var(--seal) !important; font-weight:600 !important; }
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) [data-testid="stElementContainer"]:nth-child(2){ margin-top:0; }
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown ol,
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown ul{
+  margin:.15rem 0 .95rem; padding-left:1.4rem; }
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown li{
+  margin:.32rem 0; padding-left:.15rem; }
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown li::marker{
   color:var(--seal); font-weight:600; }
-[data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdownContainer"] > :first-child{ margin-top:0 !important; }
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown ol,
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown ul{ margin:.15rem 0 .95rem; padding-left:1.4rem; }
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown li{ margin:.32rem 0; padding-left:.15rem; }
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown li::marker{ color:var(--seal); font-weight:600; }
-[data-testid="stVerticalBlockBorderWrapper"] .stMarkdown blockquote{
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark) .stMarkdown blockquote{
   border-left:2px solid var(--seal-line); margin:.4rem 0; padding:.1rem 0 .1rem .9rem; color:var(--ink-soft); }
 
 .r-conf{ font-family:"IBM Plex Sans",sans-serif; font-size:.82rem; color:var(--muted);
@@ -299,7 +308,8 @@ a, a:visited{ color:var(--seal); text-underline-offset:2px; }
   .r-pillar:last-child{ border-bottom:0; }
   [data-testid="stHorizontalBlock"]{ flex-wrap:wrap; gap:.5rem !important; }
   [data-testid="stColumn"]{ width:100% !important; flex:1 1 100% !important; }
-  [data-testid="stVerticalBlockBorderWrapper"] > div{ padding:1.05rem 1.1rem; }
+  [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .r-ansmark){
+    padding:1.05rem 1.1rem !important; }
 }
 @media (prefers-reduced-motion:reduce){
   *, *::before, *::after{ transition:none !important; }
@@ -611,6 +621,7 @@ def render_answer(result: dict):
                         'picking one for you.</p>', unsafe_allow_html=True)
         reply = result.get("response_text") or ""
         with st.container(border=True):
+            st.markdown('<span class="r-ansmark"></span>', unsafe_allow_html=True)
             if reply:
                 st.markdown(_promote_answer_labels(reply))
             else:
