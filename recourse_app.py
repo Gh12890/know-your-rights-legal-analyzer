@@ -55,6 +55,48 @@ st.set_page_config(page_title="Recourse — know your rights when it matters mos
                    page_icon="⚖️", layout="centered")
 
 
+# --- Google Analytics (GA4) -----------------------------------------------
+# Streamlit has no <head> hook and strips <script> from st.html(), so gtag
+# is injected into the PARENT document from a 0-height component iframe
+# (same-origin -> window.parent.document is reachable). The id guard makes
+# it idempotent across reruns; the 0-height iframe is hidden by the
+# iframe[height="0"] rule already in the stylesheet below.
+def _inject_ga():
+    import streamlit.components.v1 as _c
+    _GA_ID = "G-H8M4V4P2M9"
+    _c.html(
+        f"""
+        <script>
+        (function () {{
+          try {{
+            var d = window.parent.document;
+            var h = window.parent.location.hostname;
+            if (h === "localhost" || h === "127.0.0.1") return;
+            if (d.getElementById("ga4-src")) return;
+            var s = d.createElement("script");
+            s.id = "ga4-src"; s.async = true;
+            s.src = "https://www.googletagmanager.com/gtag/js?id={_GA_ID}";
+            d.head.appendChild(s);
+            var i = d.createElement("script");
+            i.text = "window.dataLayer=window.dataLayer||[];"
+                   + "function gtag(){{dataLayer.push(arguments);}}"
+                   + "gtag('js', new Date());"
+                   + "gtag('config', '{_GA_ID}');";
+            d.head.appendChild(i);
+          }} catch (e) {{}}
+        }})();
+        </script>
+        """,
+        height=0,
+    )
+
+
+try:
+    _inject_ga()
+except Exception:
+    logging.getLogger("recourse_app").exception("GA injection failed")
+
+
 # The corpus embeddings (~38 MB) + the Anthropic SDK are loaded LAZILY on
 # the first real query (inside the "Reading the law…" spinner), NOT at
 # page render -- eager warm-up here made every landing-page hit as slow
