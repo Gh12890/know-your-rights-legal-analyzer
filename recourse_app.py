@@ -299,6 +299,14 @@ button[kind="primary"]:disabled, button[kind="primaryFormSubmit"]:disabled{
   padding:.72rem .95rem !important; }
 [data-testid="stExpander"] summary:hover{ color:var(--seal) !important; }
 
+/* ---------- draft-petition call-to-action ---------- */
+.r-cta{ font-family:"IBM Plex Sans",sans-serif; display:flex; gap:.6rem; align-items:flex-start;
+  background:var(--seal-tint); border:1px solid var(--seal-line); border-left:3px solid var(--seal);
+  border-radius:var(--r-sm); padding:.85rem 1rem; margin:1.1rem 0 .1rem; color:var(--ink);
+  font-size:.9rem; line-height:1.5; }
+.r-cta b{ color:var(--seal-deep); }
+.r-cta .r-cta-ico{ font-size:1.05rem; line-height:1.3; flex:0 0 auto; }
+
 /* ---------- compliance / checklist ---------- */
 .r-checkrow{ border:1px solid var(--rule); border-radius:var(--r-md); background:var(--surface);
   padding:.85rem 1.05rem; margin:.55rem 0; }
@@ -877,11 +885,10 @@ def render_arrest_checklist():
     path. Rendered inside an expander so it never blocks the answer."""
     if _asc is None:
         return
-    with st.expander("No papers? Check the arrest safeguards yourself — a few plain questions"):
+    with st.expander("Check the safeguards yourself — a few plain yes/no questions"):
         st.markdown(
-            "Answer what you know. Each answer maps straight to a finding — "
-            "**fixed rules, no AI** — with the section and the judgment behind it. "
-            "Leave anything you're unsure of on *Not sure*; it will tell you what to ask for.")
+            "Answer what you know. Leave anything you're unsure of on *Not sure* — "
+            "it will tell you what to ask for.")
 
         with st.form("safeguard_checklist", border=False):
             picks = {}
@@ -954,12 +961,16 @@ def _answer_draft_context(answer):
 
 
 def render_petition_draft(question_text, *, checklist_result=None, doc_check_result=None,
-                          chat_answer=None):
-    """The 'Turn this into a draft' step: a High Court petition assembled
+                          chat_answer=None, prominent=False):
+    """The draft-petition step: a High Court petition assembled
     deterministically from the findings (or, for cheque / freeze, from
     the answer's own authorities), shown in an editable box with a
     Download PDF. No AI in this path. Wrapped by the caller in try/except;
-    import guarded."""
+    import guarded.
+
+    prominent=True adds a coloured call-out above the expander so the
+    person sees the draft + PDF without having to work through the checks
+    first; it is still one click to open, so the page stays uncluttered."""
     if _pd is None:
         return
     answer = st.session_state.get("answer") or {}
@@ -969,12 +980,23 @@ def render_petition_draft(question_text, *, checklist_result=None, doc_check_res
               "every case passage is marked **NOT INDEPENDENTLY VERIFIED** until it is "
               "checked in the judgment. It is a starting point, not a filed document.")
 
+    def _digest(*parts):
+        return abs(hash(repr(parts))) % 10**6
+
     if checklist_result is not None:
-        sig = f"cl:{abs(hash(question_text)) % 10**8}:{civil}:{'.'.join(secs)}"
+        _rows = tuple((r.get("id"), r.get("bucket")) for r in (checklist_result.get("rows") or []))
+        sig = f"cl:{abs(hash(question_text)) % 10**8}:{civil}:{'.'.join(secs)}:{_digest(_rows)}"
         seed = lambda: _pd.from_checklist(
             question_text, checklist_result, civil_dispute=civil, offence_sections=secs)
+        if _rows:
+            _blurb += ("  \nThe grounds below are rebuilt from the safeguard checks; "
+                       "re-open this after you change an answer there.")
+        else:
+            _blurb += ("  \nThis is the general form. Run the safeguard checks below and "
+                       "the specific grounds are filled in for you.")
     elif doc_check_result is not None:
-        sig = f"dc:{abs(hash(question_text)) % 10**8}:{civil}:{'.'.join(secs)}"
+        sig = (f"dc:{abs(hash(question_text)) % 10**8}:{civil}:{'.'.join(secs)}:"
+               f"{_digest(doc_check_result.get('checks'), doc_check_result.get('overall'))}")
         seed = lambda: _pd.from_doc_check(
             question_text, doc_check_result, civil_dispute=civil, offence_sections=secs)
     elif chat_answer is not None and chat_answer.get("redirect_domain") == "cheque_bounce":
@@ -986,7 +1008,17 @@ def render_petition_draft(question_text, *, checklist_result=None, doc_check_res
     else:
         return
 
-    with st.expander("Turn this into a draft — a petition you can edit and take to a lawyer"):
+    if prominent:
+        st.markdown(
+            '<div class="r-cta"><span class="r-cta-ico">\U0001F4C4</span>'
+            '<span><b>A draft petition is ready.</b> Built from your account and the '
+            'sections and judgments above &mdash; edit it here, then download it as a PDF. '
+            'A starting point to take to a lawyer, not a filed document.</span></div>',
+            unsafe_allow_html=True)
+
+    _label = ("Open the draft petition  →" if prominent
+              else "Turn this into a draft — a petition you can edit and take to a lawyer")
+    with st.expander(_label):
         st.markdown(_blurb)
 
         text_key = f"_petition_{sig}"
@@ -1072,18 +1104,17 @@ if answer:
 
     situation = render_answer(answer)
 
-    # ---- cheque-bounce / bank-freeze: offer the petition draft too ----
+    # ---- cheque-bounce / bank-freeze: the draft petition, up front ----
     if answer.get("state") == "single_match" and \
        answer.get("redirect_domain") in ("cheque_bounce", "freeze"):
         try:
-            render_petition_draft(msg, chat_answer=answer)
+            render_petition_draft(msg, chat_answer=answer, prominent=True)
         except Exception:
             logging.getLogger("recourse_app").exception("petition (chat) render failed")
 
-    # ---- check whether the safeguards were ACTUALLY followed ----
-    # Two routes, both deterministic (no AI): upload the paper, or answer
-    # a fixed checklist. Offered for any arrest / FIR / custody answer,
-    # not only ones that open with "Right now".
+    # ---- arrest / FIR / custody ----
+    # Offered for any arrest / FIR / custody answer, not only ones that
+    # open with "Right now".
     _arrest_flavoured = False
     try:
         _arrest_flavoured = _answer_is_arrest_flavoured(answer, msg)
@@ -1091,6 +1122,9 @@ if answer:
         _arrest_flavoured = bool(situation)
 
     if situation or _arrest_flavoured:
+        # ---- check whether the safeguards were ACTUALLY followed ----
+        # Two routes, both deterministic (no AI): upload the paper, or
+        # answer a fixed checklist. Either one sharpens the draft below.
         st.markdown('<div class="r-label">Have the papers?</div>', unsafe_allow_html=True)
         st.markdown(
             "The answer above is what the law **requires**. Upload the **arrest "
@@ -1112,24 +1146,36 @@ if answer:
             _dc = st.session_state.get("doc_check")
             if _dc:
                 render_doc_check(_dc)
-                # a real arrest doc with a defect -> offer the petition draft
-                if _dc.get("is_arrest_document") and (_dc.get("n_defects") or _dc.get("n_unknown")):
-                    try:
-                        render_petition_draft(msg, doc_check_result=_dc)
-                    except Exception:
-                        logging.getLogger("recourse_app").exception("petition (doc) render failed")
 
         # ---- the no-document route ----
-        _cl = None
+        st.markdown('<div class="r-label" style="margin-top:1.3rem">No papers?</div>',
+                    unsafe_allow_html=True)
+        st.markdown(
+            "Answer a few plain yes/no questions and Recourse checks each arrest "
+            "safeguard against your answers — **fixed rules, no AI**, with the "
+            "section and the judgment behind each one.")
         try:
-            _cl = render_arrest_checklist()
+            render_arrest_checklist()
         except Exception:
             logging.getLogger("recourse_app").exception("arrest checklist render failed")
 
-        if _cl and (_cl.get("summary", {}).get("violated") or _cl.get("summary", {}).get("to_confirm")):
-            try:
-                render_petition_draft(msg, checklist_result=_cl)
-            except Exception:
-                logging.getLogger("recourse_app").exception("petition (checklist) render failed")
+        # ---- the draft petition + PDF ----
+        # Always offered for an arrest answer -- NOT gated on finishing
+        # the checks above. It seeds from an uploaded memo if there is
+        # one, else a completed checklist, else the general form, and
+        # re-seeds as either check is done.
+        try:
+            _dc = st.session_state.get("doc_check")
+            if _dc and _dc.get("is_arrest_document") \
+               and (_dc.get("n_defects") or _dc.get("n_unknown")):
+                render_petition_draft(msg, doc_check_result=_dc, prominent=True)
+            else:
+                _sg = st.session_state.get("_sg_result")
+                _seed = _sg if (_sg and _sg.get("rows")) else \
+                    (_asc.evaluate({}) if _asc is not None else None)
+                if _seed is not None:
+                    render_petition_draft(msg, checklist_result=_seed, prominent=True)
+        except Exception:
+            logging.getLogger("recourse_app").exception("petition (arrest) render failed")
 
 _footer()
