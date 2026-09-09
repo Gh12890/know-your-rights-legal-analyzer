@@ -1,5 +1,6 @@
 """
-recourse_app.py  --  the single-flow public app for the ILTN Vibeathon.
+recourse_app.py  --  the single-flow public app: the access-to-justice
+front door to the retrieval engine.
 
 One input box. One answer, grounded in the law and real judgments.
 
@@ -14,9 +15,9 @@ Thin UI over the free-text engine:
                                      plain yes/no questions, for families with
                                      no document (no LLM in this path at all)
 
-The model never states a verdict on the person's case. It only explains what
-the retrieved sections and judgments say, working from a fixed library -- never
-its own knowledge -- and its answer is screened for statements that library
+The model never reaches a verdict on the person's case. It only phrases what a
+verified corpus of statute and judicial authority says -- it does not supply
+the law from memory -- and its answer is screened for anything that corpus
 does not support before anyone sees it.
 """
 
@@ -414,48 +415,59 @@ def _footer():
 
     with st.expander("How Recourse works — and why it won't invent a case"):
         st.markdown(
-            "- You describe the situation in plain words. Recourse works from a **fixed "
-            "library** — the Bharatiya Nyaya Sanhita, the BNSS, and real Supreme Court and "
-            "High Court judgments — **never from the model's own knowledge**.\n"
-            "- It retrieves the sections and judgments that match, and for a common "
-            "accusation named in plain words (theft, cheating, hurt, forgery, a bounced "
-            "cheque) it **anchors the exact offence** so the answer names the right "
-            "section, not a guessed one.\n"
-            "- The plain-language answer is then **screened for anything the library "
-            "doesn't support** — a section number it never retrieved, a wrong "
-            "cognisable/bailable claim, a case stretched further than it holds — and that "
-            "is caught before you see it.\n"
-            "- Where a section has been **renumbered** from the old codes, or a judgment's "
-            "standing is **uncertain**, Recourse says so. Outside its scope — a pure civil "
-            "dispute, another area of law — it says so plainly rather than guessing.\n"
-            "- The model **never states a verdict on your case**. It explains what the "
-            "retrieved law says; what it means for you is for a lawyer."
+            "- **You write what happened, in your own words.** No forms, no legal terms. "
+            "Recourse reads it the way a person would.\n"
+            "- **The law is not the model's to give.** Every provision and every judgment "
+            "in an answer is drawn from a curated, verified corpus of Indian criminal law "
+            "and the rulings that have construed it. The language model's role is narrow — "
+            "it locates the passages that fit your facts and renders them in plain words. "
+            "It does not carry the law in its head, and it does not decide.\n"
+            "- **The exact offence is pinned, not guessed.** Name an accusation in "
+            "ordinary words — theft, cheating, hurt, forgery, a bounced cheque, a frozen "
+            "account — and Recourse anchors it to the precise section, so the answer "
+            "cites the provision that actually bites.\n"
+            "- **Every answer is checked before it reaches you.** A section it never "
+            "retrieved, a wrong cognisable/bailable claim, a judgment pushed past what it "
+            "holds — each is caught and stripped out. What survives is only what the "
+            "corpus supports.\n"
+            "- **It tells you what it cannot be sure of.** A section renumbered from the "
+            "old codes, a judgment whose standing is unsettled, a matter beyond its "
+            "reach — Recourse says so, rather than filling the gap with a guess.\n"
+            "- **What it reaches today.** Arrest, FIR, police procedure and bail under the "
+            "BNS and BNSS; cheque-dishonour cases under Section 138; the freezing of a "
+            "bank account; and the impersonation and identity offences of the Information "
+            "Technology Act. The map is being widened — other major Acts are next, and "
+            "that work does not stop.\n"
+            "- **The model never reaches a verdict on your case.** It lays out what the "
+            "law requires and what the courts have said. What that means for *you* is a "
+            "question for a lawyer — and Recourse says so, every time."
         )
 
     with st.expander("About Recourse"):
         st.markdown(
-            "**Who it is for.** The person a criminal case is happening to, and their "
-            "family — at the moment it is happening. Not law firms.\n\n"
-            "**Why it exists.** More than three-quarters of India's prison population are "
-            "undertrials — people not convicted of anything. When the police come, most "
-            "people and their families have never heard that an arrest must come with "
-            "written grounds, that a woman cannot ordinarily be arrested after sunset, or "
-            "that a missed chargesheet deadline makes bail a matter of right. Rights that "
-            "exist on paper are lost in the first 24 hours because nobody in the room "
-            "knows them.\n\n"
-            "**What it does.** Takes a plain-language description and returns a short "
-            "**what-to-do-right-now**, the **exact sections** that apply, what the **real "
-            "judgments** say, and — where an arrest has happened — a check of the actual "
-            "arrest papers against the safeguards.\n\n"
-            "**What it is not.** Not legal advice. It cannot see anything beyond what you "
-            "type. It is orientation and a starting point — the next step is always a "
-            "lawyer. Your nearest **District Legal Services Authority** provides that help "
-            "free.\n\n"
-            "**How it was built.** The engine — checked retrieval, the IPC-to-BNS mapping, "
-            "the offence anchors, the rule that the model never states a verdict — was "
-            "built over several months. The access-to-justice layer on top (this "
-            "interface, the plain-language framing, the paper check) was built for the "
-            "ILTN Vibeathon."
+            "**Who it is for.** The person a criminal case is happening to, and the "
+            "family standing beside them — at the moment it is happening. Not law firms.\n\n"
+            "**Why it exists.** More than three in four people in India's prisons are "
+            "undertrials — not convicted of anything. When the police arrive, almost "
+            "nobody in the room knows that an arrest must carry written grounds, that a "
+            "woman ordinarily cannot be taken away after sunset, or that a missed "
+            "chargesheet deadline turns bail into a right. Rights that exist on paper are "
+            "lost in the first twenty-four hours, for want of anyone who knows them. "
+            "Recourse puts that knowledge in the room.\n\n"
+            "**What it does.** You describe the situation in plain words. Recourse returns "
+            "what you can do **right now**, the **exact provisions** in play, what the "
+            "**real judgments** hold, and — where an arrest has happened — a check of the "
+            "actual papers against the safeguards, and a **draft you can take to a lawyer "
+            "or a court**.\n\n"
+            "**What it is not.** Not legal advice. It sees only what you type. It is "
+            "orientation and a first foothold — the next step is always a lawyer, and "
+            "your nearest **District Legal Services Authority** provides one free.\n\n"
+            "**How it is built.** The core — checked retrieval, the old-code-to-new-code "
+            "mapping, the offence anchors, and the hard rule that the model never returns "
+            "a verdict — has been built and stress-tested over many months. The layer "
+            "that makes it usable by a frightened family in the first hour is where the "
+            "work now lives, and where it keeps going. Recourse is an ongoing project "
+            "with a long way still to run."
         )
 
     st.markdown(
