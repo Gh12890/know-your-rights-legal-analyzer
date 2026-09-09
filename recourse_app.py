@@ -198,18 +198,22 @@ h4{ font-size:1.04rem !important; font-weight:600 !important; margin:1.4rem 0 .3
   box-shadow:0 0 0 3px var(--seal-tint) !important; }
 
 /* ---------- primary action ---------- */
-button[kind="primary"], button[kind="primaryFormSubmit"]{
+button[kind="primary"], button[kind="primaryFormSubmit"],
+[data-testid="stDownloadButton"] button[kind="primary"]{
   background:var(--seal) !important; border:1px solid var(--seal-deep) !important;
   color:#fff !important; font-family:"IBM Plex Sans",sans-serif !important;
   font-weight:600 !important; font-size:.98rem !important; letter-spacing:.01em;
   border-radius:var(--r-md) !important; padding:.62rem 1.5rem !important;
   width:100%; margin-top:1rem; box-shadow:var(--lift-sm);
   transition:background .14s ease, box-shadow .14s ease, transform .14s ease; }
-button[kind="primary"]:hover, button[kind="primaryFormSubmit"]:hover{
+button[kind="primary"]:hover, button[kind="primaryFormSubmit"]:hover,
+[data-testid="stDownloadButton"] button[kind="primary"]:hover{
   background:var(--seal-deep) !important; box-shadow:var(--lift); transform:translateY(-1px); }
-button[kind="primary"]:focus-visible, button[kind="primaryFormSubmit"]:focus-visible{
+button[kind="primary"]:focus-visible, button[kind="primaryFormSubmit"]:focus-visible,
+[data-testid="stDownloadButton"] button[kind="primary"]:focus-visible{
   outline:2px solid var(--seal-deep); outline-offset:2px; }
-button[kind="primary"] p, button[kind="primaryFormSubmit"] p{
+button[kind="primary"] p, button[kind="primaryFormSubmit"] p,
+[data-testid="stDownloadButton"] button[kind="primary"] p{
   color:#fff !important; font-size:.98rem !important; font-weight:600 !important; }
 [data-testid="stForm"]{ border:0 !important; padding:0 !important; }
 
@@ -935,7 +939,11 @@ def render_petition_draft(question_text, *, checklist_result=None, doc_check_res
         st.text_area("Draft (editable)", height=480, key=text_key)
 
         pdf_key = f"_petition_pdf_{sig}"
-        if st.button("Prepare PDF", key=f"_petition_btn_{sig}"):
+        st.markdown('<p class="r-foot" style="margin:.6rem 0 .1rem">When the draft reads '
+                    'right, turn it into a formatted PDF you can print or email.</p>',
+                    unsafe_allow_html=True)
+        if st.button("Prepare the PDF  →", key=f"_petition_btn_{sig}",
+                     type="primary", use_container_width=True):
             import os, tempfile
             try:
                 path = _pd.to_pdf(
@@ -950,9 +958,10 @@ def render_petition_draft(question_text, *, checklist_result=None, doc_check_res
 
         if st.session_state.get(pdf_key):
             st.download_button(
-                "Download draft (PDF)", data=st.session_state[pdf_key],
+                "Download the draft (PDF)  ↓", data=st.session_state[pdf_key],
                 file_name="recourse_criminal_petition_draft.pdf",
-                mime="application/pdf", key=f"_petition_dl_{sig}")
+                mime="application/pdf", key=f"_petition_dl_{sig}",
+                type="primary", use_container_width=True)
 
 
 # --------------------------------------------------------------------------
