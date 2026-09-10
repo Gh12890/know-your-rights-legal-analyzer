@@ -39,3 +39,6 @@ related_judgments_approved.json
 # while curating a batch into corpus/+chunks/. Once approved paragraphs
 # are written to corpus/chunks, this working file is redundant.
 seed_full_text*.json
+
+# submission working files (screenshots, gallery framing) -- not part of the app
+tool_snapshots/
