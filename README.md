@@ -208,8 +208,8 @@ The live product is **`recourse_app.py`** (Streamlit, at recourse.co.in) over th
 ## Run it locally
 
 ```bash
-git clone https://github.com/Tanbir-Ahm/know-your-rights-legal-analyzer.git
-cd know-your-rights-legal-analyzer
+git clone https://github.com/Tanbir-Ahm/recourse.git
+cd recourse
 
 python -m venv venv
 venv\Scripts\activate          # Windows
