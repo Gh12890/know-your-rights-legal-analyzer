@@ -420,10 +420,32 @@ import re as _re_lbl
 _LEAD_LABEL = _re_lbl.compile(
     r"(?m)^(\s{0,3})(\*\*[^*\n]{2,44}?\*\*)(:?)[ \t]+(?=\S)")
 
+# A whole line (optionally after a "1." / "-" list marker) wrapped end to
+# end in ** -- i.e. a bolded *sentence*, not a label. The answer-card CSS
+# turns any paragraph that is only a <strong> into a small-caps sub-head:
+# fine for "**Right now**", a wall of shouting caps for a bolded sentence
+# (seen in the engine's numbered "what the law says" list). Keep a short
+# leading label bold, unwrap the rest.
+_WHOLE_LINE_BOLD = _re_lbl.compile(
+    r"(?m)^(\s{0,4}(?:\d{1,2}[.)]\s+|[-*]\s+)?)\*\*([^\n]+?)\*\*[ \t]*$")
+
+
+def _tame_sentence_bold(md: str) -> str:
+    def repl(m):
+        prefix, inner = m.group(1), m.group(2)
+        if "**" in inner or len(inner) <= 48:
+            return m.group(0)                     # a genuine short label -- leave it
+        head, sep, tail = inner.partition(":")
+        if sep and len(head) <= 48 and tail.strip():
+            return f"{prefix}**{head.strip()}:** {tail.strip()}"
+        return f"{prefix}{inner}"                 # no label -- just drop the bold
+    return _WHOLE_LINE_BOLD.sub(repl, md)
+
 
 def _promote_answer_labels(md: str) -> str:
     if not md:
         return md
+    md = _tame_sentence_bold(md)
     return _LEAD_LABEL.sub(lambda m: f"{m.group(1)}{m.group(2)}{m.group(3)}\n\n", md)
 
 
@@ -624,11 +646,15 @@ def _clean_excerpt(text: str) -> str:
     untouched."""
     if not text:
         return ""
+    text = _html.unescape(text)                          # &amp; / &nbsp; from scraped chunks
     out = []
     for line in text.replace("\x0c", "\n").split("\n"):
+        line = _re.sub(r"</?[a-zA-Z][^>]*>", "", line)    # stray HTML tags (</div>, <br>)
+        line = _re.sub(r"^\s+", "", line.rstrip())        # PDF column indent -> flush left
+        line = _re.sub(r"\s{2,}", " ", line)              # collapse wide inter-word gaps
         if _PAGE_CRUFT.match(line):
             continue
-        out.append(line.rstrip())
+        out.append(line)
     cleaned = "\n".join(out)
     cleaned = _re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
