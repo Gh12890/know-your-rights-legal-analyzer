@@ -419,8 +419,17 @@ import re as _re_lbl
 # *begin* with a <= 48-char bold label; body text is untouched. The cap
 # MUST match _tame_sentence_bold's below -- see that function's docstring
 # for why a gap between the two is a real, confirmed bug, not a nitpick.
+#
+# The separator after the label is EITHER inline whitespace ("**Label**
+# body on the same line") OR a single bare newline ("**Label**\nbody on
+# the next line") -- CONFIRMED LIVE 2026-09-11: "**The law on theft:**"
+# followed by one \n then a full paragraph of explanation is still ONE
+# markdown paragraph (only a BLANK line, \n\n, starts a new one), so
+# <strong> was still the paragraph's only element child and the whole
+# explanation got capitalised with it. The `(?!\n)` guard skips a
+# separator that's already a real blank line (already fine, don't touch).
 _LEAD_LABEL = _re_lbl.compile(
-    r"(?m)^(\s{0,3})(\*\*[^*\n]{2,48}?\*\*)(:?)[ \t]+(?=\S)")
+    r"(?m)^(\s{0,3})(\*\*[^*\n]{2,48}?\*\*)(:?)(?:[ \t]+|\n(?!\n))(?=\S)")
 
 # A leading bold run at the start of a line (optionally after a "1." /
 # "-" list marker) -- i.e. a bolded *sentence* or clause, not a label.
