@@ -416,29 +416,53 @@ import re as _re_lbl
 # When they sit inline at the start of a paragraph the reader gets no
 # hierarchy. Push a short leading label onto its own line so the answer
 # card's CSS renders it as a real sub-head. Only touches lines that
-# *begin* with a <= ~44-char bold label; body text is untouched.
+# *begin* with a <= 48-char bold label; body text is untouched. The cap
+# MUST match _tame_sentence_bold's below -- see that function's docstring
+# for why a gap between the two is a real, confirmed bug, not a nitpick.
 _LEAD_LABEL = _re_lbl.compile(
-    r"(?m)^(\s{0,3})(\*\*[^*\n]{2,44}?\*\*)(:?)[ \t]+(?=\S)")
+    r"(?m)^(\s{0,3})(\*\*[^*\n]{2,48}?\*\*)(:?)[ \t]+(?=\S)")
 
-# A whole line (optionally after a "1." / "-" list marker) wrapped end to
-# end in ** -- i.e. a bolded *sentence*, not a label. The answer-card CSS
-# turns any paragraph that is only a <strong> into a small-caps sub-head:
-# fine for "**Right now**", a wall of shouting caps for a bolded sentence
-# (seen in the engine's numbered "what the law says" list). Keep a short
-# leading label bold, unwrap the rest.
+# A leading bold run at the start of a line (optionally after a "1." /
+# "-" list marker) -- i.e. a bolded *sentence* or clause, not a label.
+# Deliberately NOT anchored to end-of-line: the answer-card CSS rule is
+# `p:has(> strong:only-child)`, and CSS :only-child counts ELEMENT
+# siblings only -- a <strong> followed by plain prose in the SAME <p>
+# (no other element in that paragraph) still matches it, so the ENTIRE
+# paragraph -- the bold clause AND the plain text after it -- gets
+# capitalised. CONFIRMED LIVE 2026-09-11: "But safeguards still apply
+# fully at this stage." (47 chars, <p><strong>...</strong> more prose
+# ...</p>, no other element in that paragraph) rendered as a wall of
+# caps on recourse.co.in. An end-of-line-anchored regex can never catch
+# this shape -- the bold does not extend to the end of the line, more
+# prose follows on the same line. (A neighbouring paragraph with an
+# identical shape happened to escape only because it also contained an
+# unrelated *italic* word later on, which gives the paragraph a second
+# element child and breaks :only-child by luck, not by design -- not a
+# fix to rely on.)
 _WHOLE_LINE_BOLD = _re_lbl.compile(
-    r"(?m)^(\s{0,4}(?:\d{1,2}[.)]\s+|[-*]\s+)?)\*\*([^\n]+?)\*\*[ \t]*$")
+    r"(?m)^(\s{0,4}(?:\d{1,2}[.)]\s+|[-*]\s+)?)\*\*([^*\n]+?)\*\*")
 
 
 def _tame_sentence_bold(md: str) -> str:
     def repl(m):
         prefix, inner = m.group(1), m.group(2)
-        if "**" in inner or len(inner) <= 48:
-            return m.group(0)                     # a genuine short label -- leave it
+        if "**" in inner:
+            return m.group(0)
         head, sep, tail = inner.partition(":")
         if sep and len(head) <= 48 and tail.strip():
             return f"{prefix}**{head.strip()}:** {tail.strip()}"
-        return f"{prefix}{inner}"                 # no label -- just drop the bold
+        # A genuine label ("Right now", "What the law says") is a short
+        # PHRASE with no terminal punctuation. Anything ending in . / ! / ?
+        # is a full sentence even when short -- "But safeguards still apply
+        # fully at this stage." is 47 characters and would otherwise pass
+        # a pure length check, then get pushed onto its own line by
+        # _LEAD_LABEL and rendered as a shouted one-line sub-head (the CSS
+        # caps ANY paragraph that is just a <strong>, sentence or not).
+        # Only true short labels stay bold here; _LEAD_LABEL then promotes
+        # them to a real sub-head.
+        if len(inner) <= 48 and not inner.rstrip().endswith((".", "!", "?")):
+            return m.group(0)                     # a genuine short label -- leave it
+        return f"{prefix}{inner}"                 # a sentence -- just drop the bold
     return _WHOLE_LINE_BOLD.sub(repl, md)
 
 
